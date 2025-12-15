@@ -456,3 +456,5 @@ input:focus { border-color: var(--accent-gold); }
 }
 .autocomplete-item:last-child { border-bottom: none; }
 
+@import 'detail.css';
+

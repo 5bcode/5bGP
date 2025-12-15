@@ -200,6 +200,109 @@
                 </div>
             </div>
 
+            <!-- VIEW: ITEM DETAIL -->
+            <div id="view-item-detail" class="view-section hidden">
+                <div class="detail-header">
+                    <button id="back-btn" class="text-btn"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                    <div class="detail-title-row">
+                        <div class="detail-name-group">
+                            <img id="detail-icon" src="" alt="" class="large-icon">
+                            <h1 id="detail-name">Item Name</h1>
+                            <i id="detail-fav-btn" class="fa-regular fa-star star-btn action-icon"></i>
+                        </div>
+                        <div class="detail-price-group">
+                            <span id="detail-current-price" class="huge-price">0</span>
+                            <span id="detail-price-change" class="price-change">0%</span>
+                        </div>
+                    </div>
+                    <div class="detail-meta">
+                        <span id="detail-last-updated">Last traded -- ago</span>
+                    </div>
+                </div>
+
+                <div class="detail-chart-section card">
+                    <canvas id="detail-chart"></canvas>
+                </div>
+
+                <div class="detail-grid">
+                    <!-- Key Info Card -->
+                    <div class="card detail-card">
+                        <div class="card-header"><h3>Key Info</h3></div>
+                        <div class="card-body grid-body">
+                            <div class="stat-item">
+                                <label>Buy Price</label>
+                                <span id="detail-buy">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Sell Price</label>
+                                <span id="detail-sell">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Margin</label>
+                                <span id="detail-margin" class="highlight">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Tax</label>
+                                <span id="detail-tax">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>ROI</label>
+                                <span id="detail-roi" class="highlight">0%</span>
+                            </div>
+                             <div class="stat-item">
+                                <label>Potential Profit (Limit)</label>
+                                <span id="detail-potential" class="highlight-green">0</span>
+                            </div>
+                             <div class="stat-item">
+                                <label>GE Limit</label>
+                                <span id="detail-limit">0</span>
+                            </div>
+                             <div class="stat-item">
+                                <label>Daily Volume</label>
+                                <span id="detail-volume">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- High Alch Card -->
+                    <div class="card detail-card">
+                        <div class="card-header"><h3>High Alchemy</h3></div>
+                        <div class="card-body grid-body">
+                            <div class="stat-item">
+                                <label>High Alch Value</label>
+                                <span id="detail-alch-value">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Nature Rune Cost</label>
+                                <span id="detail-nature-cost">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Profit per Item</label>
+                                <span id="detail-alch-profit">0</span>
+                            </div>
+                             <div class="stat-item">
+                                <label>ROI</label>
+                                <span id="detail-alch-roi">0%</span>
+                            </div>
+                             <div class="stat-item">
+                                <label>Max Profit (Limit)</label>
+                                <span id="detail-alch-potential">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- External Links / More -->
+                    <div class="card detail-card full-width">
+                        <div class="card-header"><h3>Actions & Links</h3></div>
+                        <div class="card-body action-body">
+                            <a id="link-wiki" href="#" target="_blank" class="external-link"><i class="fa-solid fa-book"></i> OSRS Wiki</a>
+                            <a id="link-ge" href="#" target="_blank" class="external-link"><i class="fa-solid fa-shop"></i> Official GE</a>
+                             <button id="detail-add-portfolio" class="action-btn-primary"><i class="fa-solid fa-plus"></i> Add to Portfolio</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- VIEW: SCREENER (Old Table) -->
             <div id="view-screener" class="view-section hidden">
                 <section class="filters-panel">

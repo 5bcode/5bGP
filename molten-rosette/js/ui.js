@@ -6,11 +6,11 @@ import { isFavorite, toggleFavorite } from './favorites.js';
 import { loadPortfolio, addFlip, completeFlip, deleteFlip, getFlips, getPortfolioSummary, updateFlip } from './portfolio.js';
 
 // State
-let itemsMap = {}; // id -> { name, limit, icon, value }
-let pricesMap = {}; // id -> { high, low, highTime, lowTime }
-let tableData = []; // Array of merged objects for the table
+let itemsMap = {}; 
+let pricesMap = {}; 
+let tableData = []; 
 let currentSort = { field: 'margin', direction: 'desc' };
-let natureRunePrice = 200; // Default fallback, updated on init
+let natureRunePrice = 200; 
 
 // DOM Elements
 const tableBody = document.getElementById('table-body');
@@ -27,18 +27,15 @@ const views = {
     dashboard: document.getElementById('view-dashboard'),
     screener: document.getElementById('view-screener'),
     highlights: document.getElementById('view-highlights'),
-    portfolio: document.getElementById('view-portfolio')
+    portfolio: document.getElementById('view-portfolio'),
+    itemDetail: document.getElementById('view-item-detail')
 };
+let lastViewId = 'dashboard';
+
 const highlightsTable = document.getElementById('highlights-table');
 const highlightsTitle = document.getElementById('highlights-title');
 const highlightTabs = document.querySelectorAll('.tab-btn');
 let currentHighlightTab = 'high-volume';
-
-// Modal Elements
-const modal = document.getElementById('item-modal');
-const closeModal = document.querySelector('.close-modal');
-const modalItemName = document.getElementById('modal-item-name');
-const chartCanvas = document.getElementById('price-chart');
 
 // Portfolio Modal Elements
 const addFlipModal = document.getElementById('add-flip-modal');
@@ -47,14 +44,14 @@ const addFlipBtn = document.getElementById('add-flip-btn');
 const addFlipForm = document.getElementById('add-flip-form');
 const flipItemNameInput = document.getElementById('flip-item-name');
 const flipItemResults = document.getElementById('flip-item-results');
-let selectedFlipItemId = null; // To store selected ID from autocomplete
+let selectedFlipItemId = null; 
 
 // Icons base URL (OSRS Wiki)
 const ICON_BASE = 'https://oldschool.runescape.wiki/images/'; 
 
 async function init() {
     try {
-        loadPortfolio(); // Load saved portfolio data
+        loadPortfolio(); 
         
         statusSpan.textContent = 'Loading Item Mapping...';
         const mapping = await fetchMapping();
@@ -90,7 +87,6 @@ async function updatePrices() {
         const prices = await fetchLatestPrices();
         pricesMap = prices.data || prices; 
         
-        // Update Nature Rune Price dynamically (ID: 561)
         if (pricesMap['561']) {
             natureRunePrice = pricesMap['561'].high;
         }
@@ -100,6 +96,14 @@ async function updatePrices() {
         renderDashboard();
         if (!views.highlights.classList.contains('hidden')) renderHighlights();
         if (!views.portfolio.classList.contains('hidden')) renderPortfolio();
+        
+        // If viewing an item, update its details in real-time
+        if (!views.itemDetail.classList.contains('hidden')) {
+            const currentItemName = document.getElementById('detail-name').textContent;
+            // Reverse lookup ID from name is inefficient but simplest for now without storing state
+            const item = Object.values(itemsMap).find(i => i.name === currentItemName);
+            if(item) renderItemDetail(item.id, false); // false = don't refetch chart every tick
+        }
         
         const now = new Date();
         lastUpdatedSpan.textContent = `Last Updated: ${now.toLocaleTimeString()}`;
@@ -130,7 +134,6 @@ function processData() {
         const alchProfit = getAlchProfit(itemDef, effectiveBuy, natureRunePrice);
         const change1h = getPriceChange1h(effectiveSell, price.price1h);
         
-        // 24h Data
         const volume24h = price.volume24h || 0;
         const price24h = price.price24h || 0;
         const dayChange = effectiveSell - price24h;
@@ -167,11 +170,10 @@ function renderHighlights() {
     let data = [];
     let headers = '';
     let rowRenderer = null;
-    const now = Date.now() / 1000; // current ts in seconds
+    const now = Date.now() / 1000; 
 
     if (currentHighlightTab === 'high-volume') {
         highlightsTitle.textContent = 'Top 100 Profitable High Volume Items';
-        // Filter: >100k daily vol, profitable
         data = tableData
             .filter(i => i.volume24h > 100000 && i.margin > 0)
             .sort((a, b) => b.potentialProfit - a.potentialProfit)
@@ -183,7 +185,6 @@ function renderHighlights() {
             <th>Day Change</th>
             <th>Day Change %</th>
             <th>Potential Profit</th>
-            <th>Actions</th>
         </tr>`;
         
         rowRenderer = (item) => `
@@ -199,10 +200,9 @@ function renderHighlights() {
     } 
     else if (currentHighlightTab === 'gainers') {
         highlightsTitle.textContent = 'Top 100 Gainers (Last 10m)';
-        // Filter: Traded in last 10m (600s), change1h > 0
         data = tableData
             .filter(i => (now - i.timestamp) < 600 && i.change1h > 0)
-            .sort((a, b) => b.change1h - a.change1h) // Sort by absolute gain? Or %? Usually % is fairer but request implies absolute
+            .sort((a, b) => b.change1h - a.change1h)
             .slice(0, 100);
 
         headers = `<tr>
@@ -210,7 +210,6 @@ function renderHighlights() {
             <th>Price</th>
             <th>Change (1h)</th>
             <th>ROI %</th>
-            <th>Actions</th>
         </tr>`;
 
         rowRenderer = (item) => `
@@ -221,10 +220,9 @@ function renderHighlights() {
     }
     else if (currentHighlightTab === 'losers') {
         highlightsTitle.textContent = 'Top 100 Losers (Last 10m)';
-        // Filter: Traded in last 10m, change1h < 0
         data = tableData
             .filter(i => (now - i.timestamp) < 600 && i.change1h < 0)
-            .sort((a, b) => a.change1h - b.change1h) // Ascending (most negative first)
+            .sort((a, b) => a.change1h - b.change1h) 
             .slice(0, 100);
 
         headers = `<tr>
@@ -232,7 +230,6 @@ function renderHighlights() {
             <th>Price</th>
             <th>Change (1h)</th>
             <th>ROI %</th>
-            <th>Actions</th>
         </tr>`;
 
         rowRenderer = (item) => `
@@ -255,42 +252,38 @@ function renderHighlights() {
         
         tr.innerHTML = `
             <td>
-                <div style="display:flex; align-items:center;">
-                    <i class="star-btn fa-star ${starClass}" data-id="${item.id}"></i>
+                <div style="display:flex; align-items:center; cursor:pointer;" class="clickable-item" data-id="${item.id}">
+                    <i class="star-btn fa-star ${starClass}" data-id="${item.id}" style="margin-right:8px;"></i>
                     ${iconUrl ? `<img src="${iconUrl}" class="item-icon" style="margin-right:8px;" loading="lazy">` : ''}
-                    <span>${item.name}</span>
+                    <span class="hover-underline">${item.name}</span>
                 </div>
             </td>
             ${rowRenderer(item)}
-            <td>
-                <button class="action-btn chart-btn" data-id="${item.id}" title="View Chart">
-                    <i class="fa-solid fa-chart-line"></i>
-                </button>
-            </td>
         `;
         tbody.appendChild(tr);
     });
     
-    // Re-attach listeners (copy-paste from renderTable essentially)
     attachCommonListeners(highlightsTable);
 }
 
-// Helper to avoid duplicate listener code
 function attachCommonListeners(container) {
-    container.querySelectorAll('.chart-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const target = e.target.closest('button'); 
-            if(target) openModal(target.dataset.id);
+    // Navigate to Detail View
+    container.querySelectorAll('.clickable-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+            // Prevent if clicking star
+            if(e.target.classList.contains('star-btn')) return;
+            const id = el.dataset.id;
+            navigateToItem(id);
         });
     });
 
     container.querySelectorAll('.star-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Stop row click
             const id = e.target.dataset.id;
             toggleFavorite(id);
             const item = tableData.find(i => i.id == id);
             if (item) item.fav = !item.fav;
-            // Rerender both tables just in case
             if (!views.screener.classList.contains('hidden')) renderTable();
             if (!views.highlights.classList.contains('hidden')) renderHighlights();
         });
@@ -298,40 +291,17 @@ function attachCommonListeners(container) {
 }
 
 function renderDashboard() {
-    // 1. Largest Margins
-    const topMargins = [...tableData]
-        .sort((a, b) => b.margin - a.margin)
-        .slice(0, 8);
-    renderMiniTable('table-margins', topMargins, (item) => `
-        <td class="text-green">+${formatNumber(item.margin)}</td>
-    `);
+    const topMargins = [...tableData].sort((a, b) => b.margin - a.margin).slice(0, 8);
+    renderMiniTable('table-margins', topMargins, (item) => `<td class="text-green">+${formatNumber(item.margin)}</td>`);
 
-    // 2. High Volume Profit (Score > 70 & Vol > 100)
-    const highVol = tableData
-        .filter(i => i.volume > 100)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 8);
-    renderMiniTable('table-volume', highVol, (item) => `
-        <td class="text-green">+${formatNumber(item.margin)}</td>
-    `);
+    const highVol = tableData.filter(i => i.volume > 100).sort((a, b) => b.score - a.score).slice(0, 8);
+    renderMiniTable('table-volume', highVol, (item) => `<td class="text-green">+${formatNumber(item.margin)}</td>`);
 
-    // 3. Profitable Alchs
-    const topAlchs = tableData
-        .filter(i => i.alchProfit > 0)
-        .sort((a, b) => b.alchProfit - a.alchProfit)
-        .slice(0, 8);
-    renderMiniTable('table-alchs', topAlchs, (item) => `
-        <td class="text-green">+${formatNumber(item.alchProfit)}</td>
-    `);
+    const topAlchs = tableData.filter(i => i.alchProfit > 0).sort((a, b) => b.alchProfit - a.alchProfit).slice(0, 8);
+    renderMiniTable('table-alchs', topAlchs, (item) => `<td class="text-green">+${formatNumber(item.alchProfit)}</td>`);
 
-    // 4. Top Gainers
-    const gainers = tableData
-        .filter(i => i.change1h > 0)
-        .sort((a, b) => b.change1h - a.change1h)
-        .slice(0, 8);
-    renderMiniTable('table-gainers', gainers, (item) => `
-        <td class="text-green">+${formatNumber(item.change1h)}</td>
-    `);
+    const gainers = tableData.filter(i => i.change1h > 0).sort((a, b) => b.change1h - a.change1h).slice(0, 8);
+    renderMiniTable('table-gainers', gainers, (item) => `<td class="text-green">+${formatNumber(item.change1h)}</td>`);
 }
 
 function renderMiniTable(tableId, data, extraCellRenderer) {
@@ -340,23 +310,25 @@ function renderMiniTable(tableId, data, extraCellRenderer) {
     
     data.forEach(item => {
         const tr = document.createElement('tr');
-        // Wiki icons are usually capitalized with underscores
         const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
 
         tr.innerHTML = `
             <td>
-                ${iconUrl ? `<img src="${iconUrl}" class="item-icon" loading="lazy">` : ''}
-                <span>${item.name}</span>
+                <div style="display:flex; align-items:center; cursor:pointer;" class="clickable-item" data-id="${item.id}">
+                    ${iconUrl ? `<img src="${iconUrl}" class="item-icon" loading="lazy">` : ''}
+                    <span class="hover-underline" style="margin-left:5px;">${item.name}</span>
+                </div>
             </td>
             <td>${formatNumber(item.sellPrice)}</td>
             ${extraCellRenderer(item)}
         `;
         tbody.appendChild(tr);
     });
+    
+    attachCommonListeners(tbody);
 }
 
 function renderTable() {
-    // Screener Logic (Same as before)
     const query = searchInput.value.toLowerCase();
     const minMargin = parseFloat(minMarginInput.value) || 0;
     const minVol = parseFloat(minVolumeInput.value) || 0;
@@ -369,19 +341,15 @@ function renderTable() {
     });
 
     filtered.sort((a, b) => {
-        // Favorites always on top
         if (a.fav && !b.fav) return -1;
         if (!a.fav && b.fav) return 1;
-
         const valA = a[currentSort.field];
         const valB = b[currentSort.field];
-        
         if (currentSort.direction === 'asc') return valA - valB;
         return valB - valA;
     });
 
     const displaySet = filtered.slice(0, 100);
-
     tableBody.innerHTML = '';
     
     displaySet.forEach(item => {
@@ -390,19 +358,16 @@ function renderTable() {
         
         const remainingLimit = getRemainingLimit(item.id, item.limit);
         const marginClass = item.margin > 0 ? 'profit-positive' : 'profit-negative';
-        
         const starClass = item.fav ? 'star-active fa-solid' : 'star-inactive fa-regular';
         const pumpBadge = item.pump ? '<span class="pump-badge" title="High Volume Spike"><i class="fa-solid fa-triangle-exclamation"></i></span>' : '';
-        
-        // Use icon in main table too
         const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
 
         tr.innerHTML = `
             <td>
-                <div style="display:flex; align-items:center;">
-                    <i class="star-btn fa-star ${starClass}" data-id="${item.id}"></i>
+                <div style="display:flex; align-items:center; cursor:pointer;" class="clickable-item" data-id="${item.id}">
+                    <i class="star-btn fa-star ${starClass}" data-id="${item.id}" style="margin-right:8px;"></i>
                     ${iconUrl ? `<img src="${iconUrl}" class="item-icon" style="margin-right:8px;" loading="lazy">` : ''}
-                    <span>${item.name} ${pumpBadge}</span>
+                    <span class="hover-underline">${item.name} ${pumpBadge}</span>
                 </div>
             </td>
             <td>${formatNumber(item.buyPrice)}</td>
@@ -413,32 +378,153 @@ function renderTable() {
             <td>${formatNumber(item.volume)}</td>
             <td>${item.limit ? `${formatNumber(remainingLimit)} / ${formatNumber(item.limit)}` : '-'}</td>
             <td>
-                <button class="action-btn chart-btn" data-id="${item.id}" title="View Chart">
-                    <i class="fa-solid fa-chart-line"></i>
-                </button>
+                <!-- Actions removed from here, click row/name instead -->
             </td>
         `;
-        
         tableBody.appendChild(tr);
     });
 
-    // Re-attach listeners
     attachCommonListeners(tableBody);
+}
+
+// --- ITEM DETAIL VIEW ---
+
+async function navigateToItem(itemId) {
+    // Save current view to go back to
+    const currentActive = document.querySelector('.nav-links li.active');
+    if (currentActive) {
+        lastViewId = currentActive.dataset.view;
+    }
+
+    // Hide all views
+    Object.values(views).forEach(v => v.classList.add('hidden'));
+    
+    // Show Detail View
+    views.itemDetail.classList.remove('hidden');
+    
+    // Deactivate nav links
+    navLinks.forEach(l => l.classList.remove('active'));
+
+    await renderItemDetail(itemId, true);
+}
+
+async function renderItemDetail(itemId, updateChart = true) {
+    const item = itemsMap[itemId];
+    const prices = pricesMap[itemId] || {};
+    
+    if (!item) return;
+
+    // Header
+    document.getElementById('detail-name').textContent = item.name;
+    const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
+    document.getElementById('detail-icon').src = iconUrl;
+    
+    const favBtn = document.getElementById('detail-fav-btn');
+    const isFav = isFavorite(itemId);
+    favBtn.className = isFav ? 'fa-solid fa-star star-btn action-icon star-active' : 'fa-regular fa-star star-btn action-icon';
+    // Remove old listeners to avoid dupes (cloneNode trick)
+    const newFavBtn = favBtn.cloneNode(true);
+    favBtn.parentNode.replaceChild(newFavBtn, favBtn);
+    newFavBtn.addEventListener('click', () => {
+        toggleFavorite(itemId);
+        renderItemDetail(itemId, false); // re-render icon
+    });
+
+    // Prices
+    const sellPrice = prices.high || 0;
+    const buyPrice = prices.low || 0;
+    document.getElementById('detail-current-price').textContent = formatNumber(sellPrice);
+    
+    // Price Change
+    const price24h = prices.price24h || sellPrice; // fallback
+    const change = sellPrice - price24h;
+    const changePct = price24h ? ((change / price24h) * 100) : 0;
+    const changeSpan = document.getElementById('detail-price-change');
+    changeSpan.textContent = `${change > 0 ? '+' : ''}${changePct.toFixed(2)}% (24h)`;
+    changeSpan.className = `price-change ${change >= 0 ? 'text-green' : 'text-red'}`;
+
+    const lastTime = Math.max(prices.highTime || 0, prices.lowTime || 0);
+    const timeAgo = lastTime ? formatDuration(Date.now() - (lastTime * 1000)) : 'Unknown';
+    document.getElementById('detail-last-updated').textContent = `Last traded ${timeAgo} ago`;
+
+    // Key Info
+    const margin = getNetProfit(buyPrice, sellPrice);
+    const tax = calculateTax(sellPrice);
+    const roi = getROI(margin, buyPrice);
+    const limit = item.limit || 0;
+    const potential = margin * limit;
+    const volume = (prices.highPriceVolume || 0) + (prices.lowPriceVolume || 0); // 5m vol currently
+    // Note: Daily Volume is volume24h
+    const vol24 = prices.volume24h || 0;
+
+    document.getElementById('detail-buy').textContent = formatNumber(buyPrice);
+    document.getElementById('detail-sell').textContent = formatNumber(sellPrice);
+    document.getElementById('detail-margin').textContent = formatNumber(margin);
+    document.getElementById('detail-margin').className = margin > 0 ? 'text-green' : 'text-red';
+    document.getElementById('detail-tax').textContent = formatNumber(tax);
+    document.getElementById('detail-roi').textContent = `${roi.toFixed(2)}%`;
+    document.getElementById('detail-potential').textContent = formatNumber(potential);
+    document.getElementById('detail-limit').textContent = formatNumber(limit);
+    document.getElementById('detail-volume').textContent = formatNumber(vol24);
+
+    // High Alch
+    const alchVal = item.highalch || 0;
+    const alchProfit = getAlchProfit(item, buyPrice, natureRunePrice);
+    const alchCost = buyPrice + natureRunePrice;
+    const alchRoi = getROI(alchProfit, alchCost);
+    const alchPotential = alchProfit * limit;
+
+    document.getElementById('detail-alch-value').textContent = formatNumber(alchVal);
+    document.getElementById('detail-nature-cost').textContent = natureRunePrice;
+    document.getElementById('detail-alch-profit').textContent = formatNumber(alchProfit);
+    document.getElementById('detail-alch-profit').className = alchProfit > 0 ? 'text-green' : 'text-red';
+    document.getElementById('detail-alch-roi').textContent = `${alchRoi.toFixed(2)}%`;
+    document.getElementById('detail-alch-potential').textContent = formatNumber(alchPotential);
+    document.getElementById('detail-alch-potential').className = alchPotential > 0 ? 'text-green' : 'text-red';
+
+    // Links
+    const wikiName = item.name.replace(/ /g, '_');
+    document.getElementById('link-wiki').href = `https://oldschool.runescape.wiki/w/${wikiName}`;
+    document.getElementById('link-ge').href = `https://secure.runescape.com/m=itemdb_oldschool/viewitem?obj=${itemId}`;
+
+    // Add to Portfolio
+    const addBtn = document.getElementById('detail-add-portfolio');
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener('click', () => {
+        // Pre-fill modal
+        addFlipForm.reset();
+        addFlipModal.classList.remove('hidden');
+        
+        // We simulate the selection state
+        flipItemNameInput.value = item.name;
+        selectedFlipItemId = itemId;
+        flipItemResults.classList.add('hidden');
+        
+        document.getElementById('flip-buy-price').value = buyPrice;
+        document.getElementById('flip-sell-target').value = sellPrice;
+        document.getElementById('flip-qty').focus();
+    });
+
+    // Chart (only if requested, to save bandwidth on tick updates)
+    if (updateChart) {
+        const timeseries = await fetchItemTimeseries(itemId);
+        if (timeseries && timeseries.data) {
+            const ctx = document.getElementById('detail-chart').getContext('2d');
+            renderPriceChart(ctx, timeseries.data);
+        }
+    }
 }
 
 function setupEventListeners() {
     // Navigation Switching
     navLinks.forEach(link => {
         link.addEventListener('click', () => {
-            // Remove active class from all
             navLinks.forEach(l => l.classList.remove('active'));
-            // Add to click
             link.classList.add('active');
             
-            // Hide all views
             Object.values(views).forEach(v => v.classList.add('hidden'));
             
-            // Show target view
             const viewId = link.dataset.view;
             if(views[viewId]) {
                 views[viewId].classList.remove('hidden');
@@ -447,6 +533,25 @@ function setupEventListeners() {
                 if (viewId === 'portfolio') renderPortfolio();
             }
         });
+    });
+
+    // Back Button
+    document.getElementById('back-btn').addEventListener('click', () => {
+        // Hide detail
+        views.itemDetail.classList.add('hidden');
+        
+        // Show last view
+        if(views[lastViewId]) {
+            views[lastViewId].classList.remove('hidden');
+            
+            // Restore active nav
+            const nav = document.querySelector(`.nav-links li[data-view="${lastViewId}"]`);
+            if (nav) nav.classList.add('active');
+        } else {
+            // Default to dashboard
+            views.dashboard.classList.remove('hidden');
+            navLinks[0].classList.add('active');
+        }
     });
 
     // Highlights Tab Switching
@@ -486,37 +591,17 @@ function setupEventListeners() {
             minVolumeInput.value = 10;
             currentSort = { field: 'roi', direction: 'desc' };
         } else if (e.target.value === 'alch') {
-             // Basic preset logic, though Dashboard handles alchs better
              currentSort = { field: 'alchProfit', direction: 'desc' };
         }
         renderTable();
     });
 
-    closeModal.addEventListener('click', () => modal.classList.add('hidden'));
     window.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.add('hidden');
         if (e.target === addFlipModal) addFlipModal.classList.add('hidden');
     });
 }
 
-async function openModal(itemId) {
-    const item = itemsMap[itemId];
-    if (!item) return;
-
-    modalItemName.textContent = item.name;
-    modal.classList.remove('hidden');
-
-    const timeseries = await fetchItemTimeseries(itemId);
-    if (timeseries && timeseries.data) {
-        const ctx = chartCanvas.getContext('2d');
-        renderPriceChart(ctx, timeseries.data);
-    }
-}
-
-// --- PORTFOLIO LOGIC ---
-
 function setupPortfolioListeners() {
-    // Open Modal
     addFlipBtn.addEventListener('click', () => {
         addFlipForm.reset();
         selectedFlipItemId = null;
@@ -525,10 +610,8 @@ function setupPortfolioListeners() {
         flipItemNameInput.focus();
     });
 
-    // Close Modal
     closeFlipModal.addEventListener('click', () => addFlipModal.classList.add('hidden'));
 
-    // Autocomplete Item Search
     flipItemNameInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase();
         if (query.length < 2) {
@@ -536,7 +619,6 @@ function setupPortfolioListeners() {
             return;
         }
 
-        // Search in itemsMap
         const matches = Object.values(itemsMap)
             .filter(item => item.name.toLowerCase().includes(query))
             .slice(0, 8);
@@ -552,7 +634,6 @@ function setupPortfolioListeners() {
                     selectedFlipItemId = item.id;
                     flipItemResults.classList.add('hidden');
                     
-                    // Auto-fill prices if available
                     if (pricesMap[item.id]) {
                          document.getElementById('flip-buy-price').value = pricesMap[item.id].low || '';
                          document.getElementById('flip-sell-target').value = pricesMap[item.id].high || '';
@@ -566,13 +647,10 @@ function setupPortfolioListeners() {
         }
     });
 
-    // Handle Form Submit
     addFlipForm.addEventListener('submit', (e) => {
         e.preventDefault();
         
-        // Validation
         if (!selectedFlipItemId) {
-            // Try to find exact match if user typed full name but didn't click
             const name = flipItemNameInput.value.toLowerCase();
             const found = Object.values(itemsMap).find(i => i.name.toLowerCase() === name);
             if (found) {
@@ -597,13 +675,11 @@ function setupPortfolioListeners() {
         };
 
         addFlip(newFlip);
-        
-        // Track GE Limit
         trackPurchase(selectedFlipItemId, qty);
 
         addFlipModal.classList.add('hidden');
         renderPortfolio();
-        renderTable(); // Update Screener (limit column)
+        renderTable(); 
     });
 }
 
@@ -617,7 +693,6 @@ function renderPortfolio() {
 
     const summary = getPortfolioSummary(pricesMap, calculateTax);
 
-    // Update Stats
     document.getElementById('stat-invested').textContent = formatNumber(summary.invested);
     document.getElementById('stat-day-pnl').textContent = formatNumber(summary.dayProfit);
     document.getElementById('stat-day-pnl').className = `stat-value ${summary.dayProfit >= 0 ? 'text-green' : 'text-red'}`;
@@ -628,7 +703,6 @@ function renderPortfolio() {
     document.getElementById('stat-unrealized-pnl').textContent = formatNumber(summary.unrealizedProfit);
     document.getElementById('stat-unrealized-pnl').className = `stat-value ${summary.unrealizedProfit >= 0 ? 'text-green' : 'text-red'}`;
 
-    // Render Tables
     flips.slice().reverse().forEach(flip => {
         if (flip.status === 'active') {
             const currentPrice = pricesMap[flip.itemId] ? pricesMap[flip.itemId].high : flip.buyPrice;
@@ -640,9 +714,9 @@ function renderPortfolio() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
-                    <div style="display:flex; align-items:center;">
+                    <div style="display:flex; align-items:center; cursor:pointer;" class="clickable-item" data-id="${flip.itemId}">
                          ${getIconHtml(flip.itemId)}
-                         <span>${flip.name}</span>
+                         <span class="hover-underline">${flip.name}</span>
                     </div>
                 </td>
                 <td>${formatNumber(flip.qty)}</td>
@@ -671,9 +745,9 @@ function renderPortfolio() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                  <td>
-                    <div style="display:flex; align-items:center;">
+                    <div style="display:flex; align-items:center; cursor:pointer;" class="clickable-item" data-id="${flip.itemId}">
                          ${getIconHtml(flip.itemId)}
-                         <span>${flip.name}</span>
+                         <span class="hover-underline">${flip.name}</span>
                     </div>
                 </td>
                 <td>${formatNumber(flip.qty)}</td>
@@ -686,13 +760,14 @@ function renderPortfolio() {
         }
     });
 
-    // Attach Action Listeners
+    attachCommonListeners(activeTableBody);
+    attachCommonListeners(historyTableBody);
+
     document.querySelectorAll('.complete-flip-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const id = e.target.closest('button').dataset.id;
             const flip = flips.find(f => f.id === id);
             if(flip) {
-                // Prompt for actual sell price
                 const currentSell = pricesMap[flip.itemId]?.high || flip.targetSellPrice;
                 const priceStr = prompt(`Enter sell price for ${flip.name}:`, currentSell);
                 if(priceStr) {
@@ -716,10 +791,7 @@ function renderPortfolio() {
 
     document.getElementById('clear-history-btn').onclick = () => {
         if(confirm('Clear all completed flips history?')) {
-            // Filter in place
              const active = flips.filter(f => f.status === 'active');
-             // This is a bit hacky, better to have a clearHistory function in portfolio.js
-             // For now, I'll just iterate delete.
              flips.filter(f => f.status === 'completed').forEach(f => deleteFlip(f.id));
              renderPortfolio();
         }
