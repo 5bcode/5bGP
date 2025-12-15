@@ -4,6 +4,8 @@ import time
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from google.cloud import firestore
 from typing import Dict, Any
 
@@ -38,6 +40,18 @@ if FIRESTORE_PROJECT_ID:
     except Exception as e:
         print(f"Firestore connection failed: {e}. Using in-memory cache.")
 
+# Mount static files (Frontend)
+# We expect the 'molten-rosette' folder to be copied to 'static' in the container
+static_path = "static"
+if not os.path.exists(static_path):
+    # Fallback for local dev if running from cloud-run/api folder
+    static_path = "../../molten-rosette"
+
+if os.path.exists(static_path):
+    app.mount("/css", StaticFiles(directory=f"{static_path}/css"), name="css")
+    app.mount("/js", StaticFiles(directory=f"{static_path}/js"), name="js")
+    app.mount("/assets", StaticFiles(directory=f"{static_path}/assets"), name="assets")
+
 @app.on_event("startup")
 async def startup_event():
     # Initial load of mapping
@@ -46,8 +60,11 @@ async def startup_event():
     refresh_prices()
 
 @app.get("/")
-def read_root():
-    return {"status": "Flip to 5B API is running"}
+async def read_root():
+    # Serve index.html
+    if os.path.exists(f"{static_path}/index.html"):
+        return FileResponse(f"{static_path}/index.html")
+    return {"status": "Flip to 5B API is running (Frontend not found)"}
 
 @app.get("/mapping")
 def get_mapping():

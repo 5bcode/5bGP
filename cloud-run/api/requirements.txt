@@ -3,3 +3,4 @@ uvicorn
 requests
 google-cloud-firestore
 python-dotenv
+aiofiles

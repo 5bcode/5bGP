@@ -1,6 +1,9 @@
 // api.js
 
-const API_BASE = 'http://localhost:8080'; // Local dev default
+// Use relative path for production (same origin), fallback to localhost for separate dev servers
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:8080' // Keep explicit port for local dev split-mode
+    : ''; // Relative path for production (served from same origin)
 
 export async function fetchLatestPrices() {
     try {
