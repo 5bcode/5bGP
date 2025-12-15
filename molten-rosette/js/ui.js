@@ -1,7 +1,8 @@
 import { fetchLatestPrices, fetchMapping, fetchItemTimeseries } from './api.js';
-import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityScores } from './analysis.js';
+import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityScores, isPump } from './analysis.js';
 import { renderPriceChart } from './charts.js';
 import { getRemainingLimit, trackPurchase } from './limitTracker.js';
+import { isFavorite, toggleFavorite } from './favorites.js';
 
 // State
 let itemsMap = {}; // id -> { name, limit, icon, value }
@@ -88,6 +89,9 @@ function processData() {
         const roi = getROI(netProfit, effectiveBuy);
         
         const volume = (price.highPriceVolume || 0) + (price.lowPriceVolume || 0);
+        const volume1h = price.volume1h || 0;
+        const pump = isPump(volume, volume1h);
+        const fav = isFavorite(id);
 
         tableData.push({
             id: id,
@@ -98,6 +102,9 @@ function processData() {
             margin: netProfit,
             roi: roi,
             volume: volume,
+            volume1h: volume1h,
+            pump: pump,
+            fav: fav,
             limit: itemDef.limit,
             timestamp: Math.max(price.highTime, price.lowTime)
         });
@@ -119,6 +126,10 @@ function renderTable() {
     });
 
     filtered.sort((a, b) => {
+        // Favorites always on top
+        if (a.fav && !b.fav) return -1;
+        if (!a.fav && b.fav) return 1;
+
         const valA = a[currentSort.field];
         const valB = b[currentSort.field];
         
@@ -132,14 +143,19 @@ function renderTable() {
     
     displaySet.forEach(item => {
         const tr = document.createElement('tr');
+        if (item.fav) tr.classList.add('favorite-row');
         
         const remainingLimit = getRemainingLimit(item.id, item.limit);
         const marginClass = item.margin > 0 ? 'profit-positive' : 'profit-negative';
+        
+        const starClass = item.fav ? 'star-active fa-solid' : 'star-inactive fa-regular';
+        const pumpBadge = item.pump ? '<span class="pump-badge" title="High Volume Spike"><i class="fa-solid fa-triangle-exclamation"></i></span>' : '';
 
         tr.innerHTML = `
             <td>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span>${item.name}</span>
+                <div style="display:flex; align-items:center;">
+                    <i class="star-btn fa-star ${starClass}" data-id="${item.id}"></i>
+                    <span>${item.name} ${pumpBadge}</span>
                 </div>
             </td>
             <td>${formatNumber(item.buyPrice)}</td>
@@ -150,7 +166,9 @@ function renderTable() {
             <td>${formatNumber(item.volume)}</td>
             <td>${item.limit ? `${formatNumber(remainingLimit)} / ${formatNumber(item.limit)}` : '-'}</td>
             <td>
-                <button class="action-btn chart-btn" data-id="${item.id}">Chart</button>
+                <button class="action-btn chart-btn" data-id="${item.id}" title="View Chart">
+                    <i class="fa-solid fa-chart-line"></i>
+                </button>
             </td>
         `;
         
@@ -159,6 +177,17 @@ function renderTable() {
 
     document.querySelectorAll('.chart-btn').forEach(btn => {
         btn.addEventListener('click', (e) => openModal(e.target.dataset.id));
+    });
+
+    document.querySelectorAll('.star-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.dataset.id;
+            toggleFavorite(id);
+            // Update local state without full re-render for speed
+            const item = tableData.find(i => i.id == id);
+            if (item) item.fav = !item.fav;
+            renderTable(); // Re-render to sort
+        });
     });
 }
 

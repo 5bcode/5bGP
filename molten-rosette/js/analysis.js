@@ -65,31 +65,21 @@ export function calculateOpportunityScores(items) {
     // Helper to get percentile rank (0-100) for a value in a sorted array
     const getRank = (sortedArr, val) => {
         // Binary search or simple findIndex for MVP (using findIndex for simplicity on <5k items)
-        // For performance on large arrays, we'll approximate by sorting the source arrays once.
-        let idx = -1;
-        // Find the index where the value fits
-        // Since we pass pre-sorted arrays, we can just find the index
-        // But to avoid O(N^2), let's map values to ranks first.
-        return 0; // Placeholder, implemented below differently
+        return 0; // Placeholder
     };
 
-    // 1. Create sorted arrays for each metric to determine rank efficiently
-    // We filter out zero/negative margins for the margin rank to avoid skewing? 
-    // No, let's rank everything.
-    
+    // 1. Create sorted arrays for each metric
     const margins = items.map(i => i.margin).sort((a, b) => a - b);
     const volumes = items.map(i => i.volume).sort((a, b) => a - b);
     const rois = items.map(i => i.roi).sort((a, b) => a - b);
 
     const getPercentile = (sortedArr, val) => {
-        // Binary search for index
         let low = 0, high = sortedArr.length - 1;
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             if (sortedArr[mid] < val) low = mid + 1;
             else high = mid - 1;
         }
-        // low is the insertion point, which is effectively the count of items smaller than val
         return (low / sortedArr.length) * 100;
     };
 
@@ -98,8 +88,22 @@ export function calculateOpportunityScores(items) {
         const pProfit = getPercentile(margins, item.margin);
         const pVol = getPercentile(volumes, item.volume);
         const pRoi = getPercentile(rois, item.roi);
-
-        // Weights: Profit 50%, Vol 30%, ROI 20%
+        
+        // Weights
         item.score = (pProfit * 0.5) + (pVol * 0.3) + (pRoi * 0.2);
     });
 }
+
+/**
+ * Detects if an item is experiencing a volume pump.
+ * Condition: Current 5m volume > 300% of the 1h average.
+ * @param {number} vol5m 
+ * @param {number} vol1h 
+ * @returns {boolean}
+ */
+export function isPump(vol5m, vol1h) {
+    if (!vol1h || vol1h < 100) return false; // Ignore low volume noise
+    const avg5m = vol1h / 12;
+    return vol5m > (avg5m * 3);
+}
+

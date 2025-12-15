@@ -147,6 +147,11 @@ def refresh_prices():
         res_5m = requests.get(url_5m, headers=headers)
         data_5m = res_5m.json()['data']
 
+        # 3. 1h Prices (For Pump/Dump Baseline)
+        url_1h = "https://prices.runescape.wiki/api/v1/osrs/1h"
+        res_1h = requests.get(url_1h, headers=headers)
+        data_1h = res_1h.json()['data']
+
         merged = {}
         
         all_ids = set(data_latest.keys()) | set(data_5m.keys())
@@ -154,15 +159,18 @@ def refresh_prices():
         for item_id in all_ids:
             l = data_latest.get(item_id, {})
             m5 = data_5m.get(item_id, {})
+            h1 = data_1h.get(item_id, {})
             
             merged[item_id] = {
                 "high": l.get("high", 0),
                 "highTime": l.get("highTime", 0),
                 "low": l.get("low", 0),
                 "lowTime": l.get("lowTime", 0),
-                "highPriceVolume": m5.get("highPriceVolume", 0) + m5.get("lowPriceVolume", 0), # Corrected keys
+                "highPriceVolume": m5.get("highPriceVolume", 0) + m5.get("lowPriceVolume", 0),
                 "avgHigh5m": m5.get("avgHighPrice"),
-                "avgLow5m": m5.get("avgLowPrice")
+                "avgLow5m": m5.get("avgLowPrice"),
+                # 1h Volume for baseline comparison
+                "volume1h": h1.get("highPriceVolume", 0) + h1.get("lowPriceVolume", 0) 
             }
             
         local_cache["prices"] = merged
