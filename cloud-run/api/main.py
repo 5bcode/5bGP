@@ -52,12 +52,23 @@ if os.path.exists(static_path):
     app.mount("/js", StaticFiles(directory=f"{static_path}/js"), name="js")
     app.mount("/assets", StaticFiles(directory=f"{static_path}/assets"), name="assets")
 
+import asyncio
+
 @app.on_event("startup")
 async def startup_event():
-    # Initial load of mapping
-    refresh_mapping()
-    # Initial load of prices
-    refresh_prices()
+    # Run initial data fetch in the background to prevent blocking server startup
+    asyncio.create_task(background_refresh())
+
+async def background_refresh():
+    print("Starting background data refresh...")
+    # These are synchronous request calls, so we run them in a thread to be safe
+    # or just call them directly if we accept a small blocking on the loop.
+    # Since they use 'requests' (blocking), running them directly in an async func
+    # blocks the loop. Best practice is run_in_executor.
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, refresh_mapping)
+    await loop.run_in_executor(None, refresh_prices)
+    print("Background data refresh complete.")
 
 @app.get("/")
 async def read_root():
