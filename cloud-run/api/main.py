@@ -38,9 +38,15 @@ local_cache = {
 db = None
 
 # Mount static files (Frontend)
-static_path = "static"
+base_dir = os.path.dirname(os.path.abspath(__file__))
+static_path = os.path.join(base_dir, "static")
+
 if not os.path.exists(static_path):
-    static_path = "../../molten-rosette"
+    # Try finding molten-rosette relative to this file (cloud-run/api/../../molten-rosette)
+    candidate = os.path.join(base_dir, "../../molten-rosette")
+    candidate = os.path.normpath(candidate)
+    if os.path.exists(candidate):
+        static_path = candidate
 
 if os.path.exists(static_path):
     app.mount("/css", StaticFiles(directory=f"{static_path}/css"), name="css")
@@ -205,4 +211,5 @@ def refresh_prices():
 if __name__ == "__main__":
     # Local dev entry point
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)

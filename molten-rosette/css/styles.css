@@ -403,7 +403,7 @@ input:focus {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .chart-container {
@@ -1329,7 +1329,6 @@ input:focus {
     .form-row {
         flex-direction: column;
     }
-}
 }
 
 /* Desktop: Hide mobile menu button */

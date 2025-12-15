@@ -364,9 +364,6 @@ async function init() {
         setupEventListeners();
         setupPortfolioListeners();
         setupTableDelegation();
-        setupEventListeners();
-        setupPortfolioListeners();
-        setupTableDelegation();
         MobileMenu.init();
 
         setInterval(updatePrices, 60000);
@@ -1165,10 +1162,6 @@ function renderPortfolio() {
             historyTableBody.appendChild(tr);
         }
     });
-
-
-
-});
 }
 
 function getIconHtml(itemId) {
