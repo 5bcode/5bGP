@@ -11,14 +11,14 @@ if (!(Get-Command gcloud -ErrorAction SilentlyContinue)) {
 # 1. Login check
 Write-Host "Verifying authentication..." -ForegroundColor Cyan
 $account = gcloud config get-value account 2>$null
-if (-not $account) {
+if (-not $account -or $account -eq "(unset)") {
     Write-Host "Please login to Google Cloud:" -ForegroundColor Yellow
     gcloud auth login
 }
 
 # 2. Project Setup
 $projectId = gcloud config get-value project 2>$null
-if (-not $projectId) {
+if (-not $projectId -or $projectId -eq "(unset)") {
     $projectId = Read-Host "Enter your Google Cloud Project ID"
     gcloud config set project $projectId
 }
