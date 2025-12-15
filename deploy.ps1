@@ -35,6 +35,7 @@ gcloud run deploy flip-to-5b `
     --source . `
     --platform managed `
     --region us-central1 `
+    --timeout 300 `
     --allow-unauthenticated `
     --set-env-vars "GCP_PROJECT_ID=$projectId"
 

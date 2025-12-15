@@ -9,12 +9,14 @@ from fastapi.responses import FileResponse
 from google.cloud import firestore
 from typing import Dict, Any
 
+print("Loading main.py...")
+
 app = FastAPI()
 
 # CORS for local development and production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,27 +26,19 @@ app.add_middleware(
 WIKI_USER_AGENT = 'FlipTo5B-Dev/1.0'
 FIRESTORE_PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 
-# In-memory cache fallback (if no Firestore)
+# In-memory cache fallback (initially empty)
 local_cache = {
     "prices": {},
     "mapping": {},
     "last_updated": 0
 }
 
-# Firestore Client
+# Global DB reference (Lazy loaded)
 db = None
-if FIRESTORE_PROJECT_ID:
-    try:
-        db = firestore.Client(project=FIRESTORE_PROJECT_ID)
-        print(f"Connected to Firestore Project: {FIRESTORE_PROJECT_ID}")
-    except Exception as e:
-        print(f"Firestore connection failed: {e}. Using in-memory cache.")
 
 # Mount static files (Frontend)
-# We expect the 'molten-rosette' folder to be copied to 'static' in the container
 static_path = "static"
 if not os.path.exists(static_path):
-    # Fallback for local dev if running from cloud-run/api folder
     static_path = "../../molten-rosette"
 
 if os.path.exists(static_path):
@@ -56,19 +50,30 @@ import asyncio
 
 @app.on_event("startup")
 async def startup_event():
-    # Run initial data fetch in the background to prevent blocking server startup
-    asyncio.create_task(background_refresh())
+    print("Server starting up...")
+    # Initialize DB and fetch data in background
+    asyncio.create_task(background_init())
 
-async def background_refresh():
-    print("Starting background data refresh...")
-    # These are synchronous request calls, so we run them in a thread to be safe
-    # or just call them directly if we accept a small blocking on the loop.
-    # Since they use 'requests' (blocking), running them directly in an async func
-    # blocks the loop. Best practice is run_in_executor.
+async def background_init():
+    global db
+    print("Starting background initialization...")
+    
+    # 1. Connect to Firestore
+    if FIRESTORE_PROJECT_ID:
+        try:
+            # Run in executor to avoid blocking if auth takes time
+            loop = asyncio.get_event_loop()
+            # Note: client creation can be blocking
+            db = await loop.run_in_executor(None, lambda: firestore.Client(project=FIRESTORE_PROJECT_ID))
+            print(f"Connected to Firestore Project: {FIRESTORE_PROJECT_ID}")
+        except Exception as e:
+            print(f"Firestore connection failed: {e}. Using in-memory cache.")
+    
+    # 2. Fetch Data
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, refresh_mapping)
     await loop.run_in_executor(None, refresh_prices)
-    print("Background data refresh complete.")
+    print("Background initialization complete.")
 
 @app.get("/")
 async def read_root():
