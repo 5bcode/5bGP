@@ -3,6 +3,7 @@ import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityS
 import { renderPriceChart } from './charts.js';
 import { getRemainingLimit, trackPurchase } from './limitTracker.js';
 import { isFavorite, toggleFavorite } from './favorites.js';
+import { loadPortfolio, addFlip, completeFlip, deleteFlip, getFlips, getPortfolioSummary, updateFlip } from './portfolio.js';
 
 // State
 let itemsMap = {}; // id -> { name, limit, icon, value }
@@ -25,7 +26,8 @@ const navLinks = document.querySelectorAll('.nav-links li');
 const views = {
     dashboard: document.getElementById('view-dashboard'),
     screener: document.getElementById('view-screener'),
-    highlights: document.getElementById('view-highlights')
+    highlights: document.getElementById('view-highlights'),
+    portfolio: document.getElementById('view-portfolio')
 };
 const highlightsTable = document.getElementById('highlights-table');
 const highlightsTitle = document.getElementById('highlights-title');
@@ -38,11 +40,22 @@ const closeModal = document.querySelector('.close-modal');
 const modalItemName = document.getElementById('modal-item-name');
 const chartCanvas = document.getElementById('price-chart');
 
+// Portfolio Modal Elements
+const addFlipModal = document.getElementById('add-flip-modal');
+const closeFlipModal = document.getElementById('close-flip-modal');
+const addFlipBtn = document.getElementById('add-flip-btn');
+const addFlipForm = document.getElementById('add-flip-form');
+const flipItemNameInput = document.getElementById('flip-item-name');
+const flipItemResults = document.getElementById('flip-item-results');
+let selectedFlipItemId = null; // To store selected ID from autocomplete
+
 // Icons base URL (OSRS Wiki)
 const ICON_BASE = 'https://oldschool.runescape.wiki/images/'; 
 
 async function init() {
     try {
+        loadPortfolio(); // Load saved portfolio data
+        
         statusSpan.textContent = 'Loading Item Mapping...';
         const mapping = await fetchMapping();
         
@@ -58,6 +71,7 @@ async function init() {
         await updatePrices();
 
         setupEventListeners();
+        setupPortfolioListeners();
 
         setInterval(updatePrices, 60000);
         
@@ -85,6 +99,7 @@ async function updatePrices() {
         renderTable();
         renderDashboard();
         if (!views.highlights.classList.contains('hidden')) renderHighlights();
+        if (!views.portfolio.classList.contains('hidden')) renderPortfolio();
         
         const now = new Date();
         lastUpdatedSpan.textContent = `Last Updated: ${now.toLocaleTimeString()}`;
@@ -425,10 +440,11 @@ function setupEventListeners() {
             
             // Show target view
             const viewId = link.dataset.view;
-            views[viewId].classList.remove('hidden');
-
-            if (viewId === 'highlights') {
-                renderHighlights();
+            if(views[viewId]) {
+                views[viewId].classList.remove('hidden');
+                
+                if (viewId === 'highlights') renderHighlights();
+                if (viewId === 'portfolio') renderPortfolio();
             }
         });
     });
@@ -479,6 +495,7 @@ function setupEventListeners() {
     closeModal.addEventListener('click', () => modal.classList.add('hidden'));
     window.addEventListener('click', (e) => {
         if (e.target === modal) modal.classList.add('hidden');
+        if (e.target === addFlipModal) addFlipModal.classList.add('hidden');
     });
 }
 
@@ -494,6 +511,233 @@ async function openModal(itemId) {
         const ctx = chartCanvas.getContext('2d');
         renderPriceChart(ctx, timeseries.data);
     }
+}
+
+// --- PORTFOLIO LOGIC ---
+
+function setupPortfolioListeners() {
+    // Open Modal
+    addFlipBtn.addEventListener('click', () => {
+        addFlipForm.reset();
+        selectedFlipItemId = null;
+        flipItemResults.classList.add('hidden');
+        addFlipModal.classList.remove('hidden');
+        flipItemNameInput.focus();
+    });
+
+    // Close Modal
+    closeFlipModal.addEventListener('click', () => addFlipModal.classList.add('hidden'));
+
+    // Autocomplete Item Search
+    flipItemNameInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        if (query.length < 2) {
+            flipItemResults.classList.add('hidden');
+            return;
+        }
+
+        // Search in itemsMap
+        const matches = Object.values(itemsMap)
+            .filter(item => item.name.toLowerCase().includes(query))
+            .slice(0, 8);
+        
+        if (matches.length > 0) {
+            flipItemResults.innerHTML = '';
+            matches.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = item.name;
+                div.addEventListener('click', () => {
+                    flipItemNameInput.value = item.name;
+                    selectedFlipItemId = item.id;
+                    flipItemResults.classList.add('hidden');
+                    
+                    // Auto-fill prices if available
+                    if (pricesMap[item.id]) {
+                         document.getElementById('flip-buy-price').value = pricesMap[item.id].low || '';
+                         document.getElementById('flip-sell-target').value = pricesMap[item.id].high || '';
+                    }
+                });
+                flipItemResults.appendChild(div);
+            });
+            flipItemResults.classList.remove('hidden');
+        } else {
+            flipItemResults.classList.add('hidden');
+        }
+    });
+
+    // Handle Form Submit
+    addFlipForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        // Validation
+        if (!selectedFlipItemId) {
+            // Try to find exact match if user typed full name but didn't click
+            const name = flipItemNameInput.value.toLowerCase();
+            const found = Object.values(itemsMap).find(i => i.name.toLowerCase() === name);
+            if (found) {
+                selectedFlipItemId = found.id;
+            } else {
+                alert('Please select a valid item from the list.');
+                return;
+            }
+        }
+
+        const qty = parseInt(document.getElementById('flip-qty').value);
+        const buyPrice = parseInt(document.getElementById('flip-buy-price').value);
+        const targetSell = document.getElementById('flip-sell-target').value;
+        const targetSellPrice = targetSell ? parseInt(targetSell) : (pricesMap[selectedFlipItemId]?.high || 0);
+
+        const newFlip = {
+            itemId: selectedFlipItemId,
+            name: itemsMap[selectedFlipItemId].name,
+            qty: qty,
+            buyPrice: buyPrice,
+            targetSellPrice: targetSellPrice
+        };
+
+        addFlip(newFlip);
+        
+        // Track GE Limit
+        trackPurchase(selectedFlipItemId, qty);
+
+        addFlipModal.classList.add('hidden');
+        renderPortfolio();
+        renderTable(); // Update Screener (limit column)
+    });
+}
+
+function renderPortfolio() {
+    const flips = getFlips();
+    const activeTableBody = document.querySelector('#portfolio-active-table tbody');
+    const historyTableBody = document.querySelector('#portfolio-history-table tbody');
+    
+    activeTableBody.innerHTML = '';
+    historyTableBody.innerHTML = '';
+
+    const summary = getPortfolioSummary(pricesMap, calculateTax);
+
+    // Update Stats
+    document.getElementById('stat-invested').textContent = formatNumber(summary.invested);
+    document.getElementById('stat-day-pnl').textContent = formatNumber(summary.dayProfit);
+    document.getElementById('stat-day-pnl').className = `stat-value ${summary.dayProfit >= 0 ? 'text-green' : 'text-red'}`;
+    
+    document.getElementById('stat-total-pnl').textContent = formatNumber(summary.totalProfit);
+    document.getElementById('stat-total-pnl').className = `stat-value ${summary.totalProfit >= 0 ? 'text-green' : 'text-red'}`;
+    
+    document.getElementById('stat-unrealized-pnl').textContent = formatNumber(summary.unrealizedProfit);
+    document.getElementById('stat-unrealized-pnl').className = `stat-value ${summary.unrealizedProfit >= 0 ? 'text-green' : 'text-red'}`;
+
+    // Render Tables
+    flips.slice().reverse().forEach(flip => {
+        if (flip.status === 'active') {
+            const currentPrice = pricesMap[flip.itemId] ? pricesMap[flip.itemId].high : flip.buyPrice;
+            const revenue = flip.qty * currentPrice;
+            const tax = calculateTax(currentPrice) * flip.qty;
+            const unrealizedPnl = revenue - (flip.qty * flip.buyPrice) - tax;
+            const timeHeld = formatDuration(Date.now() - flip.buyTime);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <div style="display:flex; align-items:center;">
+                         ${getIconHtml(flip.itemId)}
+                         <span>${flip.name}</span>
+                    </div>
+                </td>
+                <td>${formatNumber(flip.qty)}</td>
+                <td>${formatNumber(flip.buyPrice)}</td>
+                <td>${formatNumber(currentPrice)}</td>
+                <td>${formatNumber(flip.targetSellPrice)}</td>
+                <td class="${unrealizedPnl >= 0 ? 'text-green' : 'text-red'}">${unrealizedPnl > 0 ? '+' : ''}${formatNumber(unrealizedPnl)}</td>
+                <td>${timeHeld}</td>
+                <td>
+                    <button class="action-btn btn-success complete-flip-btn" data-id="${flip.id}" title="Sold">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button class="action-btn btn-danger delete-flip-btn" data-id="${flip.id}" title="Delete">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            activeTableBody.appendChild(tr);
+
+        } else if (flip.status === 'completed') {
+            const revenue = flip.qty * flip.sellPrice;
+            const cost = flip.qty * flip.buyPrice;
+            const tax = calculateTax(flip.sellPrice) * flip.qty;
+            const profit = revenue - cost - tax;
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                 <td>
+                    <div style="display:flex; align-items:center;">
+                         ${getIconHtml(flip.itemId)}
+                         <span>${flip.name}</span>
+                    </div>
+                </td>
+                <td>${formatNumber(flip.qty)}</td>
+                <td>${formatNumber(flip.buyPrice)}</td>
+                <td>${formatNumber(flip.sellPrice)}</td>
+                <td class="${profit >= 0 ? 'text-green' : 'text-red'}">${profit > 0 ? '+' : ''}${formatNumber(profit)}</td>
+                <td>${new Date(flip.sellTime).toLocaleDateString()}</td>
+            `;
+            historyTableBody.appendChild(tr);
+        }
+    });
+
+    // Attach Action Listeners
+    document.querySelectorAll('.complete-flip-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.closest('button').dataset.id;
+            const flip = flips.find(f => f.id === id);
+            if(flip) {
+                // Prompt for actual sell price
+                const currentSell = pricesMap[flip.itemId]?.high || flip.targetSellPrice;
+                const priceStr = prompt(`Enter sell price for ${flip.name}:`, currentSell);
+                if(priceStr) {
+                    const price = parseInt(priceStr);
+                    completeFlip(id, price, flip.qty);
+                    renderPortfolio();
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.delete-flip-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.closest('button').dataset.id;
+            if(confirm('Are you sure you want to delete this flip?')) {
+                deleteFlip(id);
+                renderPortfolio();
+            }
+        });
+    });
+
+    document.getElementById('clear-history-btn').onclick = () => {
+        if(confirm('Clear all completed flips history?')) {
+            // Filter in place
+             const active = flips.filter(f => f.status === 'active');
+             // This is a bit hacky, better to have a clearHistory function in portfolio.js
+             // For now, I'll just iterate delete.
+             flips.filter(f => f.status === 'completed').forEach(f => deleteFlip(f.id));
+             renderPortfolio();
+        }
+    };
+}
+
+function getIconHtml(itemId) {
+    const item = itemsMap[itemId];
+    if(!item || !item.icon) return '';
+    const iconUrl = `${ICON_BASE}${item.icon.replace(/ /g, '_')}`;
+    return `<img src="${iconUrl}" class="item-icon" style="margin-right:8px;" loading="lazy">`;
+}
+
+function formatDuration(ms) {
+    const min = Math.floor(ms / 60000);
+    const h = Math.floor(min / 60);
+    if(h > 0) return `${h}h ${min % 60}m`;
+    return `${min}m`;
 }
 
 init();
