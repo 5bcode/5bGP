@@ -63,10 +63,7 @@ export function calculateOpportunityScores(items) {
     if (items.length === 0) return;
 
     // Helper to get percentile rank (0-100) for a value in a sorted array
-    const getRank = (sortedArr, val) => {
-        // Binary search or simple findIndex for MVP (using findIndex for simplicity on <5k items)
-        return 0; // Placeholder
-    };
+
 
     // 1. Create sorted arrays for each metric
     const margins = items.map(i => i.margin).sort((a, b) => a - b);
@@ -88,7 +85,7 @@ export function calculateOpportunityScores(items) {
         const pProfit = getPercentile(margins, item.margin);
         const pVol = getPercentile(volumes, item.volume);
         const pRoi = getPercentile(rois, item.roi);
-        
+
         // Weights
         item.score = (pProfit * 0.5) + (pVol * 0.3) + (pRoi * 0.2);
     });

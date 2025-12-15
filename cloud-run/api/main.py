@@ -2,7 +2,7 @@ import os
 import json
 import time
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -24,6 +24,7 @@ app.add_middleware(
 
 # Configuration
 WIKI_USER_AGENT = 'FlipTo5B-Dev/1.0'
+REFRESH_SECRET = os.getenv('REFRESH_SECRET', 'dev-secret-change-in-prod')
 FIRESTORE_PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 
 # In-memory cache fallback (initially empty)
@@ -96,8 +97,13 @@ def get_prices():
     return {"data": local_cache["prices"]}
 
 @app.post("/refresh")
-def force_refresh():
-    """Called by Cloud Scheduler or manually"""
+def force_refresh(x_refresh_token: str = Header(None, alias="X-Refresh-Token")):
+    """Called by Cloud Scheduler or manually. Requires X-Refresh-Token header."""
+    if not x_refresh_token or x_refresh_token != REFRESH_SECRET:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid or missing X-Refresh-Token header"
+        )
     refresh_prices()
     return {"status": "refreshed", "count": len(local_cache["prices"])}
 

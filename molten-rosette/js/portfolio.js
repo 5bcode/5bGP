@@ -3,15 +3,6 @@
 
 // Constants
 const STORAGE_KEY = '5bgp_portfolio';
-const TAX_RATE = 0.01; // 1% tax (updated May 2025: Ge Tax is 1% not 2%? Actually code says 2% in analysis, let's stick to user code convention or global config.
-// Analysis.js uses 2% (0.02) tax in existing code (based on my read earlier), but I should verify analysis.js tax rate.
-// I will check analysis.js content first to be sure about tax rate before finalizing this file.
-// For now, I will assume consistent tax rate with analysis.js.
-
-let portfolioData = {
-    flips: [] 
-};
-
 // Data Structure for a Flip:
 // {
 //   id: string (uuid),
@@ -26,6 +17,10 @@ let portfolioData = {
 //   sellTime: number (if completed),
 //   notes: string
 // }
+
+let portfolioData = {
+    flips: []
+};
 
 // Load from LocalStorage
 export function loadPortfolio() {
@@ -111,7 +106,7 @@ export function getPortfolioSummary(currentPricesMap, taxCalculator) {
         if (flip.status === 'active') {
             activeFlipsCount++;
             totalInvested += flip.qty * flip.buyPrice;
-            
+
             // Calculate current value based on market price
             const currentPrice = currentPricesMap[flip.itemId] ? currentPricesMap[flip.itemId].high : flip.buyPrice; // Optimistic: sell at high
             // Value is revenue after tax
@@ -124,7 +119,7 @@ export function getPortfolioSummary(currentPricesMap, taxCalculator) {
             const cost = flip.qty * flip.buyPrice;
             const tax = taxCalculator(flip.sellPrice) * flip.qty;
             const profit = revenue - cost - tax;
-            
+
             totalRealizedProfit += profit;
 
             if (now - flip.sellTime < oneDayMs) {
