@@ -11,6 +11,7 @@ let pricesMap = {};
 let tableData = []; 
 let currentSort = { field: 'margin', direction: 'desc' };
 let natureRunePrice = 200; 
+let currentDetailItemId = null;
 
 // DOM Elements
 const tableBody = document.getElementById('table-body');
@@ -69,6 +70,7 @@ async function init() {
 
         setupEventListeners();
         setupPortfolioListeners();
+        setupTableDelegation();
 
         setInterval(updatePrices, 60000);
         
@@ -98,11 +100,8 @@ async function updatePrices() {
         if (!views.portfolio.classList.contains('hidden')) renderPortfolio();
         
         // If viewing an item, update its details in real-time
-        if (!views.itemDetail.classList.contains('hidden')) {
-            const currentItemName = document.getElementById('detail-name').textContent;
-            // Reverse lookup ID from name is inefficient but simplest for now without storing state
-            const item = Object.values(itemsMap).find(i => i.name === currentItemName);
-            if(item) renderItemDetail(item.id, false); // false = don't refetch chart every tick
+        if (!views.itemDetail.classList.contains('hidden') && currentDetailItemId) {
+             renderItemDetail(currentDetailItemId, false); // false = don't refetch chart every tick
         }
         
         const now = new Date();
@@ -262,32 +261,6 @@ function renderHighlights() {
         `;
         tbody.appendChild(tr);
     });
-    
-    attachCommonListeners(highlightsTable);
-}
-
-function attachCommonListeners(container) {
-    // Navigate to Detail View
-    container.querySelectorAll('.clickable-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            // Prevent if clicking star
-            if(e.target.classList.contains('star-btn')) return;
-            const id = el.dataset.id;
-            navigateToItem(id);
-        });
-    });
-
-    container.querySelectorAll('.star-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Stop row click
-            const id = e.target.dataset.id;
-            toggleFavorite(id);
-            const item = tableData.find(i => i.id == id);
-            if (item) item.fav = !item.fav;
-            if (!views.screener.classList.contains('hidden')) renderTable();
-            if (!views.highlights.classList.contains('hidden')) renderHighlights();
-        });
-    });
 }
 
 function renderDashboard() {
@@ -324,8 +297,6 @@ function renderMiniTable(tableId, data, extraCellRenderer) {
         `;
         tbody.appendChild(tr);
     });
-    
-    attachCommonListeners(tbody);
 }
 
 function renderTable() {
@@ -383,8 +354,55 @@ function renderTable() {
         `;
         tableBody.appendChild(tr);
     });
+}
 
-    attachCommonListeners(tableBody);
+// Replaces attachCommonListeners with event delegation
+function setupTableDelegation() {
+    const handleTableClick = (e) => {
+        const clickableItem = e.target.closest('.clickable-item');
+        if (clickableItem) {
+             // If clicking star inside clickable-item
+             if(e.target.classList.contains('star-btn')) {
+                 e.stopPropagation();
+                 const id = e.target.dataset.id;
+                 toggleFavorite(id);
+                 const item = tableData.find(i => i.id == id);
+                 if (item) item.fav = !item.fav;
+                 if (!views.screener.classList.contains('hidden')) renderTable();
+                 if (!views.highlights.classList.contains('hidden')) renderHighlights();
+                 return;
+             }
+             const id = clickableItem.dataset.id;
+             navigateToItem(id);
+             return;
+        }
+
+        // Just star button outside clickable item (if any)
+        if (e.target.classList.contains('star-btn')) {
+            const id = e.target.dataset.id;
+             toggleFavorite(id);
+             const item = tableData.find(i => i.id == id);
+             if (item) item.fav = !item.fav;
+             if (!views.screener.classList.contains('hidden')) renderTable();
+             if (!views.highlights.classList.contains('hidden')) renderHighlights();
+        }
+    };
+
+    // Attach to all main table containers
+    const containers = [
+        document.getElementById('table-body'), // Screener
+        document.getElementById('highlights-table'), // Highlights
+        document.querySelector('#portfolio-active-table tbody'), // Portfolio Active
+        document.querySelector('#portfolio-history-table tbody'), // Portfolio History
+        document.querySelector('#table-margins tbody'), // Dashboard tables...
+        document.querySelector('#table-volume tbody'),
+        document.querySelector('#table-alchs tbody'),
+        document.querySelector('#table-gainers tbody')
+    ];
+
+    containers.forEach(container => {
+        if(container) container.addEventListener('click', handleTableClick);
+    });
 }
 
 // --- ITEM DETAIL VIEW ---
@@ -405,6 +423,7 @@ async function navigateToItem(itemId) {
     // Deactivate nav links
     navLinks.forEach(l => l.classList.remove('active'));
 
+    currentDetailItemId = itemId;
     await renderItemDetail(itemId, true);
 }
 
@@ -422,12 +441,12 @@ async function renderItemDetail(itemId, updateChart = true) {
     const favBtn = document.getElementById('detail-fav-btn');
     const isFav = isFavorite(itemId);
     favBtn.className = isFav ? 'fa-solid fa-star star-btn action-icon star-active' : 'fa-regular fa-star star-btn action-icon';
-    // Remove old listeners to avoid dupes (cloneNode trick)
+    // Remove old listeners using clone replacement
     const newFavBtn = favBtn.cloneNode(true);
     favBtn.parentNode.replaceChild(newFavBtn, favBtn);
     newFavBtn.addEventListener('click', () => {
         toggleFavorite(itemId);
-        renderItemDetail(itemId, false); // re-render icon
+        renderItemDetail(itemId, false); 
     });
 
     // Prices
@@ -436,12 +455,13 @@ async function renderItemDetail(itemId, updateChart = true) {
     document.getElementById('detail-current-price').textContent = formatNumber(sellPrice);
     
     // Price Change
-    const price24h = prices.price24h || sellPrice; // fallback
+    const price24h = prices.price24h || sellPrice; 
     const change = sellPrice - price24h;
     const changePct = price24h ? ((change / price24h) * 100) : 0;
     const changeSpan = document.getElementById('detail-price-change');
     changeSpan.textContent = `${change > 0 ? '+' : ''}${changePct.toFixed(2)}% (24h)`;
-    changeSpan.className = `price-change ${change >= 0 ? 'text-green' : 'text-red'}`;
+    changeSpan.classList.remove('text-green', 'text-red');
+    changeSpan.classList.add(change >= 0 ? 'text-green' : 'text-red');
 
     const lastTime = Math.max(prices.highTime || 0, prices.lowTime || 0);
     const timeAgo = lastTime ? formatDuration(Date.now() - (lastTime * 1000)) : 'Unknown';
@@ -453,14 +473,17 @@ async function renderItemDetail(itemId, updateChart = true) {
     const roi = getROI(margin, buyPrice);
     const limit = item.limit || 0;
     const potential = margin * limit;
-    const volume = (prices.highPriceVolume || 0) + (prices.lowPriceVolume || 0); // 5m vol currently
-    // Note: Daily Volume is volume24h
+    const volume = (prices.highPriceVolume || 0) + (prices.lowPriceVolume || 0); 
     const vol24 = prices.volume24h || 0;
 
     document.getElementById('detail-buy').textContent = formatNumber(buyPrice);
     document.getElementById('detail-sell').textContent = formatNumber(sellPrice);
-    document.getElementById('detail-margin').textContent = formatNumber(margin);
-    document.getElementById('detail-margin').className = margin > 0 ? 'text-green' : 'text-red';
+    
+    const marginEl = document.getElementById('detail-margin');
+    marginEl.textContent = formatNumber(margin);
+    marginEl.classList.remove('text-green', 'text-red');
+    marginEl.classList.add(margin > 0 ? 'text-green' : 'text-red');
+    
     document.getElementById('detail-tax').textContent = formatNumber(tax);
     document.getElementById('detail-roi').textContent = `${roi.toFixed(2)}%`;
     document.getElementById('detail-potential').textContent = formatNumber(potential);
@@ -475,12 +498,19 @@ async function renderItemDetail(itemId, updateChart = true) {
     const alchPotential = alchProfit * limit;
 
     document.getElementById('detail-alch-value').textContent = formatNumber(alchVal);
-    document.getElementById('detail-nature-cost').textContent = natureRunePrice;
-    document.getElementById('detail-alch-profit').textContent = formatNumber(alchProfit);
-    document.getElementById('detail-alch-profit').className = alchProfit > 0 ? 'text-green' : 'text-red';
+    document.getElementById('detail-nature-cost').textContent = formatNumber(natureRunePrice); // Added formatNumber
+    
+    const alchProfitEl = document.getElementById('detail-alch-profit');
+    alchProfitEl.textContent = formatNumber(alchProfit);
+    alchProfitEl.classList.remove('text-green', 'text-red');
+    alchProfitEl.classList.add(alchProfit > 0 ? 'text-green' : 'text-red');
+    
     document.getElementById('detail-alch-roi').textContent = `${alchRoi.toFixed(2)}%`;
-    document.getElementById('detail-alch-potential').textContent = formatNumber(alchPotential);
-    document.getElementById('detail-alch-potential').className = alchPotential > 0 ? 'text-green' : 'text-red';
+    
+    const alchPotEl = document.getElementById('detail-alch-potential');
+    alchPotEl.textContent = formatNumber(alchPotential);
+    alchPotEl.classList.remove('text-green', 'text-red');
+    alchPotEl.classList.add(alchPotential > 0 ? 'text-green' : 'text-red');
 
     // Links
     const wikiName = item.name.replace(/ /g, '_');
@@ -492,11 +522,9 @@ async function renderItemDetail(itemId, updateChart = true) {
     const newAddBtn = addBtn.cloneNode(true);
     addBtn.parentNode.replaceChild(newAddBtn, addBtn);
     newAddBtn.addEventListener('click', () => {
-        // Pre-fill modal
         addFlipForm.reset();
         addFlipModal.classList.remove('hidden');
         
-        // We simulate the selection state
         flipItemNameInput.value = item.name;
         selectedFlipItemId = itemId;
         flipItemResults.classList.add('hidden');
@@ -506,12 +534,19 @@ async function renderItemDetail(itemId, updateChart = true) {
         document.getElementById('flip-qty').focus();
     });
 
-    // Chart (only if requested, to save bandwidth on tick updates)
+    // Chart
     if (updateChart) {
-        const timeseries = await fetchItemTimeseries(itemId);
-        if (timeseries && timeseries.data) {
-            const ctx = document.getElementById('detail-chart').getContext('2d');
-            renderPriceChart(ctx, timeseries.data);
+        const loader = document.getElementById('chart-loading');
+        if(loader) loader.classList.remove('hidden');
+        
+        try {
+            const timeseries = await fetchItemTimeseries(itemId);
+            if (timeseries && timeseries.data) {
+                const ctx = document.getElementById('detail-chart').getContext('2d');
+                renderPriceChart(ctx, timeseries.data);
+            }
+        } finally {
+            if(loader) loader.classList.add('hidden');
         }
     }
 }
@@ -759,9 +794,6 @@ function renderPortfolio() {
             historyTableBody.appendChild(tr);
         }
     });
-
-    attachCommonListeners(activeTableBody);
-    attachCommonListeners(historyTableBody);
 
     document.querySelectorAll('.complete-flip-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {

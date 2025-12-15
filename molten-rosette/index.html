@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/detail.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -221,6 +222,9 @@
                 </div>
 
                 <div class="detail-chart-section card">
+                    <div id="chart-loading" class="chart-loading hidden">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Loading Chart...
+                    </div>
                     <canvas id="detail-chart"></canvas>
                 </div>
 
@@ -381,16 +385,7 @@
             </div>
         </div>
         
-        <!-- Detailed Item Modal -->
-        <div id="item-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-modal">&times;</span>
-                <h2 id="modal-item-name">Item Name</h2>
-                <div class="chart-container">
-                    <canvas id="price-chart"></canvas>
-                </div>
-            </div>
-        </div>
+        <!-- Detailed Item Modal Removed -->
     </div>
 
     <!-- Scripts -->
