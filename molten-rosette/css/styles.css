@@ -1,0 +1,157 @@
+:root {
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #1a1a1a;
+  --bg-card: rgba(30, 30, 30, 0.7);
+  --accent-gold: #d4af37;
+  --accent-gold-dim: #a38829;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --profit-green: #00e676;
+  --loss-red: #ff5252;
+  --border-glow: 0 0 15px rgba(212, 175, 55, 0.3);
+  --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    overflow-x: hidden;
+}
+
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid var(--accent-gold-dim);
+    padding-bottom: 10px;
+}
+
+h1 {
+    color: var(--accent-gold);
+    font-size: 2rem;
+    text-shadow: var(--border-glow);
+}
+
+.highlight {
+    color: var(--text-primary);
+}
+
+.filters-panel {
+    display: flex;
+    gap: 20px;
+    background: var(--bg-secondary);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-group label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+}
+
+input, select {
+    background: var(--bg-primary);
+    border: 1px solid var(--accent-gold-dim);
+    color: var(--text-primary);
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.table-container {
+    background: var(--bg-card);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #333;
+}
+
+th {
+    color: var(--accent-gold);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+th:hover {
+    color: var(--text-primary);
+}
+
+tr:hover {
+    background: rgba(212, 175, 55, 0.05);
+}
+
+.profit-positive {
+    color: var(--profit-green);
+}
+
+.profit-negative {
+    color: var(--loss-red);
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: var(--bg-secondary);
+    padding: 20px;
+    width: 90%;
+    max-width: 800px;
+    border-radius: 8px;
+    border: 1px solid var(--accent-gold);
+    position: relative;
+}
+
+.close-modal {
+    position: absolute;
+    top: 10px; right: 15px;
+    font-size: 2rem;
+    cursor: pointer;
+}
+
+.chart-container {
+    height: 400px;
+    margin-top: 20px;
+}

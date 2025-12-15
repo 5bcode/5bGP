@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flip to 5B | OSRS Flipping Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1><span class="highlight">Flip</span> to 5B</h1>
+            <div class="status-bar">
+                <span id="connection-status">Connecting...</span>
+                <span id="last-updated">Last Updated: --</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Filters Section -->
+            <section class="filters-panel">
+                <div class="filter-group">
+                    <label>Search</label>
+                    <input type="text" id="search-input" placeholder="Item name...">
+                </div>
+                <div class="filter-group">
+                    <label>Min Margin</label>
+                    <input type="number" id="min-margin" value="10000">
+                </div>
+                <div class="filter-group">
+                    <label>Min Volume</label>
+                    <input type="number" id="min-volume" value="10">
+                </div>
+                <div class="filter-group">
+                    <label>Preset</label>
+                    <select id="preset-select">
+                        <option value="default">High Liquidity Flips</option>
+                        <option value="sniper">Sniper Mode</option>
+                        <option value="alch">Alch & Flip</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Main Data Table -->
+            <section class="table-container">
+                <table id="flipping-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="name">Item</th>
+                            <th data-sort="buyPrice">Buy Price</th>
+                            <th data-sort="sellPrice">Sell Price</th>
+                            <th data-sort="margin">Margin (Taxed)</th>
+                            <th data-sort="roi">ROI %</th>
+                            <th data-sort="score">Score</th>
+                            <th data-sort="volume">Vol (5m)</th>
+                            <th data-sort="limit">Limit</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Rows injected by JS -->
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+        <!-- Detailed Item Modal -->
+        <div id="item-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <h2 id="modal-item-name">Item Name</h2>
+                <div class="chart-container">
+                    <canvas id="price-chart"></canvas>
+                </div>
+                <div class="item-stats">
+                    <!-- Detailed stats injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/api.js"></script>
+    <script type="module" src="js/analysis.js"></script>
+    <script type="module" src="js/charts.js"></script>
+    <script type="module" src="js/limitTracker.js"></script>
+    <script type="module" src="js/ui.js"></script>
+</body>
+</html>
