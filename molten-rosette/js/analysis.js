@@ -107,3 +107,13 @@ export function isPump(vol5m, vol1h) {
     return vol5m > (avg5m * 3);
 }
 
+export function getAlchProfit(item, price, natureRunePrice) {
+    if (!item.highalch) return -Infinity;
+    return item.highalch - price - natureRunePrice;
+}
+
+export function getPriceChange1h(currentPrice, price1h) {
+    if (!price1h) return 0;
+    return currentPrice - price1h;
+}
+

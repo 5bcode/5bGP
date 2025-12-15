@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flip to 5B | OSRS Flipping Dashboard</title>
+    <title>Flip to 5B | Market Dashboard</title>
+    
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,65 +12,164 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <link rel="stylesheet" href="css/styles.css">
-    <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div class="app-container">
-        <header>
-            <h1><span class="highlight">Flip</span> to 5B</h1>
-            <div class="status-bar">
-                <span id="connection-status">Connecting...</span>
-                <span id="last-updated">Last Updated: --</span>
+    <div class="app-layout">
+        <!-- Navigation -->
+        <nav class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-coins"></i> <span>Flip to 5B</span>
             </div>
-        </header>
+            
+            <ul class="nav-links">
+                <li class="active" data-view="dashboard">
+                    <i class="fa-solid fa-grid-2"></i> Dashboard
+                </li>
+                <li data-view="highlights">
+                    <i class="fa-solid fa-ranking-star"></i> Highlights
+                </li>
+                <li data-view="screener">
+                    <i class="fa-solid fa-list"></i> Screener
+                </li>
+            </ul>
 
-        <main>
-            <!-- Filters Section -->
-            <section class="filters-panel">
-                <div class="filter-group">
-                    <label>Search</label>
-                    <input type="text" id="search-input" placeholder="Item name...">
-                </div>
-                <div class="filter-group">
-                    <label>Min Margin</label>
-                    <input type="number" id="min-margin" value="10000">
-                </div>
-                <div class="filter-group">
-                    <label>Min Volume</label>
-                    <input type="number" id="min-volume" value="10">
-                </div>
-                <div class="filter-group">
-                    <label>Preset</label>
-                    <select id="preset-select">
-                        <option value="default">High Liquidity Flips</option>
-                        <option value="sniper">Sniper Mode</option>
-                        <option value="alch">Alch & Flip</option>
-                    </select>
-                </div>
-            </section>
+            <div class="nav-status">
+                <span id="connection-status">Connecting...</span>
+                <span id="last-updated">--:--:--</span>
+            </div>
+        </nav>
 
-            <!-- Main Data Table -->
-            <section class="table-container">
-                <table id="flipping-table">
-                    <thead>
-                        <tr>
-                            <th data-sort="name">Item</th>
-                            <th data-sort="buyPrice">Buy Price</th>
-                            <th data-sort="sellPrice">Sell Price</th>
-                            <th data-sort="margin">Margin (Taxed)</th>
-                            <th data-sort="roi">ROI %</th>
-                            <th data-sort="score">Score</th>
-                            <th data-sort="volume">Vol (5m)</th>
-                            <th data-sort="limit">Limit</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-body">
-                        <!-- Rows injected by JS -->
-                    </tbody>
-                </table>
-            </section>
+        <main class="content-area">
+            
+            <!-- VIEW: DASHBOARD -->
+            <div id="view-dashboard" class="view-section">
+                <div class="dashboard-grid">
+                    
+                    <!-- Card: High Margin -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-money-bill-wave highlight"></i> Largest Margins</h3>
+                            <button class="view-all-btn" data-preset="margins">view all ></button>
+                        </div>
+                        <div class="card-body">
+                            <table class="mini-table" id="table-margins">
+                                <thead><tr><th>Item</th><th>Price</th><th>Margin</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Card: High Volume Profit -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-fire highlight"></i> High Volume Profit</h3>
+                            <button class="view-all-btn" data-preset="volume">view all ></button>
+                        </div>
+                        <div class="card-body">
+                            <table class="mini-table" id="table-volume">
+                                <thead><tr><th>Item</th><th>Price</th><th>Profit</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Card: Profitable Alchs -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-wand-magic-sparkles highlight"></i> Profitable Alchs</h3>
+                            <button class="view-all-btn" data-preset="alch">view all ></button>
+                        </div>
+                        <div class="card-body">
+                            <table class="mini-table" id="table-alchs">
+                                <thead><tr><th>Item</th><th>Alch Price</th><th>Profit</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Card: Top Gainers (Price Change) -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-arrow-trend-up highlight-green"></i> Top Gainers (1h)</h3>
+                            <button class="view-all-btn" data-preset="gainers">view all ></button>
+                        </div>
+                        <div class="card-body">
+                            <table class="mini-table" id="table-gainers">
+                                <thead><tr><th>Item</th><th>Price</th><th>Change</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- VIEW: HIGHLIGHTS (Top 100 Lists) -->
+            <div id="view-highlights" class="view-section hidden">
+                <div class="highlights-header">
+                    <h2 id="highlights-title">High Volume Profit</h2>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="high-volume">High Volume Profit</button>
+                        <button class="tab-btn" data-tab="gainers">Top Gainers (10m)</button>
+                        <button class="tab-btn" data-tab="losers">Top Losers (10m)</button>
+                    </div>
+                </div>
+                <div class="table-container full-height">
+                    <table id="highlights-table">
+                        <thead>
+                            <!-- Headers injected by JS based on tab -->
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VIEW: SCREENER (Old Table) -->
+            <div id="view-screener" class="view-section hidden">
+                <section class="filters-panel">
+                    <div class="filter-group">
+                        <label>Search</label>
+                        <input type="text" id="search-input" placeholder="Item name...">
+                    </div>
+                    <div class="filter-group">
+                        <label>Min Margin</label>
+                        <input type="number" id="min-margin" value="10000">
+                    </div>
+                    <div class="filter-group">
+                        <label>Min Volume</label>
+                        <input type="number" id="min-volume" value="10">
+                    </div>
+                    <div class="filter-group">
+                        <label>Preset</label>
+                        <select id="preset-select">
+                            <option value="default">High Liquidity Flips</option>
+                            <option value="sniper">Sniper Mode</option>
+                            <option value="alch">Alch & Flip</option>
+                        </select>
+                    </div>
+                </section>
+
+                <section class="table-container">
+                    <table id="flipping-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="name">Item</th>
+                                <th data-sort="buyPrice">Buy Price</th>
+                                <th data-sort="sellPrice">Sell Price</th>
+                                <th data-sort="margin">Margin (Taxed)</th>
+                                <th data-sort="roi">ROI %</th>
+                                <th data-sort="score">Score</th>
+                                <th data-sort="volume">Vol (5m)</th>
+                                <th data-sort="limit">Limit</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </section>
+            </div>
+
         </main>
 
         <!-- Detailed Item Modal -->
@@ -80,9 +180,6 @@
                 <div class="chart-container">
                     <canvas id="price-chart"></canvas>
                 </div>
-                <div class="item-stats">
-                    <!-- Detailed stats injected here -->
-                </div>
             </div>
         </div>
     </div>
@@ -92,6 +189,7 @@
     <script type="module" src="js/analysis.js"></script>
     <script type="module" src="js/charts.js"></script>
     <script type="module" src="js/limitTracker.js"></script>
+    <script type="module" src="js/favorites.js"></script>
     <script type="module" src="js/ui.js"></script>
 </body>
 </html>

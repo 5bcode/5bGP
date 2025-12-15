@@ -1,5 +1,5 @@
 import { fetchLatestPrices, fetchMapping, fetchItemTimeseries } from './api.js';
-import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityScores, isPump } from './analysis.js';
+import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityScores, isPump, getAlchProfit, getPriceChange1h } from './analysis.js';
 import { renderPriceChart } from './charts.js';
 import { getRemainingLimit, trackPurchase } from './limitTracker.js';
 import { isFavorite, toggleFavorite } from './favorites.js';
@@ -9,6 +9,7 @@ let itemsMap = {}; // id -> { name, limit, icon, value }
 let pricesMap = {}; // id -> { high, low, highTime, lowTime }
 let tableData = []; // Array of merged objects for the table
 let currentSort = { field: 'margin', direction: 'desc' };
+let natureRunePrice = 200; // Default fallback, updated on init
 
 // DOM Elements
 const tableBody = document.getElementById('table-body');
@@ -18,6 +19,18 @@ const minVolumeInput = document.getElementById('min-volume');
 const presetSelect = document.getElementById('preset-select');
 const statusSpan = document.getElementById('connection-status');
 const lastUpdatedSpan = document.getElementById('last-updated');
+
+// View Switching
+const navLinks = document.querySelectorAll('.nav-links li');
+const views = {
+    dashboard: document.getElementById('view-dashboard'),
+    screener: document.getElementById('view-screener'),
+    highlights: document.getElementById('view-highlights')
+};
+const highlightsTable = document.getElementById('highlights-table');
+const highlightsTitle = document.getElementById('highlights-title');
+const highlightTabs = document.querySelectorAll('.tab-btn');
+let currentHighlightTab = 'high-volume';
 
 // Modal Elements
 const modal = document.getElementById('item-modal');
@@ -63,8 +76,15 @@ async function updatePrices() {
         const prices = await fetchLatestPrices();
         pricesMap = prices.data || prices; 
         
+        // Update Nature Rune Price dynamically (ID: 561)
+        if (pricesMap['561']) {
+            natureRunePrice = pricesMap['561'].high;
+        }
+
         processData();
         renderTable();
+        renderDashboard();
+        if (!views.highlights.classList.contains('hidden')) renderHighlights();
         
         const now = new Date();
         lastUpdatedSpan.textContent = `Last Updated: ${now.toLocaleTimeString()}`;
@@ -92,20 +112,35 @@ function processData() {
         const volume1h = price.volume1h || 0;
         const pump = isPump(volume, volume1h);
         const fav = isFavorite(id);
+        const alchProfit = getAlchProfit(itemDef, effectiveBuy, natureRunePrice);
+        const change1h = getPriceChange1h(effectiveSell, price.price1h);
+        
+        // 24h Data
+        const volume24h = price.volume24h || 0;
+        const price24h = price.price24h || 0;
+        const dayChange = effectiveSell - price24h;
+        const dayChangePercent = price24h ? ((dayChange / price24h) * 100) : 0;
+        const potentialProfit = netProfit * (itemDef.limit || 0);
 
         tableData.push({
             id: id,
             name: itemDef.name,
-            icon: itemDef.icon,
+            icon: itemDef.icon, 
             buyPrice: effectiveBuy,
             sellPrice: effectiveSell,
             margin: netProfit,
             roi: roi,
             volume: volume,
             volume1h: volume1h,
+            volume24h: volume24h,
+            dayChange: dayChange,
+            dayChangePercent: dayChangePercent,
+            potentialProfit: potentialProfit,
             pump: pump,
             fav: fav,
             limit: itemDef.limit,
+            alchProfit: alchProfit,
+            change1h: change1h,
             timestamp: Math.max(price.highTime, price.lowTime)
         });
     }
@@ -113,7 +148,200 @@ function processData() {
     calculateOpportunityScores(tableData);
 }
 
+function renderHighlights() {
+    let data = [];
+    let headers = '';
+    let rowRenderer = null;
+    const now = Date.now() / 1000; // current ts in seconds
+
+    if (currentHighlightTab === 'high-volume') {
+        highlightsTitle.textContent = 'Top 100 Profitable High Volume Items';
+        // Filter: >100k daily vol, profitable
+        data = tableData
+            .filter(i => i.volume24h > 100000 && i.margin > 0)
+            .sort((a, b) => b.potentialProfit - a.potentialProfit)
+            .slice(0, 100);
+            
+        headers = `<tr>
+            <th>Item</th>
+            <th>Price</th>
+            <th>Day Change</th>
+            <th>Day Change %</th>
+            <th>Potential Profit</th>
+            <th>Actions</th>
+        </tr>`;
+        
+        rowRenderer = (item) => `
+            <td>${formatNumber(item.sellPrice)}</td>
+            <td class="${item.dayChange >= 0 ? 'text-green' : 'text-red'}">
+                ${item.dayChange > 0 ? '+' : ''}${formatNumber(item.dayChange)}
+            </td>
+            <td class="${item.dayChangePercent >= 0 ? 'text-green' : 'text-red'}">
+                ${item.dayChangePercent.toFixed(2)}%
+            </td>
+            <td class="text-green">${formatNumber(item.potentialProfit)}</td>
+        `;
+    } 
+    else if (currentHighlightTab === 'gainers') {
+        highlightsTitle.textContent = 'Top 100 Gainers (Last 10m)';
+        // Filter: Traded in last 10m (600s), change1h > 0
+        data = tableData
+            .filter(i => (now - i.timestamp) < 600 && i.change1h > 0)
+            .sort((a, b) => b.change1h - a.change1h) // Sort by absolute gain? Or %? Usually % is fairer but request implies absolute
+            .slice(0, 100);
+
+        headers = `<tr>
+            <th>Item</th>
+            <th>Price</th>
+            <th>Change (1h)</th>
+            <th>ROI %</th>
+            <th>Actions</th>
+        </tr>`;
+
+        rowRenderer = (item) => `
+            <td>${formatNumber(item.sellPrice)}</td>
+            <td class="text-green">+${formatNumber(item.change1h)}</td>
+            <td class="text-green">${item.roi.toFixed(2)}%</td>
+        `;
+    }
+    else if (currentHighlightTab === 'losers') {
+        highlightsTitle.textContent = 'Top 100 Losers (Last 10m)';
+        // Filter: Traded in last 10m, change1h < 0
+        data = tableData
+            .filter(i => (now - i.timestamp) < 600 && i.change1h < 0)
+            .sort((a, b) => a.change1h - b.change1h) // Ascending (most negative first)
+            .slice(0, 100);
+
+        headers = `<tr>
+            <th>Item</th>
+            <th>Price</th>
+            <th>Change (1h)</th>
+            <th>ROI %</th>
+            <th>Actions</th>
+        </tr>`;
+
+        rowRenderer = (item) => `
+            <td>${formatNumber(item.sellPrice)}</td>
+            <td class="text-red">${formatNumber(item.change1h)}</td>
+            <td class="text-red">${item.roi.toFixed(2)}%</td>
+        `;
+    }
+
+    const thead = highlightsTable.querySelector('thead');
+    const tbody = highlightsTable.querySelector('tbody');
+    
+    thead.innerHTML = headers;
+    tbody.innerHTML = '';
+
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
+        const starClass = item.fav ? 'star-active fa-solid' : 'star-inactive fa-regular';
+        
+        tr.innerHTML = `
+            <td>
+                <div style="display:flex; align-items:center;">
+                    <i class="star-btn fa-star ${starClass}" data-id="${item.id}"></i>
+                    ${iconUrl ? `<img src="${iconUrl}" class="item-icon" style="margin-right:8px;" loading="lazy">` : ''}
+                    <span>${item.name}</span>
+                </div>
+            </td>
+            ${rowRenderer(item)}
+            <td>
+                <button class="action-btn chart-btn" data-id="${item.id}" title="View Chart">
+                    <i class="fa-solid fa-chart-line"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    // Re-attach listeners (copy-paste from renderTable essentially)
+    attachCommonListeners(highlightsTable);
+}
+
+// Helper to avoid duplicate listener code
+function attachCommonListeners(container) {
+    container.querySelectorAll('.chart-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = e.target.closest('button'); 
+            if(target) openModal(target.dataset.id);
+        });
+    });
+
+    container.querySelectorAll('.star-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.dataset.id;
+            toggleFavorite(id);
+            const item = tableData.find(i => i.id == id);
+            if (item) item.fav = !item.fav;
+            // Rerender both tables just in case
+            if (!views.screener.classList.contains('hidden')) renderTable();
+            if (!views.highlights.classList.contains('hidden')) renderHighlights();
+        });
+    });
+}
+
+function renderDashboard() {
+    // 1. Largest Margins
+    const topMargins = [...tableData]
+        .sort((a, b) => b.margin - a.margin)
+        .slice(0, 8);
+    renderMiniTable('table-margins', topMargins, (item) => `
+        <td class="text-green">+${formatNumber(item.margin)}</td>
+    `);
+
+    // 2. High Volume Profit (Score > 70 & Vol > 100)
+    const highVol = tableData
+        .filter(i => i.volume > 100)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8);
+    renderMiniTable('table-volume', highVol, (item) => `
+        <td class="text-green">+${formatNumber(item.margin)}</td>
+    `);
+
+    // 3. Profitable Alchs
+    const topAlchs = tableData
+        .filter(i => i.alchProfit > 0)
+        .sort((a, b) => b.alchProfit - a.alchProfit)
+        .slice(0, 8);
+    renderMiniTable('table-alchs', topAlchs, (item) => `
+        <td class="text-green">+${formatNumber(item.alchProfit)}</td>
+    `);
+
+    // 4. Top Gainers
+    const gainers = tableData
+        .filter(i => i.change1h > 0)
+        .sort((a, b) => b.change1h - a.change1h)
+        .slice(0, 8);
+    renderMiniTable('table-gainers', gainers, (item) => `
+        <td class="text-green">+${formatNumber(item.change1h)}</td>
+    `);
+}
+
+function renderMiniTable(tableId, data, extraCellRenderer) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    tbody.innerHTML = '';
+    
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        // Wiki icons are usually capitalized with underscores
+        const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
+
+        tr.innerHTML = `
+            <td>
+                ${iconUrl ? `<img src="${iconUrl}" class="item-icon" loading="lazy">` : ''}
+                <span>${item.name}</span>
+            </td>
+            <td>${formatNumber(item.sellPrice)}</td>
+            ${extraCellRenderer(item)}
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
 function renderTable() {
+    // Screener Logic (Same as before)
     const query = searchInput.value.toLowerCase();
     const minMargin = parseFloat(minMarginInput.value) || 0;
     const minVol = parseFloat(minVolumeInput.value) || 0;
@@ -150,11 +378,15 @@ function renderTable() {
         
         const starClass = item.fav ? 'star-active fa-solid' : 'star-inactive fa-regular';
         const pumpBadge = item.pump ? '<span class="pump-badge" title="High Volume Spike"><i class="fa-solid fa-triangle-exclamation"></i></span>' : '';
+        
+        // Use icon in main table too
+        const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
 
         tr.innerHTML = `
             <td>
                 <div style="display:flex; align-items:center;">
                     <i class="star-btn fa-star ${starClass}" data-id="${item.id}"></i>
+                    ${iconUrl ? `<img src="${iconUrl}" class="item-icon" style="margin-right:8px;" loading="lazy">` : ''}
                     <span>${item.name} ${pumpBadge}</span>
                 </div>
             </td>
@@ -175,23 +407,42 @@ function renderTable() {
         tableBody.appendChild(tr);
     });
 
-    document.querySelectorAll('.chart-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => openModal(e.target.dataset.id));
-    });
-
-    document.querySelectorAll('.star-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = e.target.dataset.id;
-            toggleFavorite(id);
-            // Update local state without full re-render for speed
-            const item = tableData.find(i => i.id == id);
-            if (item) item.fav = !item.fav;
-            renderTable(); // Re-render to sort
-        });
-    });
+    // Re-attach listeners
+    attachCommonListeners(tableBody);
 }
 
 function setupEventListeners() {
+    // Navigation Switching
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            // Remove active class from all
+            navLinks.forEach(l => l.classList.remove('active'));
+            // Add to click
+            link.classList.add('active');
+            
+            // Hide all views
+            Object.values(views).forEach(v => v.classList.add('hidden'));
+            
+            // Show target view
+            const viewId = link.dataset.view;
+            views[viewId].classList.remove('hidden');
+
+            if (viewId === 'highlights') {
+                renderHighlights();
+            }
+        });
+    });
+
+    // Highlights Tab Switching
+    highlightTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            highlightTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentHighlightTab = tab.dataset.tab;
+            renderHighlights();
+        });
+    });
+
     document.querySelectorAll('th[data-sort]').forEach(th => {
         th.addEventListener('click', () => {
             const field = th.dataset.sort;
@@ -218,6 +469,9 @@ function setupEventListeners() {
             minMarginInput.value = 10000;
             minVolumeInput.value = 10;
             currentSort = { field: 'roi', direction: 'desc' };
+        } else if (e.target.value === 'alch') {
+             // Basic preset logic, though Dashboard handles alchs better
+             currentSort = { field: 'alchProfit', direction: 'desc' };
         }
         renderTable();
     });

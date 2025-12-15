@@ -152,6 +152,11 @@ def refresh_prices():
         res_1h = requests.get(url_1h, headers=headers)
         data_1h = res_1h.json()['data']
 
+        # 4. 24h Prices (For Daily Volume & Trends)
+        url_24h = "https://prices.runescape.wiki/api/v1/osrs/24h"
+        res_24h = requests.get(url_24h, headers=headers)
+        data_24h = res_24h.json()['data']
+
         merged = {}
         
         all_ids = set(data_latest.keys()) | set(data_5m.keys())
@@ -160,6 +165,7 @@ def refresh_prices():
             l = data_latest.get(item_id, {})
             m5 = data_5m.get(item_id, {})
             h1 = data_1h.get(item_id, {})
+            d24 = data_24h.get(item_id, {})
             
             merged[item_id] = {
                 "high": l.get("high", 0),
@@ -169,8 +175,12 @@ def refresh_prices():
                 "highPriceVolume": m5.get("highPriceVolume", 0) + m5.get("lowPriceVolume", 0),
                 "avgHigh5m": m5.get("avgHighPrice"),
                 "avgLow5m": m5.get("avgLowPrice"),
-                # 1h Volume for baseline comparison
-                "volume1h": h1.get("highPriceVolume", 0) + h1.get("lowPriceVolume", 0) 
+                # 1h Data
+                "volume1h": h1.get("highPriceVolume", 0) + h1.get("lowPriceVolume", 0),
+                "price1h": h1.get("avgHighPrice", 0) or h1.get("avgLowPrice", 0),
+                # 24h Data
+                "volume24h": d24.get("highPriceVolume", 0) + d24.get("lowPriceVolume", 0),
+                "price24h": d24.get("avgHighPrice", 0) or d24.get("avgLowPrice", 0)
             }
             
         local_cache["prices"] = merged
