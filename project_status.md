@@ -30,23 +30,37 @@
   - Featured "Top Flipper Picks" section on Dashboard
   - Risk indicator column in Screener
 
+### Priority 3: Volume Data Integration ✅ (Just Completed)
+- [x] **Real-time Volume Data Fetching**
+  - Integrated 5-minute volume data from OSRS Wiki API
+  - Integrated 1-hour volume data for comparison and trend analysis
+  - Volume data used in Flipper's Score calculations for improved accuracy
+- [x] **Advanced Analytics Integration**
+  - Flipper's Score now factors in real volume data (not just estimates)
+  - Volatility calculations use actual price and volume data
+  - Risk level assessments based on real market data
+- [x] **UI Updates**
+  - Dashboard and Screener now use calculated analytics instead of estimates
+  - Real-time volume indicators in trend signals (pump/dump detection)
+  - Volume-based sorting and filtering capabilities
+
 ### Analysis Functions Added (`utils/analysis.ts`)
 - `calculateSMA()` - Simple Moving Average
-- `calculateEMA()` - Exponential Moving Average  
+- `calculateEMA()` - Exponential Moving Average
 - `calculateVolatility()` - Price volatility (coefficient of variation)
 - `getRiskLevel()` - Risk classification from volatility
 - `calculatePriceStability()` - Inverse volatility score
-- `calculateFlipperScore()` - Proprietary ranking metric
+- `calculateFlipperScore()` - Proprietary ranking metric with volume data
 - `computeAnalytics()` - Full analytics computation from timeseries
 
 ### Type Additions (`types/index.ts`)
 - `flipperScore`, `volatilityIndex`, `riskLevel`, `priceStability` on MarketItem
 - New `AnalyticsData` interface for computed analytics
+- Required fields (no longer optional) for calculated analytics
 
 ## Next Steps
-1. **Volume Data Integration**: Fetch 5m volume data from API to improve score accuracy.
-2. **Alerts System**: Notify users of price/volume spikes on favorites.
-3. **Historical Performance**: Track flip performance over time.
+1. **Alerts System**: Notify users of price/volume spikes on favorites.
+2. **Historical Performance**: Track flip performance over time.
 
 ## Backlog
 - [ ] Integration with backend API (Cloud Run).

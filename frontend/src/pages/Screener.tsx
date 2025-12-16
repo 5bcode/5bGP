@@ -606,11 +606,11 @@ export function Screener() {
         }
     }, []);
 
-    // Add flipper scores
+    // Use the real Flipper's Score from market data
     const itemsWithScores = useMemo(() => {
         return items.map(item => ({
             ...item,
-            flipperScore: estimateFlipperScore(item.roi, item.margin, item.potentialProfit, item.limit || 0, item.volume)
+            flipperScore: item.flipperScore // Now calculated in useMarketData with volume data
         }));
     }, [items]);
 

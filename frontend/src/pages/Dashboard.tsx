@@ -43,11 +43,11 @@ export function Dashboard() {
     );
   }, [items]);
 
-  // Add flipper scores to recent items
+  // Use the real Flipper's Score from market data
   const itemsWithScores = useMemo(() => {
     return recentItems.map(item => ({
       ...item,
-      flipperScore: estimateFlipperScore(item.roi, item.margin, item.potentialProfit, item.limit || 0, item.volume)
+      flipperScore: item.flipperScore // Now calculated in useMarketData with volume data
     }));
   }, [recentItems]);
 
@@ -445,4 +445,4 @@ export function Dashboard() {
       </div>
     </div>
   );
-} 
+}

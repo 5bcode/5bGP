@@ -29,6 +29,7 @@ export function Navbar() {
         { to: "/", label: "Market highlights" },
         { to: "/screener", label: "Item screener" },
         { to: "/compare", label: "Compare" },
+        { to: "/performance", label: "Performance" },
         { to: "/portfolio", label: "Portfolio" },
     ];
 

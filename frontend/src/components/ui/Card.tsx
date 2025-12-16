@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { FaChevronRight } from 'react-icons/fa6';
 
 interface CardProps {
-  title: ReactNode;
+  title?: ReactNode;
   icon?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -20,7 +20,7 @@ export function Card({ title, icon, children, className, action, actionLabel = "
           {title}
         </h3>
         {action && (
-          <button 
+          <button
             onClick={action}
             className="text-xs font-medium text-muted hover:text-gold flex items-center gap-1 transition-colors uppercase tracking-wider"
           >

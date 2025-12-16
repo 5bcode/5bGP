@@ -1,7 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchLatestPrices, fetchMapping, fetch5mVolume, fetch1hVolume } from '../services/api';
 import type { MarketItem } from '../types';
-import { getNetProfit, getROI, calculateOpportunityScores, calculateTax, getTrendSignal } from '../utils/analysis';
+import {
+    getNetProfit,
+    getROI,
+    calculateOpportunityScores,
+    calculateTax,
+    getTrendSignal,
+    calculateVolatility,
+    getRiskLevel,
+    calculatePriceStability,
+    calculateFlipperScore
+} from '../utils/analysis';
 import type { TrendSignal } from '../utils/analysis';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { useMemo } from 'react';
@@ -119,6 +129,12 @@ export function useMarketData() {
             // Limit profit (profit from buying full GE limit)
             const limitProfit = margin * (item.limit ?? 0);
 
+            // Calculate advanced analytics using volume data
+            const volatilityIndex = calculateVolatility([buyPrice, sellPrice, price5mAvg, price1hAvg].filter(p => p > 0));
+            const riskLevel = getRiskLevel(volatilityIndex);
+            const priceStability = calculatePriceStability(volatilityIndex);
+            const flipperScore = calculateFlipperScore(roi, margin, vol5mTotal, priceStability, item.limit ?? 0);
+
             return {
                 ...item,
                 buyPrice,
@@ -132,6 +148,11 @@ export function useMarketData() {
                 fav: favorites.includes(item.id),
                 score: 0,
                 alchProfit,
+                // Advanced Analytics
+                flipperScore,
+                volatilityIndex,
+                riskLevel,
+                priceStability,
                 // Enhanced fields
                 vol5m: vol5mTotal,
                 vol1h: vol1hTotal,

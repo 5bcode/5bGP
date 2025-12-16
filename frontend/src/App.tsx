@@ -12,6 +12,7 @@ import { Portfolio } from './pages/Portfolio';
 import { Screener } from './pages/Screener';
 import { Highlights } from './pages/Highlights';
 import { ComparativeAnalysis } from './pages/ComparativeAnalysis';
+import { Performance } from './pages/Performance';
 
 import { usePreferencesStore } from './store/preferencesStore';
 import { useEffect } from 'react';
@@ -38,6 +39,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/item/:id" element={<ItemDetail />} />
             <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/performance" element={<Performance />} />
             <Route path="/highlights" element={<Highlights />} />
             <Route path="/screener" element={<Screener />} />
             <Route path="/compare" element={<ComparativeAnalysis />} />
