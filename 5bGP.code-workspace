@@ -4,5 +4,8 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"taskmaster.mcp.env": {},
+		"todo-tree.tree.scanMode": "workspace only"
+	}
 }

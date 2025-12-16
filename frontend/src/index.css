@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #050505;
+  --color-sidebar: #0a0a0a;
+  --color-card: #0f1113;
+  --color-hover: #16181b;
+  --color-primary: #e2e8f0;
+  --color-secondary: #94a3b8;
+  --color-muted: #64748b;
+  --color-gold: #fbbf24;
+  --color-green: #10b981;
+  --color-red: #ef4444;
+  --color-border: #262626;
+
+  --font-sans: "Inter", sans-serif;
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-background text-primary;
+}
+
+/* Custom Utilities */
+.glass-panel {
+  @apply bg-card border border-border rounded-xl;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full;
+}
