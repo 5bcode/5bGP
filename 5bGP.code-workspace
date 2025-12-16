@@ -6,6 +6,7 @@
 	],
 	"settings": {
 		"taskmaster.mcp.env": {},
-		"todo-tree.tree.scanMode": "workspace only"
+		"todo-tree.tree.scanMode": "workspace only",
+		"gagp.autoCleanCache": true
 	}
 }
