@@ -1,9 +1,8 @@
-import React from 'react';
 import { Card } from './ui/Card';
 import { useFlipPerformance, useFlipPerformanceStats } from '../hooks/useFlipPerformance';
 import { formatNumber } from '../utils/analysis';
-import { formatHoldingTime } from '../utils/flipPerformance';
-import { FaTrophy, FaSkull, FaClock, FaChartLine, FaCoins, FaPercent } from 'react-icons/fa6';
+import { formatHoldingTime } from '../utils/formatters';
+import { FaClock, FaChartLine, FaCoins, FaPercent } from 'react-icons/fa6';
 import clsx from 'clsx';
 
 export function FlipPerformanceOverview() {

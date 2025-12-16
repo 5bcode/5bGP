@@ -1,4 +1,3 @@
-import React from 'react';
 import { FlipPerformanceOverview } from '../components/FlipPerformanceOverview';
 
 export function Performance() {

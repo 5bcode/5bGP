@@ -2,12 +2,11 @@ import { useEffect, useMemo } from 'react';
 import { usePortfolioStore } from '../store/portfolioStore';
 import { useFlipPerformanceStore } from '../store/flipPerformanceStore';
 import { useMarketData } from './useMarketData';
-import { detectCompletedFlips, groupFlipsByTimePeriod } from '../utils/flipPerformance';
-import type { FlipPerformance } from '../types';
+import { groupFlipsByTimePeriod } from '../store/flipPerformanceStore';
 
 export function useFlipPerformance() {
     const { transactions } = usePortfolioStore();
-    const { completedFlips, historicalPerformance, updateFlips, lastCalculated } = useFlipPerformanceStore();
+    const { completedFlips, historicalPerformance, updateFlips, lastCalculated, detectFlips } = useFlipPerformanceStore();
     const { items: marketItems } = useMarketData();
 
     // Detect flips when transactions or items change
@@ -20,13 +19,13 @@ export function useFlipPerformance() {
             return completedFlips; // Return cached flips
         }
 
-        return detectCompletedFlips(transactions, marketItems);
-    }, [transactions, marketItems, lastCalculated, completedFlips]);
+        return detectFlips(transactions, marketItems);
+    }, [transactions, marketItems, lastCalculated, completedFlips, detectFlips]);
 
     // Update the store when flips change
     useEffect(() => {
         if (detectedFlips.length !== completedFlips.length ||
-            detectedFlips.some((flip, index) => flip.id !== completedFlips[index]?.id)) {
+            detectedFlips.some((flip: any, index: number) => flip.id !== completedFlips[index]?.id)) {
             updateFlips(detectedFlips);
         }
     }, [detectedFlips, completedFlips, updateFlips]);
