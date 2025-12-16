@@ -1,80 +1,68 @@
 @import "tailwindcss";
 
 :root {
-  /* Default (Molten) */
-  --bg-app: #050505;
-  --bg-sidebar: #0a0a0a;
-  --bg-card: #0f1113;
-  --bg-hover: #16181b;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-gold: #fbbf24;
-  --accent-green: #10b981;
-  --accent-red: #ef4444;
-  --border-color: #262626;
+    /* Default (Molten) */
+    --bg-app: #050505;
+    --bg-sidebar: #0a0a0a;
+    --bg-card: #0f1113;
+    --bg-hover: #16181b;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-gold: #fbbf24;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --border-color: #262626;
 }
 
 .theme-midnight {
-  --bg-app: #000000;
-  --bg-sidebar: #000000;
-  --bg-card: #050505;
-  --bg-hover: #0a0a0a;
-  --text-primary: #ffffff;
-  --text-secondary: #a3a3a3;
-  --text-muted: #525252;
-  --accent-gold: #fcd34d;
-  --border-color: #171717;
+    --bg-app: #000000;
+    --bg-sidebar: #000000;
+    --bg-card: #050505;
+    --bg-hover: #0a0a0a;
+    --text-primary: #ffffff;
+    --text-secondary: #a3a3a3;
+    --text-muted: #525252;
+    --accent-gold: #fcd34d;
+    --border-color: #171717;
 }
 
 .theme-runelite {
-  --bg-app: #1e1e1e;
-  --bg-sidebar: #252526;
-  --bg-card: #2d2d2d;
-  --bg-hover: #3e3e42;
-  --text-primary: #d4d4d4;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --accent-gold: #ff981f;
-  --border-color: #3e3e42;
-}
-
-@theme {
-  --color-background: var(--bg-app);
-  --color-sidebar: var(--bg-sidebar);
-  --color-card: var(--bg-card);
-  --color-hover: var(--bg-hover);
-  --color-primary: var(--text-primary);
-  --color-secondary: var(--text-secondary);
-  --color-muted: var(--text-muted);
-  --color-gold: var(--accent-gold);
-  --color-green: var(--accent-green);
-  --color-red: var(--accent-red);
-  --color-border: var(--border-color);
-
-  --font-sans: "Inter", sans-serif;
+    --bg-app: #1e1e1e;
+    --bg-sidebar: #252526;
+    --bg-card: #2d2d2d;
+    --bg-hover: #3e3e42;
+    --text-primary: #d4d4d4;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent-gold: #ff981f;
+    --border-color: #3e3e42;
 }
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  color-scheme: dark;
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    color-scheme: dark;
 }
 
 body {
-  @apply bg-background text-primary;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
 }
 
 /* Custom Utilities */
 .glass-panel {
-  @apply bg-card border border-border rounded-xl;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-800 rounded-full;
+    background-color: #27272a;
+    border-radius: 9999px;
 }

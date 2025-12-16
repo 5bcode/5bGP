@@ -18,7 +18,7 @@ import { useMemo, useState, useRef } from 'react';
 import React from 'react';
 import { calculateSMA, calculateEMA, computeAnalytics, getRiskLevel, calculateRSI, calculateBollingerBands, calculateMACD } from '../../utils/analysis';
 import clsx from 'clsx';
-import { FaChartArea, FaTriangleExclamation, FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa6';
+import { FaChartArea, FaTriangleExclamation, FaSearchPlus, FaMagnifyingGlassMinus, FaExpand } from 'react-icons/fa6';
 
 // Register ChartJS components
 ChartJS.register(
@@ -396,7 +396,7 @@ export function PriceChart({
                         className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                         title="Zoom Out"
                     >
-                        <FaSearchMinus className="text-xs" />
+                        <FaMagnifyingGlassMinus className="text-xs" />
                     </button>
                 </div>
 
