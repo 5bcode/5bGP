@@ -13,6 +13,7 @@ import { Screener } from './pages/Screener';
 import { Highlights } from './pages/Highlights';
 import { ComparativeAnalysis } from './pages/ComparativeAnalysis';
 import { Performance } from './pages/Performance';
+import Alerts from './pages/Alerts';
 
 import { usePreferencesStore } from './store/preferencesStore';
 import { useEffect } from 'react';
@@ -42,6 +43,7 @@ function App() {
             <Route path="/performance" element={<Performance />} />
             <Route path="/highlights" element={<Highlights />} />
             <Route path="/screener" element={<Screener />} />
+            <Route path="/alerts" element={<Alerts />} />
             <Route path="/compare" element={<ComparativeAnalysis />} />
             <Route path="/compare/:ids" element={<ComparativeAnalysis />} />
             <Route path="*" element={<Navigate to="/" replace />} />

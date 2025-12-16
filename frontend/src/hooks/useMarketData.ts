@@ -14,7 +14,8 @@ import {
 } from '../utils/analysis';
 import type { TrendSignal } from '../utils/analysis';
 import { usePreferencesStore } from '../store/preferencesStore';
-import { useMemo } from 'react';
+import { useAlertStore } from '../store/alertStore';
+import { useMemo, useEffect } from 'react';
 
 export interface EnhancedMarketItem extends MarketItem {
     vol5m: number;
@@ -34,6 +35,7 @@ export interface EnhancedMarketItem extends MarketItem {
 
 export function useMarketData() {
     const { favorites } = usePreferencesStore();
+    const { checkForAlerts } = useAlertStore();
 
     // 1. Fetch Mapping (Stale time: 24h, since item IDs rarely change)
     const { data: mapping, isLoading: loadingMapping, error: mappingError } = useQuery({
@@ -176,6 +178,19 @@ export function useMarketData() {
 
         return items;
     }, [mapping, pricesData, vol5mData, vol1hData, favorites]);
+
+    // Check for alerts when market data updates
+    useEffect(() => {
+        if (marketItems.length > 0) {
+            // Convert items array to record format expected by checkForAlerts
+            const marketDataRecord = marketItems.reduce((acc, item) => {
+                acc[item.id] = item;
+                return acc;
+            }, {} as Record<number, EnhancedMarketItem>);
+
+            checkForAlerts(marketDataRecord);
+        }
+    }, [marketItems, checkForAlerts]);
 
     return {
         items: marketItems,

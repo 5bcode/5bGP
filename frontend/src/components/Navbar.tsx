@@ -31,6 +31,7 @@ export function Navbar() {
         { to: "/compare", label: "Compare" },
         { to: "/performance", label: "Performance" },
         { to: "/portfolio", label: "Portfolio" },
+        { to: "/alerts", label: "Alerts" },
     ];
 
     return (

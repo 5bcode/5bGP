@@ -394,4 +394,17 @@ export default function Alerts() {
                                             type="number"
                                             value={settings.alertCooldownMinutes}
                                             onChange={(e) => updateSettings({ alertCooldownMinutes: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-700 text
+                                            className="w-full bg-slate-700 text-white border border-slate-600 rounded-md px-3 py-2"
+                                            min="1"
+                                            max="60"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
