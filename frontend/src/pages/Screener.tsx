@@ -22,6 +22,7 @@ export function Screener() {
     const [minROI, setMinROI] = useState<string>('');
     const [minVolume] = useState<string>(''); // Currently read-only unused setter removed
     const [onlyF2P, setOnlyF2P] = useState(false);
+    const [onlyFav, setOnlyFav] = useState(false);
 
 
     // Sorting State
@@ -68,6 +69,9 @@ export function Screener() {
         if (onlyF2P) {
             result = result.filter(i => !i.members);
         }
+        if (onlyFav) {
+            result = result.filter(i => i.fav);
+        }
 
         // 2. Sort
         result = [...result].sort((a, b) => {
@@ -80,7 +84,7 @@ export function Screener() {
         });
 
         return result;
-    }, [items, search, minMargin, minROI, minVolume, onlyF2P, sortField, sortDir]);
+    }, [items, search, minMargin, minROI, minVolume, onlyF2P, onlyFav, sortField, sortDir]);
 
     // Pagination Logic
     const totalPages = Math.ceil(filteredAndSortedItems.length / ITEMS_PER_PAGE);
@@ -154,6 +158,16 @@ export function Screener() {
                         onChange={(e) => setOnlyF2P(e.target.checked)}
                     />
                     <label htmlFor="f2p" className="text-sm font-medium cursor-pointer select-none">F2P Only</label>
+                </div>
+                <div className="flex items-center gap-2 pb-2">
+                    <input
+                        type="checkbox"
+                        id="fav"
+                        className="w-4 h-4 rounded border-border bg-background text-gold focus:ring-gold"
+                        checked={onlyFav}
+                        onChange={(e) => setOnlyFav(e.target.checked)}
+                    />
+                    <label htmlFor="fav" className="text-sm font-medium cursor-pointer select-none">Favorites</label>
                 </div>
 
                 <div className="xl:ml-auto pb-0.5 text-sm text-muted">

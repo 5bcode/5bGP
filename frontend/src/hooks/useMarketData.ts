@@ -2,8 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchLatestPrices, fetchMapping } from '../services/api';
 import type { MarketItem } from '../types';
 import { getNetProfit, getROI, calculateOpportunityScores, calculateTax } from '../utils/analysis';
+import { usePreferencesStore } from '../store/preferencesStore';
 
 export function useMarketData() {
+    const { favorites } = usePreferencesStore();
+
     // 1. Fetch Mapping (Stale time: Infinity, since item IDs rarely change)
     const { data: mapping, isLoading: loadingMapping, error: mappingError } = useQuery({
         queryKey: ['mapping'],
@@ -44,24 +47,6 @@ export function useMarketData() {
             const tax = calculateTax(sellPrice);
             const alchProfit = (item.highalch || 0) - (buyPrice + natureRunePrice);
 
-            // In original app, volume came from 'highPriceVolume' + 'lowPriceVolume'?
-            // Actually /latest endpoint has highPriceVolume and lowPriceVolume 
-            // Let's check PriceData interface. 
-            // Wait, /latest usually returns { high, highTime, low, lowTime } only?
-            // The 5m endpoint has volume. 
-            // Original `api.js` fetchLatestPrices just fetched `/latest`.
-            // Check original ui.js: `const volume = (price.highPriceVolume || 0) + (price.lowPriceVolume || 0);`
-            // So /latest DOES provide volume for the last timestep implicitly or explicit fields?
-            // Wiki docs say /latest is just prices. /5m is prices + volume.
-            // If the original app was using /latest and getting volume, maybe it was actually hitting /5m?
-            // Re-reading original `api.js`: `fetch('${API_BASE}/prices/latest')` (from cloud run)
-            // Implementation plan says Cloud Run fetches `/latest` AND `/5m` and merges them.
-            // HERE, I am hitting Wiki directly. I only hit `/latest`.
-            // I should hit `/5m` to get volume as well if I want meaningful analysis.
-            // But `/5m` is better for prices too as it's smoothed?
-            // "Real-time" usually means `/latest`.
-            // For now, I will use 0 for volume or just use /latest fields if present.
-
             return {
                 ...item,
                 buyPrice,
@@ -72,7 +57,7 @@ export function useMarketData() {
                 volume: 0, // Placeholder until we integrate /5m or similar
                 potentialProfit: margin * (item.limit ?? 0),
                 timestamp: Math.max(price.highTime ?? 0, price.lowTime ?? 0),
-                fav: false, // TODO: Persist favorites
+                fav: favorites.includes(item.id),
                 score: 0,
                 alchProfit
             } as MarketItem;

@@ -7,6 +7,9 @@ import { PriceChart } from '../components/ui/PriceChart';
 import { formatNumber } from '../utils/analysis';
 import clsx from 'clsx';
 import { useState } from 'react';
+import { usePreferencesStore } from '../store/preferencesStore';
+import { usePortfolioStore } from '../store/portfolioStore';
+import { toast } from 'sonner';
 
 // Base URL for OSRS Wiki Images
 const ICON_BASE = 'https://oldschool.runescape.wiki/images/';
@@ -17,11 +20,26 @@ export function ItemDetail() {
     const { items } = useMarketData();
     const itemId = Number(id);
 
-    // Local state for chart duration (timestep)
     const [timestep, setTimestep] = useState('5m');
+    const { toggleFavorite } = usePreferencesStore();
+    const transactions = usePortfolioStore(state => state.transactions);
 
     // Find item metadata and current price from the global hook
     const item = items.find(i => i.id === itemId);
+
+    // Limit Logic
+    const limitUsed = item ? transactions
+        .filter(tx => tx.itemId === itemId && tx.type === 'buy' && tx.timestamp > Date.now() - (4 * 60 * 60 * 1000))
+        .reduce((acc, tx) => acc + tx.quantity, 0) : 0;
+
+    const limitRemaining = item?.limit ? Math.max(0, item.limit - limitUsed) : 0;
+    const limitPercent = item?.limit ? Math.min(100, (limitUsed / item.limit) * 100) : 0;
+
+    const handleToggleFav = () => {
+        if (!item) return;
+        toggleFavorite(item.id);
+        toast.success(item.fav ? 'Removed from favorites' : 'Added to favorites');
+    };
 
     // Queries
     const { data: timeseriesData, isLoading: loadingChart, error: chartError } = useQuery({
@@ -61,7 +79,13 @@ export function ItemDetail() {
                     <div>
                         <h1 className="text-3xl font-bold flex items-center gap-3">
                             {item.name}
-                            <button className="text-muted hover:text-gold transition-colors text-xl">
+                            <button
+                                onClick={handleToggleFav}
+                                className={clsx(
+                                    "transition-colors text-xl",
+                                    item.fav ? "text-gold" : "text-muted hover:text-gold"
+                                )}
+                            >
                                 <FaStar />
                             </button>
                         </h1>
@@ -203,6 +227,23 @@ export function ItemDetail() {
                                 <span className="font-mono text-secondary">
                                     {formatNumber(item.buyPrice * (item.limit || 0))}
                                 </span>
+                            </div>
+
+                            {/* Limit Tracker */}
+                            <div className="pt-2">
+                                <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-muted font-medium">GE Limit (4h)</span>
+                                    <span className="text-secondary">{formatNumber(limitUsed)} / {formatNumber(item.limit || 0)}</span>
+                                </div>
+                                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div
+                                        className={clsx("h-full transition-all duration-500", limitPercent > 90 ? "bg-red-500" : "bg-gold")}
+                                        style={{ width: `${limitPercent}%` }}
+                                    ></div>
+                                </div>
+                                <div className="text-[10px] text-muted text-right mt-1">
+                                    {formatNumber(limitRemaining)} remaining
+                                </div>
                             </div>
                         </div>
                     </div>

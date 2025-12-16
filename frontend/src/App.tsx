@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/Layout';
+import { Toaster } from 'sonner';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -11,7 +12,23 @@ import { Portfolio } from './pages/Portfolio';
 import { Screener } from './pages/Screener';
 import { Highlights } from './pages/Highlights';
 
+import { usePreferencesStore } from './store/preferencesStore';
+import { useEffect } from 'react';
+
+// ... imports
+
 function App() {
+  const { theme } = usePreferencesStore();
+
+  useEffect(() => {
+    // Remove all theme classes first
+    document.documentElement.classList.remove('theme-molten', 'theme-midnight', 'theme-runelite');
+    // Add current theme class
+    if (theme !== 'molten') {
+      document.documentElement.classList.add(`theme-${theme}`);
+    }
+  }, [theme]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -26,6 +43,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Toaster position="top-center" theme="dark" richColors />
     </QueryClientProvider>
   );
 }

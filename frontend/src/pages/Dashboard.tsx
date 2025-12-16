@@ -61,13 +61,18 @@ export function Dashboard() {
 
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold">Market Dashboard</h1>
-        <p className="text-secondary text-sm">Real-time opportunities from the Grand Exchange.</p>
+    <div className="space-y-6 animate-in fade-in">
+      <header className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">Market Highlights</h1>
+          <p className="text-secondary text-sm">Real-time opportunities from the Grand Exchange.</p>
+        </div>
+        <div className="text-xs text-muted font-mono">
+          Updated: <span className="text-gold">Live</span>
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 pb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-10">
 
         <Card
           title="Largest Margins"
@@ -81,6 +86,7 @@ export function Dashboard() {
             valueKey="margin"
             valueFormatter={(val) => `+${formatNumber(val)}`}
             onItemClick={(id) => navigate(`/item/${id}`)}
+            className="text-sm"
           />
         </Card>
 
@@ -128,6 +134,42 @@ export function Dashboard() {
             valueLabel="ROI"
             valueKey="roi"
             valueFormatter={(val) => `${val.toFixed(2)}%`}
+            onItemClick={(id) => navigate(`/item/${id}`)}
+          />
+        </Card>
+
+        {/* Placeholder Card 5: Top Gainers (Mock if needed or just another sort) */}
+        {/* For now let's just stick to 4 or duplicate one with different sort to fill grid if we want 3 cols? */}
+        {/* 4 items in 3 col grid leaves 1 dangling. Let's add 2 more "filters" from our screener logic? */}
+
+        {/* Let's replicate "Most Profitable F2P" from the screenshot */}
+        <Card
+          title="Most Profitable F2P"
+          icon={<FaMoneyBillWave className="text-zinc-400" />}
+          action={() => navigate('/screener?f2p=true')}
+          className="h-[420px]"
+        >
+          <MiniTable
+            items={[...items].filter(i => !i.members).sort((a, b) => b.margin - a.margin).slice(0, 8)}
+            valueLabel="Margin"
+            valueKey="margin"
+            valueFormatter={(val) => `+${formatNumber(val)}`}
+            onItemClick={(id) => navigate(`/item/${id}`)}
+          />
+        </Card>
+
+        {/* Let's replicate "Tax Free Profit" or similar */}
+        <Card
+          title="Highest Value Traded"
+          icon={<FaArrowTrendUp className="text-blue-400" />}
+          action={() => navigate('/screener?sort=sellPrice')}
+          className="h-[420px]"
+        >
+          <MiniTable
+            items={[...items].sort((a, b) => b.sellPrice - a.sellPrice).slice(0, 8)}
+            valueLabel="Price"
+            valueKey="sellPrice"
+            valueFormatter={(val) => formatNumber(val)}
             onItemClick={(id) => navigate(`/item/${id}`)}
           />
         </Card>

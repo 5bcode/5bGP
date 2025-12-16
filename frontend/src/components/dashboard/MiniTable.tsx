@@ -10,19 +10,20 @@ interface MiniTableProps {
   valueKey: keyof MarketItem; // The key to display (e.g. 'margin', 'volume')
   valueFormatter?: (val: number) => string; // Optional custom formatter
   onItemClick?: (id: number) => void;
+  className?: string;
 }
 
-export function MiniTable({ items, valueLabel, valueKey, valueFormatter = formatNumber, onItemClick }: MiniTableProps) {
+export function MiniTable({ items, valueLabel, valueKey, valueFormatter = formatNumber, onItemClick, className }: MiniTableProps) {
   if (items.length === 0) {
     return (
-      <div className="flex items-center justify-center h-40 text-muted italic text-sm">
+      <div className={className || "flex items-center justify-center h-40 text-muted italic text-sm"}>
         No data available
       </div>
     );
   }
 
   return (
-    <table className="w-full text-sm">
+    <table className={`w-full text-sm ${className || ''}`}>
       <thead className="sticky top-0 bg-card z-10 text-xs uppercase text-muted font-medium tracking-wider">
         <tr>
           <th className="px-5 py-3 text-left border-b border-border">Item</th>
