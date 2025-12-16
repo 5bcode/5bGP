@@ -100,3 +100,62 @@ export interface HistoricalPerformance {
         monthly: number[];
     };
 }
+
+// Alerts System Types
+export interface AlertThresholds {
+    priceChangePercent: number; // e.g., 5 = 5% price change
+    volumeSpikeMultiplier: number; // e.g., 3 = 3x volume spike
+    marginIncreasePercent: number; // e.g., 10 = 10% margin improvement
+    newFlipperScoreMin: number; // minimum flipper score for alert
+}
+
+export interface AlertRule {
+    id: string;
+    name: string;
+    itemId: number;
+    itemName: string;
+    itemIcon: string;
+    thresholds: AlertThresholds;
+    enabled: boolean;
+    createdAt: number;
+    lastTriggered?: number;
+    triggerCount: number;
+}
+
+export interface Alert {
+    id: string;
+    ruleId: string;
+    itemId: number;
+    itemName: string;
+    itemIcon: string;
+    type: 'price_spike' | 'volume_spike' | 'margin_improvement' | 'high_score' | 'pump_detected' | 'dump_detected';
+    severity: 'info' | 'warning' | 'critical';
+    title: string;
+    message: string;
+    data: {
+        currentValue: number;
+        previousValue: number;
+        threshold: number;
+        changePercent: number;
+    };
+    timestamp: number;
+    read: boolean;
+    dismissed: boolean;
+}
+
+export interface AlertSettings {
+    enabled: boolean;
+    browserNotifications: boolean;
+    soundEnabled: boolean;
+    maxAlerts: number; // maximum alerts to keep in history
+    alertCooldownMinutes: number; // minimum time between alerts for same item
+    defaultThresholds: AlertThresholds;
+}
+
+export interface AlertStats {
+    totalAlerts: number;
+    unreadAlerts: number;
+    todayAlerts: number;
+    alertsByType: Record<string, number>;
+    topTriggeredItems: Array<{ itemId: number; itemName: string; count: number }>;
+}
