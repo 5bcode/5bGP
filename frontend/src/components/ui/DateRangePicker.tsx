@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FaCalendar, FaTimes } from 'react-icons/fa6';
+import { FaCalendar, FaXmark } from 'react-icons/fa6';
 import clsx from 'clsx';
 
 interface DateRangePickerProps {
@@ -76,7 +76,7 @@ export function DateRangePicker({
                                 onClick={() => setIsOpen(false)}
                                 className="text-muted hover:text-secondary"
                             >
-                                <FaTimes className="text-xs" />
+                                <FaXmark className="text-xs" />
                             </button>
                         </div>
 

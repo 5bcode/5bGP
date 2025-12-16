@@ -17,7 +17,7 @@ import { usePortfolioStore } from '../../store/portfolioStore';
 import { useMarketData } from '../../hooks/useMarketData';
 import { formatNumber } from '../../utils/analysis';
 import clsx from 'clsx';
-import { FaArrowTrendUp, FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa6';
+import { FaArrowTrendUp, FaMagnifyingGlassPlus, FaMagnifyingGlassMinus, FaExpand } from 'react-icons/fa6';
 import React from 'react';
 
 // Register ChartJS components
@@ -335,14 +335,14 @@ export function PortfolioPerformanceChart() {
                         className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                         title="Zoom In"
                     >
-                        <FaSearchPlus className="text-xs" />
+                        <FaMagnifyingGlassPlus className="text-xs" />
                     </button>
                     <button
                         onClick={() => chartRef.current?.zoom(0.9)}
                         className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                         title="Zoom Out"
                     >
-                        <FaSearchMinus className="text-xs" />
+                        <FaMagnifyingGlassMinus className="text-xs" />
                     </button>
                 </div>
             </div>

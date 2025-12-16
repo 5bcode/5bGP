@@ -19,7 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMarketData } from '../../hooks/useMarketData';
 import { formatNumber } from '../../utils/analysis';
 import clsx from 'clsx';
-import { FaChartLine, FaPlus, FaTimes, FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa6';
+import { FaChartLine, FaPlus, FaXmark, FaMagnifyingGlassPlus, FaMagnifyingGlassMinus, FaExpand } from 'react-icons/fa6';
 import React from 'react';
 
 // Register ChartJS components
@@ -340,14 +340,14 @@ export function ComparativeChart({
                                 className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                                 title="Zoom In"
                             >
-                                <FaSearchPlus className="text-xs" />
+                                <FaMagnifyingGlassPlus className="text-xs" />
                             </button>
                             <button
                                 onClick={() => chartRef.current?.zoom(0.9)}
                                 className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                                 title="Zoom Out"
                             >
-                                <FaSearchMinus className="text-xs" />
+                                <FaMagnifyingGlassMinus className="text-xs" />
                             </button>
                         </div>
                     </div>
@@ -374,7 +374,7 @@ export function ComparativeChart({
                                     onClick={() => handleRemoveItem(itemId)}
                                     className="text-muted hover:text-red-400 transition-colors"
                                 >
-                                    <FaTimes className="text-xs" />
+                                    <FaXmark className="text-xs" />
                                 </button>
                             </div>
                         );
