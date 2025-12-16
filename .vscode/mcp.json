@@ -3,7 +3,7 @@
     "1mcp": {
       "command": "d:\\Coding\\Workplaces\\5bGP\\tools\\1mcp.exe",
       "args": [],
-      "type": "stdio",
+      "type": "stdio"
     }
   }
 }
