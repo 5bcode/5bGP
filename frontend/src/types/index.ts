@@ -30,6 +30,22 @@ export interface MarketItem extends Item {
     score?: number;
     pump?: boolean;
     alchProfit?: number;
+    // Advanced Analytics
+    flipperScore?: number;
+    volatilityIndex?: number;
+    riskLevel?: 'low' | 'medium' | 'high' | 'extreme';
+    priceStability?: number;
+}
+
+export interface AnalyticsData {
+    sma7: number[];
+    sma14: number[];
+    ema7: number[];
+    ema14: number[];
+    totalVolume: number;
+    avgVolume: number;
+    volatility: number;
+    priceRange: { min: number; max: number };
 }
 
 export interface TimeseriesPoint {

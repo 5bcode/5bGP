@@ -1,12 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FaArrowLeft, FaStar, FaStore, FaBook, FaChartLine, FaCoins, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaArrowLeft, FaStar, FaStore, FaBook, FaChartLine, FaCoins, FaWandMagicSparkles, FaGauge, FaTriangleExclamation, FaFireFlameCurved } from 'react-icons/fa6';
 import { useMarketData } from '../hooks/useMarketData';
 import { fetchItemTimeseries } from '../services/api';
 import { PriceChart } from '../components/ui/PriceChart';
-import { formatNumber } from '../utils/analysis';
+import { formatNumber, computeAnalytics, calculateFlipperScore, calculatePriceStability, getRiskLevel } from '../utils/analysis';
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { usePortfolioStore } from '../store/portfolioStore';
 import { toast } from 'sonner';
@@ -14,13 +14,20 @@ import { toast } from 'sonner';
 // Base URL for OSRS Wiki Images
 const ICON_BASE = 'https://oldschool.runescape.wiki/images/';
 
+// Timeframe configurations
+const TIMEFRAMES = [
+    { key: '5m', label: '5M', description: 'Last ~24 hours (5-min intervals)' },
+    { key: '1h', label: '1H', description: 'Last week (1-hour intervals)' },
+    { key: '6h', label: '6H', description: 'Last month (6-hour intervals)' },
+] as const;
+
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { items } = useMarketData();
     const itemId = Number(id);
 
-    const [timestep, setTimestep] = useState('5m');
+    const [timestep, setTimestep] = useState<string>('5m');
     const { toggleFavorite } = usePreferencesStore();
     const transactions = usePortfolioStore(state => state.transactions);
 
@@ -49,6 +56,26 @@ export function ItemDetail() {
         staleTime: 60000, // 1 min
     });
 
+    // Advanced Analytics Calculations
+    const analytics = useMemo(() => {
+        if (!timeseriesData?.data || timeseriesData.data.length === 0) return null;
+        return computeAnalytics(timeseriesData.data);
+    }, [timeseriesData]);
+
+    const flipperScore = useMemo(() => {
+        if (!item || !analytics) return 0;
+        const stability = calculatePriceStability(analytics.volatility);
+        return calculateFlipperScore(
+            item.roi,
+            item.margin,
+            analytics.avgVolume,
+            stability,
+            item.limit || 0
+        );
+    }, [item, analytics]);
+
+    const riskLevel = analytics ? getRiskLevel(analytics.volatility) : 'low';
+
     if (!item) {
         return (
             <div className="p-8 text-center text-muted">
@@ -60,6 +87,23 @@ export function ItemDetail() {
 
     const iconUrl = item.icon ? `${ICON_BASE}${item.icon.replace(/ /g, '_')}` : '';
     const isProfit = item.margin > 0;
+
+    // Risk level styling
+    const riskColors = {
+        low: { bg: 'bg-green/10', border: 'border-green/30', text: 'text-green' },
+        medium: { bg: 'bg-yellow-400/10', border: 'border-yellow-400/30', text: 'text-yellow-400' },
+        high: { bg: 'bg-orange-400/10', border: 'border-orange-400/30', text: 'text-orange-400' },
+        extreme: { bg: 'bg-red/10', border: 'border-red/30', text: 'text-red' },
+    };
+
+    // Flipper score color gradient
+    const getScoreColor = (score: number) => {
+        if (score >= 80) return 'text-green';
+        if (score >= 60) return 'text-gold';
+        if (score >= 40) return 'text-yellow-400';
+        if (score >= 20) return 'text-orange-400';
+        return 'text-red';
+    };
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -117,6 +161,100 @@ export function ItemDetail() {
                 </div>
             </header>
 
+            {/* Flipper's Score & Risk Banner */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Flipper's Score */}
+                <div className="bg-gradient-to-br from-card to-zinc-900 border border-border rounded-xl p-5 flex items-center gap-4">
+                    <div className="relative w-16 h-16 flex items-center justify-center">
+                        <svg className="w-16 h-16 -rotate-90">
+                            <circle
+                                cx="32"
+                                cy="32"
+                                r="28"
+                                className="stroke-zinc-800"
+                                strokeWidth="6"
+                                fill="none"
+                            />
+                            <circle
+                                cx="32"
+                                cy="32"
+                                r="28"
+                                className="stroke-gold"
+                                strokeWidth="6"
+                                fill="none"
+                                strokeDasharray={`${(flipperScore / 100) * 176} 176`}
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                        <span className={clsx("absolute text-lg font-bold font-mono", getScoreColor(flipperScore))}>
+                            {Math.round(flipperScore)}
+                        </span>
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <FaFireFlameCurved className="text-gold" />
+                            <h3 className="font-semibold">Flipper's Score</h3>
+                        </div>
+                        <p className="text-xs text-muted mt-1">
+                            {flipperScore >= 70 ? 'Excellent flip opportunity' :
+                                flipperScore >= 50 ? 'Good potential returns' :
+                                    flipperScore >= 30 ? 'Moderate opportunity' : 'Low ranked item'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Volatility Index */}
+                <div className={clsx(
+                    "border rounded-xl p-5 flex items-center gap-4",
+                    riskColors[riskLevel].bg,
+                    riskColors[riskLevel].border
+                )}>
+                    <div className={clsx(
+                        "w-12 h-12 rounded-full flex items-center justify-center",
+                        riskColors[riskLevel].bg
+                    )}>
+                        {(riskLevel === 'high' || riskLevel === 'extreme') ? (
+                            <FaTriangleExclamation className={clsx("text-2xl", riskColors[riskLevel].text)} />
+                        ) : (
+                            <FaGauge className={clsx("text-2xl", riskColors[riskLevel].text)} />
+                        )}
+                    </div>
+                    <div>
+                        <h3 className="font-semibold flex items-center gap-2">
+                            Volatility Index
+                            <span className={clsx(
+                                "text-xs px-2 py-0.5 rounded-full uppercase font-bold",
+                                riskColors[riskLevel].bg,
+                                riskColors[riskLevel].text
+                            )}>
+                                {riskLevel}
+                            </span>
+                        </h3>
+                        <p className="text-xs text-muted mt-1">
+                            <span className={clsx("font-mono font-bold", riskColors[riskLevel].text)}>
+                                {analytics?.volatility.toFixed(2) || '0.00'}%
+                            </span>
+                            {' '}price deviation
+                        </p>
+                    </div>
+                </div>
+
+                {/* Volume Summary */}
+                <div className="bg-card border border-border rounded-xl p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center">
+                        <FaChartLine className="text-2xl text-purple-400" />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold">Trading Volume</h3>
+                        <p className="text-xs text-muted mt-1">
+                            Total: <span className="font-mono text-secondary">{formatNumber(analytics?.totalVolume || 0)}</span>
+                            {' • '}
+                            Avg: <span className="font-mono text-secondary">{formatNumber(Math.round(analytics?.avgVolume || 0))}</span>/tick
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -127,16 +265,17 @@ export function ItemDetail() {
                             <FaChartLine className="text-gold" /> Price History
                         </h3>
                         <div className="flex bg-background rounded-lg p-1 border border-border">
-                            {['5m', '1h', '6h'].map((t) => (
+                            {TIMEFRAMES.map((t) => (
                                 <button
-                                    key={t}
-                                    onClick={() => setTimestep(t)}
+                                    key={t.key}
+                                    onClick={() => setTimestep(t.key)}
+                                    title={t.description}
                                     className={clsx(
                                         "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                                        timestep === t ? "bg-hover text-primary shadow-sm" : "text-muted hover:text-secondary"
+                                        timestep === t.key ? "bg-hover text-primary shadow-sm" : "text-muted hover:text-secondary"
                                     )}
                                 >
-                                    {t.toUpperCase()}
+                                    {t.label}
                                 </button>
                             ))}
                         </div>
@@ -178,6 +317,41 @@ export function ItemDetail() {
                             <FaStore /> Official GE
                         </a>
                     </div>
+
+                    {/* Price Range Card */}
+                    {analytics && (
+                        <div className="bg-card border border-border rounded-xl p-5">
+                            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2 text-muted uppercase tracking-wider">
+                                <FaChartLine /> Price Range
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted">Low</span>
+                                    <span className="font-mono text-green">{formatNumber(analytics.priceRange.min)}</span>
+                                </div>
+                                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden relative">
+                                    <div
+                                        className="absolute h-full bg-gradient-to-r from-green via-gold to-red rounded-full"
+                                        style={{ width: '100%' }}
+                                    />
+                                    {/* Current price indicator */}
+                                    <div
+                                        className="absolute top-1/2 -translate-y-1/2 w-2 h-4 bg-white rounded-sm shadow-lg"
+                                        style={{
+                                            left: `${Math.min(100, Math.max(0,
+                                                ((item.buyPrice - analytics.priceRange.min) /
+                                                    (analytics.priceRange.max - analytics.priceRange.min || 1)) * 100
+                                            ))}%`
+                                        }}
+                                    />
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted">High</span>
+                                    <span className="font-mono text-red">{formatNumber(analytics.priceRange.max)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* High Alch Info */}
                     <div className="bg-card border border-border rounded-xl p-5">
