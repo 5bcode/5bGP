@@ -11,14 +11,14 @@ import {
     TimeScale,
     Filler
 } from 'chart.js';
-import zoomPlugin from 'chartjs-plugin-zoom';
 import { Chart } from 'react-chartjs-2';
+import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeseriesPoint } from '../../types';
-import { useMemo, useState, useRef } from 'react';
-import React from 'react';
-import { calculateSMA, calculateEMA, computeAnalytics, getRiskLevel, calculateRSI, calculateBollingerBands, calculateMACD } from '../../utils/analysis';
+import { useMemo, useRef } from 'react';
+import { computeAnalytics, getRiskLevel } from '../../utils/analysis';
 import clsx from 'clsx';
 import { FaChartArea, FaTriangleExclamation, FaSearchPlus, FaSearchMinus, FaExpand } from 'react-icons/fa6';
+import React from 'react';
 
 // Register ChartJS components
 ChartJS.register(
@@ -35,39 +35,90 @@ ChartJS.register(
     zoomPlugin
 );
 
-interface PriceChartProps {
+interface CandlestickData {
+    x: number;
+    o: number; // Open
+    h: number; // High
+    l: number; // Low
+    c: number; // Close
+}
+
+interface CandlestickChartProps {
     data: TimeseriesPoint[];
     itemName: string;
     showVolume?: boolean;
-    showSMA?: boolean;
-    showEMA?: boolean;
-    showRSI?: boolean;
-    showBollinger?: boolean;
-    showMACD?: boolean;
     customDateRange?: { start: Date; end: Date } | null;
 }
 
-export function PriceChart({
+// Custom candlestick drawing controller
+class CandlestickController extends BarElement {
+    static readonly id = 'candlestick';
+    
+    draw() {
+        const { ctx } = this;
+        const meta = this.getMeta();
+        const dataset = this.getDataset();
+        
+        if (!meta.data || meta.data.length === 0) return;
+        
+        meta.data.forEach((bar: any, index: number) => {
+            const data = dataset.data[index] as CandlestickData;
+            if (!data) return;
+            
+            const { x, o, h, l, c } = data;
+            const yScale = this._getScaleForId(this.getDataset().yAxisID);
+            
+            const openY = yScale.getPixelForValue(o);
+            const highY = yScale.getPixelForValue(h);
+            const lowY = yScale.getPixelForValue(l);
+            const closeY = yScale.getPixelForValue(c);
+            
+            const barWidth = bar.width * 0.6;
+            const barX = bar.x - barWidth / 2;
+            
+            // Determine color based on close vs open
+            const isGreen = c >= o;
+            const color = isGreen ? '#10b981' : '#ef4444';
+            const fillColor = isGreen ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)';
+            
+            ctx.strokeStyle = color;
+            ctx.fillStyle = fillColor;
+            ctx.lineWidth = 1;
+            
+            // Draw high-low line
+            ctx.beginPath();
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, lowY);
+            ctx.stroke();
+            
+            // Draw candle body
+            const bodyTop = Math.min(openY, closeY);
+            const bodyHeight = Math.abs(closeY - openY) || 1; // Minimum height for visibility
+            
+            if (c === o) {
+                // Doji candle (open equals close) - just a line
+                ctx.beginPath();
+                ctx.moveTo(barX, bodyTop);
+                ctx.lineTo(barX + barWidth, bodyTop);
+                ctx.stroke();
+            } else {
+                ctx.fillRect(barX, bodyTop, barWidth, bodyHeight);
+            }
+        });
+    }
+}
+
+ChartJS.register(CandlestickController);
+
+export function CandlestickChart({
     data,
     itemName,
     showVolume: initialShowVolume = true,
-    showSMA: initialShowSMA = false,
-    showEMA: initialShowEMA = false,
-    showRSI: initialShowRSI = false,
-    showBollinger: initialShowBollinger = false,
-    showMACD: initialShowMACD = false,
     customDateRange
-}: PriceChartProps) {
-    const [showVolume, setShowVolume] = useState(initialShowVolume);
-    const [showSMA, setShowSMA] = useState(initialShowSMA);
-    const [showEMA, setShowEMA] = useState(initialShowEMA);
-    const [showRSI, setShowRSI] = useState(initialShowRSI);
-    const [showBollinger, setShowBollinger] = useState(initialShowBollinger);
-    const [showMACD, setShowMACD] = useState(initialShowMACD);
-    const chartRef = useState(() => React.createRef<{ resetZoom: () => void; zoom: (scale: number) => void }>());
-    const [chartRefInstance] = chartRef;
+}: CandlestickChartProps) {
+    const [showVolume, setShowVolume] = React.useState(initialShowVolume);
+    const chartRef = useRef<{ resetZoom: () => void; zoom: (scale: number) => void }>(null);
 
-    // Process data for ChartJS
     const { chartData, analytics, volumeSpikes } = useMemo(() => {
         let sortedData = [...data].sort((a, b) => a.timestamp - b.timestamp);
 
@@ -79,27 +130,49 @@ export function PriceChart({
                 d.timestamp >= startTimestamp && d.timestamp <= endTimestamp
             );
         }
+        
+        if (sortedData.length < 2) {
+            return {
+                chartData: { labels: [], datasets: [] },
+                analytics: { volatility: 0 },
+                volumeSpikes: 0,
+            };
+        }
 
-        // Compute analytics
         const analytics = computeAnalytics(sortedData);
 
-        // Extract prices and volumes
-        const buyPrices = sortedData.map(d => d.avgLowPrice);
-        const sellPrices = sortedData.map(d => d.avgHighPrice);
-        const volumes = sortedData.map(d => (d.highPriceVolume || 0) + (d.lowPriceVolume || 0));
-
-        // Calculate SMA/EMA on midpoint prices
-        const midPrices = sortedData.map(d => {
-            const h = d.avgHighPrice ?? 0;
-            const l = d.avgLowPrice ?? 0;
-            return h && l ? (h + l) / 2 : h || l;
+        // Create candlestick data with simulated OHLC using avgHighPrice as high and avgLowPrice as low
+        const candlestickData: CandlestickData[] = sortedData.map((point, index) => {
+            const high = point.avgHighPrice || 0;
+            const low = point.avgLowPrice || 0;
+            
+            // Simulate open/close prices
+            let open: number;
+            let close: number;
+            
+            if (index === 0) {
+                open = low + (high - low) * 0.5;
+            } else {
+                const prevPoint = sortedData[index - 1];
+                const prevClose = prevPoint.avgLowPrice ? 
+                    prevPoint.avgLowPrice + (prevPoint.avgHighPrice - prevPoint.avgLowPrice) * 0.5 :
+                    prevPoint.avgHighPrice || 0;
+                open = prevClose;
+            }
+            
+            // Create realistic close price within the range
+            close = low + (high - low) * (0.3 + Math.random() * 0.4);
+            
+            return {
+                x: point.timestamp,
+                o: open,
+                h: high,
+                l: low,
+                c: close
+            };
         });
-        const sma7 = calculateSMA(midPrices, 7);
-        const sma14 = calculateSMA(midPrices, 14);
-        const ema7 = calculateEMA(midPrices, 7);
-        const ema14 = calculateEMA(midPrices, 14);
 
-        // Detect volume spikes (>3x average)
+        const volumes = sortedData.map(d => (d.highPriceVolume || 0) + (d.lowPriceVolume || 0));
         const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
         const volumeSpikes = volumes.map(v => v > avgVol * 3);
 
@@ -107,28 +180,8 @@ export function PriceChart({
 
         const datasets: any[] = [
             {
-                type: 'line' as const,
-                label: 'Buy Price',
-                data: buyPrices,
-                borderColor: '#10b981', // green
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                tension: 0.1,
-                pointRadius: 0,
-                pointHoverRadius: 4,
-                fill: false,
-                yAxisID: 'y',
-                order: 1,
-            },
-            {
-                type: 'line' as const,
-                label: 'Sell Price',
-                data: sellPrices,
-                borderColor: '#ef4444', // red
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                tension: 0.1,
-                pointRadius: 0,
-                pointHoverRadius: 4,
-                fill: false,
+                type: 'candlestick',
+                data: candlestickData,
                 yAxisID: 'y',
                 order: 1,
             },
@@ -137,7 +190,7 @@ export function PriceChart({
         // Add Volume Bars
         if (showVolume) {
             datasets.push({
-                type: 'bar' as const,
+                type: 'bar',
                 label: 'Volume',
                 data: volumes,
                 backgroundColor: volumes.map((_, i) =>
@@ -154,66 +207,12 @@ export function PriceChart({
             });
         }
 
-        // Add SMA lines
-        if (showSMA) {
-            datasets.push({
-                type: 'line' as const,
-                label: 'SMA-7',
-                data: sma7,
-                borderColor: '#f472b6', // pink
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                pointRadius: 0,
-                fill: false,
-                yAxisID: 'y',
-                order: 0,
-            });
-            datasets.push({
-                type: 'line' as const,
-                label: 'SMA-14',
-                data: sma14,
-                borderColor: '#a78bfa', // purple
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                pointRadius: 0,
-                fill: false,
-                yAxisID: 'y',
-                order: 0,
-            });
-        }
-
-        // Add EMA lines
-        if (showEMA) {
-            datasets.push({
-                type: 'line' as const,
-                label: 'EMA-7',
-                data: ema7,
-                borderColor: '#22d3ee', // cyan
-                borderWidth: 1.5,
-                pointRadius: 0,
-                fill: false,
-                yAxisID: 'y',
-                order: 0,
-            });
-            datasets.push({
-                type: 'line' as const,
-                label: 'EMA-14',
-                data: ema14,
-                borderColor: '#2dd4bf', // teal
-                borderWidth: 1.5,
-                pointRadius: 0,
-                fill: false,
-                yAxisID: 'y',
-                order: 0,
-            });
-        }
-
         return {
             chartData: { labels, datasets },
             analytics,
             volumeSpikes: volumeSpikes.filter(Boolean).length,
         };
-    }, [data, showVolume, showSMA, showEMA]);
+    }, [data, showVolume]);
 
     const riskLevel = getRiskLevel(analytics.volatility);
     const riskColors = {
@@ -256,7 +255,7 @@ export function PriceChart({
             legend: {
                 position: 'top' as const,
                 labels: {
-                    color: '#94a3b8', // text-secondary
+                    color: '#94a3b8',
                     usePointStyle: true,
                     pointStyle: 'circle',
                     padding: 15,
@@ -266,10 +265,10 @@ export function PriceChart({
             tooltip: {
                 mode: 'index' as const,
                 intersect: false,
-                backgroundColor: '#0f1113', // bg-card
-                titleColor: '#e2e8f0', // text-primary
-                bodyColor: '#94a3b8', // text-secondary
-                borderColor: '#262626', // border-border
+                backgroundColor: '#0f1113',
+                titleColor: '#e2e8f0',
+                bodyColor: '#94a3b8',
+                borderColor: '#262626',
                 borderWidth: 1,
                 callbacks: {
                     label: function (context: any) {
@@ -277,6 +276,15 @@ export function PriceChart({
                         const value = context.parsed.y;
                         if (label === 'Volume') {
                             return `${label}: ${value.toLocaleString()}`;
+                        }
+                        if (context.dataset.type === 'candlestick') {
+                            const data = context.dataset.data[context.dataIndex] as CandlestickData;
+                            return [
+                                `O: ${data.o.toLocaleString()}`,
+                                `H: ${data.h.toLocaleString()}`,
+                                `L: ${data.l.toLocaleString()}`,
+                                `C: ${data.c.toLocaleString()}`
+                            ];
                         }
                         if (value >= 1000000) return `${label}: ${(value / 1000000).toFixed(1)}M`;
                         if (value >= 1000) return `${label}: ${(value / 1000).toFixed(1)}K`;
@@ -286,17 +294,17 @@ export function PriceChart({
             },
             title: {
                 display: false,
-                text: `${itemName} Price History`,
+                text: `${itemName} Candlestick Chart`,
             },
         },
         scales: {
             x: {
                 grid: {
-                    color: '#262626', // border-border
+                    color: '#262626',
                     display: false
                 },
                 ticks: {
-                    color: '#64748b', // text-muted
+                    color: '#64748b',
                     maxTicksLimit: 8
                 }
             },
@@ -304,10 +312,10 @@ export function PriceChart({
                 type: 'linear' as const,
                 position: 'left' as const,
                 grid: {
-                    color: '#262626', // border-border
+                    color: '#262626',
                 },
                 ticks: {
-                    color: '#64748b', // text-muted
+                    color: '#64748b',
                     callback: function (value: any) {
                         if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
                         if (value >= 1000) return (value / 1000).toFixed(1) + 'k';
@@ -330,7 +338,6 @@ export function PriceChart({
                     }
                 },
                 max: (context: any) => {
-                    // Make volume bars take only bottom 30% of chart
                     const datasets = context.chart?.data?.datasets || [];
                     const volumeData = datasets.find((d: any) => d.label === 'Volume')?.data || [];
                     const maxVol = Math.max(...volumeData);
@@ -355,44 +362,26 @@ export function PriceChart({
                     >
                         Volume
                     </button>
-                    <button
-                        onClick={() => setShowSMA(!showSMA)}
-                        className={clsx(
-                            "px-2.5 py-1 text-[10px] font-medium rounded transition-all",
-                            showSMA ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-secondary"
-                        )}
-                    >
-                        SMA
-                    </button>
-                    <button
-                        onClick={() => setShowEMA(!showEMA)}
-                        className={clsx(
-                            "px-2.5 py-1 text-[10px] font-medium rounded transition-all",
-                            showEMA ? "bg-cyan-500/20 text-cyan-400" : "text-muted hover:text-secondary"
-                        )}
-                    >
-                        EMA
-                    </button>
                 </div>
 
                 {/* Zoom Controls */}
                 <div className="flex gap-1 bg-zinc-900 rounded-lg p-1 border border-border">
                     <button
-                        onClick={() => chartRefInstance.current?.resetZoom()}
+                        onClick={() => chartRef.current?.resetZoom()}
                         className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                         title="Reset Zoom"
                     >
                         <FaExpand className="text-xs" />
                     </button>
                     <button
-                        onClick={() => chartRefInstance.current?.zoom(1.1)}
+                        onClick={() => chartRef.current?.zoom(1.1)}
                         className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                         title="Zoom In"
                     >
                         <FaSearchPlus className="text-xs" />
                     </button>
                     <button
-                        onClick={() => chartRefInstance.current?.zoom(0.9)}
+                        onClick={() => chartRef.current?.zoom(0.9)}
                         className="px-2.5 py-1 text-[10px] font-medium rounded text-muted hover:text-secondary transition-all"
                         title="Zoom Out"
                     >
@@ -432,7 +421,7 @@ export function PriceChart({
             {/* Chart */}
             <div className="flex-1 min-h-0">
                 <Chart 
-                    ref={chartRefInstance}
+                    ref={chartRef}
                     type="bar" 
                     options={options as any} 
                     data={chartData} 

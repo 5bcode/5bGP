@@ -4,6 +4,8 @@ import { FaArrowLeft, FaStar, FaStore, FaBook, FaChartLine, FaCoins, FaWandMagic
 import { useMarketData } from '../hooks/useMarketData';
 import { fetchItemTimeseries } from '../services/api';
 import { PriceChart } from '../components/ui/PriceChart';
+import { CandlestickChart } from '../components/ui/CandlestickChart';
+import { DateRangePicker } from '../components/ui/DateRangePicker';
 import { formatNumber, computeAnalytics, calculateFlipperScore, calculatePriceStability, getRiskLevel } from '../utils/analysis';
 import clsx from 'clsx';
 import { useState, useMemo } from 'react';
@@ -28,6 +30,8 @@ export function ItemDetail() {
     const itemId = Number(id);
 
     const [timestep, setTimestep] = useState<string>('5m');
+    const [chartType, setChartType] = useState<'line' | 'candlestick'>('line');
+    const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
     const { toggleFavorite } = usePreferencesStore();
     const transactions = usePortfolioStore(state => state.transactions);
 
@@ -259,25 +263,59 @@ export function ItemDetail() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Chart Section */}
-                <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm h-[500px] flex flex-col">
+                 <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm h-[500px] flex flex-col">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-semibold text-lg flex items-center gap-2">
                             <FaChartLine className="text-gold" /> Price History
                         </h3>
-                        <div className="flex bg-background rounded-lg p-1 border border-border">
-                            {TIMEFRAMES.map((t) => (
+                        <div className="flex flex-wrap gap-2">
+                            {/* Chart Type Selector */}
+                            <div className="flex bg-background rounded-lg p-1 border border-border">
                                 <button
-                                    key={t.key}
-                                    onClick={() => setTimestep(t.key)}
-                                    title={t.description}
+                                    onClick={() => setChartType('line')}
                                     className={clsx(
                                         "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                                        timestep === t.key ? "bg-hover text-primary shadow-sm" : "text-muted hover:text-secondary"
+                                        chartType === 'line' ? "bg-hover text-primary shadow-sm" : "text-muted hover:text-secondary"
                                     )}
                                 >
-                                    {t.label}
+                                    Line
                                 </button>
-                            ))}
+                                <button
+                                    onClick={() => setChartType('candlestick')}
+                                    className={clsx(
+                                        "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                                        chartType === 'candlestick' ? "bg-hover text-primary shadow-sm" : "text-muted hover:text-secondary"
+                                    )}
+                                >
+                                    Candle
+                                </button>
+                            </div>
+                            
+                            {/* Date Range Picker */}
+                            <DateRangePicker
+                                value={customDateRange}
+                                onChange={setCustomDateRange}
+                            />
+                            
+                            {/* Timeframe Selector */}
+                            <div className="flex bg-background rounded-lg p-1 border border-border">
+                                {TIMEFRAMES.map((t) => (
+                                    <button
+                                        key={t.key}
+                                        onClick={() => {
+                                            setTimestep(t.key);
+                                            setCustomDateRange(null); // Clear custom range when selecting preset
+                                        }}
+                                        title={t.description}
+                                        className={clsx(
+                                            "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                                            timestep === t.key && !customDateRange ? "bg-hover text-primary shadow-sm" : "text-muted hover:text-secondary"
+                                        )}
+                                    >
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     <div className="flex-1 relative min-h-0">
@@ -289,9 +327,13 @@ export function ItemDetail() {
                             <div className="absolute inset-0 flex items-center justify-center text-red-400">
                                 Error loading chart data
                             </div>
-                        ) : (
-                            <PriceChart data={timeseriesData?.data || []} itemName={item.name} />
-                        )}
+                         ) : (
+                             chartType === 'line' ? (
+                                 <PriceChart data={timeseriesData?.data || []} itemName={item.name} customDateRange={customDateRange} />
+                             ) : (
+                                 <CandlestickChart data={timeseriesData?.data || []} itemName={item.name} customDateRange={customDateRange} />
+                             )
+                         )}
                     </div>
                 </div>
 

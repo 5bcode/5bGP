@@ -28,6 +28,7 @@ export function Navbar() {
     const navLinks = [
         { to: "/", label: "Market highlights" },
         { to: "/screener", label: "Item screener" },
+        { to: "/compare", label: "Compare" },
         { to: "/portfolio", label: "Portfolio" },
     ];
 

@@ -4,6 +4,7 @@ import { useMarketData } from '../hooks/useMarketData';
 import { formatNumber } from '../utils/analysis';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { PortfolioPerformanceChart } from '../components/ui/PortfolioPerformanceChart';
 import { FaWallet, FaPlus, FaCoins, FaArrowTrendUp } from 'react-icons/fa6';
 import clsx from 'clsx';
 
@@ -112,6 +113,11 @@ export function Portfolio() {
                     </div>
                     <div className="text-blue-400 opacity-20 text-4xl"><FaArrowTrendUp /></div>
                 </div>
+            </div>
+
+            {/* Portfolio Performance Chart */}
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm h-[400px]">
+                <PortfolioPerformanceChart />
             </div>
 
             {/* Holdings Table */}

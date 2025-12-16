@@ -11,6 +11,7 @@ import { ItemDetail } from './pages/ItemDetail';
 import { Portfolio } from './pages/Portfolio';
 import { Screener } from './pages/Screener';
 import { Highlights } from './pages/Highlights';
+import { ComparativeAnalysis } from './pages/ComparativeAnalysis';
 
 import { usePreferencesStore } from './store/preferencesStore';
 import { useEffect } from 'react';
@@ -39,6 +40,8 @@ function App() {
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/highlights" element={<Highlights />} />
             <Route path="/screener" element={<Screener />} />
+            <Route path="/compare" element={<ComparativeAnalysis />} />
+            <Route path="/compare/:ids" element={<ComparativeAnalysis />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

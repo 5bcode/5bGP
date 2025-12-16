@@ -619,3 +619,132 @@ export function calculateAdvancedVolatility(data: TimeseriesPoint[]): AdvancedVo
         volatilityClass,
     };
 }
+
+// ============================================
+// ADVANCED TECHNICAL INDICATORS
+// ============================================
+
+/**
+ * Calculate Relative Strength Index (RSI)
+ * @param data - Array of price changes
+ * @param period - Number of periods (typically 14)
+ */
+export function calculateRSI(data: (number | null)[], period: number = 14): number[] {
+    const result: number[] = [];
+    const validData = data.map(v => v ?? 0);
+    
+    if (validData.length < period + 1) {
+        return validData.map(() => 50); // Neutral RSI
+    }
+
+    const changes: number[] = [];
+    for (let i = 1; i < validData.length; i++) {
+        changes.push(validData[i] - validData[i - 1]);
+    }
+
+    let avgGain = 0;
+    let avgLoss = 0;
+
+    // Initial averages
+    for (let i = 0; i < period; i++) {
+        if (changes[i] > 0) {
+            avgGain += changes[i];
+        } else {
+            avgLoss += Math.abs(changes[i]);
+        }
+    }
+    avgGain /= period;
+    avgLoss /= period;
+
+    result.push(50); // Not enough data for first point
+
+    for (let i = period; i < changes.length; i++) {
+        const change = changes[i];
+        
+        avgGain = (avgGain * (period - 1) + (change > 0 ? change : 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + (change < 0 ? Math.abs(change) : 0)) / period;
+
+        if (avgLoss === 0) {
+            result.push(100);
+        } else {
+            const rs = avgGain / avgLoss;
+            const rsi = 100 - (100 / (1 + rs));
+            result.push(rsi);
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Calculate Bollinger Bands
+ * @param data - Array of prices
+ * @param period - Period for SMA (typically 20)
+ * @param stdDev - Number of standard deviations (typically 2)
+ */
+export function calculateBollingerBands(
+    data: (number | null)[], 
+    period: number = 20, 
+    stdDev: number = 2
+): { upper: number[]; middle: number[]; lower: number[] } {
+    const validData = data.map(v => v ?? 0);
+    const middle = calculateSMA(data, period);
+    const upper: number[] = [];
+    const lower: number[] = [];
+
+    for (let i = 0; i < validData.length; i++) {
+        if (i < period - 1) {
+            upper.push(0);
+            lower.push(0);
+        } else {
+            const slice = validData.slice(i - period + 1, i + 1);
+            const mean = slice.reduce((a, b) => a + b, 0) / period;
+            
+            // Calculate standard deviation
+            const squaredDiffs = slice.map(x => Math.pow(x - mean, 2));
+            const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period;
+            const std = Math.sqrt(variance);
+            
+            upper.push(mean + (std * stdDev));
+            lower.push(mean - (std * stdDev));
+        }
+    }
+
+    return { upper, middle, lower };
+}
+
+/**
+ * Calculate MACD (Moving Average Convergence Divergence)
+ * @param data - Array of prices
+ * @param fastPeriod - Fast EMA period (typically 12)
+ * @param slowPeriod - Slow EMA period (typically 26)
+ * @param signalPeriod - Signal line period (typically 9)
+ */
+export function calculateMACD(
+    data: (number | null)[],
+    fastPeriod: number = 12,
+    slowPeriod: number = 26,
+    signalPeriod: number = 9
+): { macd: number[]; signal: number[]; histogram: number[] } {
+    const validData = data.map(v => v ?? 0);
+    
+    const fastEMA = calculateEMA(data, fastPeriod);
+    const slowEMA = calculateEMA(data, slowPeriod);
+    
+    // MACD line = Fast EMA - Slow EMA
+    const macd = fastEMA.map((fast, i) => {
+        const slow = slowEMA[i];
+        return fast - slow;
+    });
+    
+    // Signal line = EMA of MACD
+    const signal = calculateEMA(macd, signalPeriod);
+    
+    // Histogram = MACD - Signal
+    const histogram = macd.map((macdVal, i) => {
+        const signalVal = signal[i] || 0;
+        return macdVal - signalVal;
+    });
+
+    return { macd, signal, histogram };
+}
