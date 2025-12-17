@@ -19,6 +19,10 @@
 ### Phase 2: Core Functionality
 - [ ] **Data Layer Migration**
   - [ ] Convert React hooks to Vue composables
+    - [x] `useMarketData` (Core market logic)
+    - [x] Port `utils/analysis.ts` (Technical analysis & Flipper score)
+    - [ ] `useFlipPerformance`
+    - [ ] `usePortfolio`
   - [ ] Migrate Zustand stores to Pinia stores
   - [ ] Implement API layer with Nuxt server routes
 - [ ] **Essential Pages**
@@ -71,8 +75,8 @@ All core features were implemented in the React codebase and are serving as the 
 
 ## Current Status
 **Last Updated**: 12/17/2025
-**Current Phase**: Nuxt Migration - Phase 1 (Foundation)
-**Active Focus**: Setting up core types and store structure.
+**Current Phase**: Nuxt Migration - Phase 2 (Core Functionality)
+**Active Focus**: Migrating data layer (Composables & Stores). `useMarketData` and analysis utils are complete.
 
 ## Notes
 - The React application (`frontend/`) is frozen and used for reference only.
