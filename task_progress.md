@@ -75,6 +75,15 @@ The React implementation (`frontend/`) has been removed as the migration to Nuxt
 
 ## Notes
 - All React code has been archived. Migration to Nuxt is complete.
-- All new development occurs exclusively in `5bgp-nuxt/`.
+- All n ew development occurs exclusively in `5bgp-nuxt/`.
 - Backend infrastructure planning (Phase 8) remains relevant but will be integrated with Nuxt server capabilities.
-  
+  - [ ] **Phase 8: GCP Backend Setup**
+    - [ ] Deploy Cloud Run service for API proxy
+    - [ ] Set up Firestore for data caching
+    - [ ] Configure Cloud Scheduler for automated price updates
+    - [ ] Implement rate limiting and caching logic
+
+    - [ ] Deploy Cloud Run service for API proxy
+    - [ ] Set up Firestore for data caching
+    - [ ] Configure Cloud Scheduler for automated price updates
+    - [ ] Implement rate limiting and caching logic
