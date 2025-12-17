@@ -34,9 +34,9 @@
 
       <div class="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-2 hidden sm:block"></div>
 
-      <button class="text-sm font-bold text-green-600 hover:text-green-500 transition-colors flex items-center gap-2">
-        <span class="hidden sm:inline">Upgrade now</span>
-      </button>
+      <NuxtLink to="/pricing" target="_blank" class="text-sm font-bold text-green-600 hover:text-green-500 transition-colors flex items-center gap-2">
+        <span>Upgrade now</span>
+      </NuxtLink>
 
       <button
         @click="cycleTheme"
