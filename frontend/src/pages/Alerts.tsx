@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useAlertStore } from "../store/alertStore";
 import { useMarketData } from "../hooks/useMarketData";
 import { Card } from "../components/ui/Card";
-import { Bell, BellOff, Settings, Trash2, Eye, AlertTriangle, TrendingUp, TrendingDown, Volume2, Star } from "lucide-react";
+import { CreateAlertRuleModal } from "../components/CreateAlertRuleModal";
+import { Bell, BellOff, Settings, Trash2, Eye, AlertTriangle, TrendingUp, TrendingDown, Volume2, Star, Plus } from "lucide-react";
 import { formatNumber } from "../utils/formatters";
 
 export default function Alerts() {
@@ -23,10 +24,11 @@ export default function Alerts() {
         requestNotificationPermission
     } = useAlertStore();
 
-    const { data: marketData } = useMarketData();
+    const { items: marketData } = useMarketData();
     const [activeTab, setActiveTab] = useState<'alerts' | 'rules' | 'settings'>('alerts');
     const [filterType, setFilterType] = useState<string>('all');
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     // Request notification permission on component mount
     useEffect(() => {
@@ -251,7 +253,11 @@ export default function Alerts() {
                         <Card className="p-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg font-semibold text-white">Alert Rules</h3>
-                                <button className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors">
+                                <button
+                                    onClick={() => setIsCreateModalOpen(true)}
+                                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors flex items-center gap-2"
+                                >
+                                    <Plus className="h-4 w-4" />
                                     Create Rule
                                 </button>
                             </div>
@@ -263,7 +269,11 @@ export default function Alerts() {
                                     <AlertTriangle className="h-12 w-12 text-slate-500 mx-auto mb-4" />
                                     <h3 className="text-lg font-semibold text-white mb-2">No Rules</h3>
                                     <p className="text-slate-400 mb-4">Create alert rules to monitor your favorite items.</p>
-                                    <button className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors">
+                                    <button
+                                        onClick={() => setIsCreateModalOpen(true)}
+                                        className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors flex items-center gap-2"
+                                    >
+                                        <Plus className="h-4 w-4" />
                                         Create Your First Rule
                                     </button>
                                 </Card>
@@ -405,6 +415,12 @@ export default function Alerts() {
                     </div>
                 )}
             </div>
+
+            {/* Create Alert Rule Modal */}
+            <CreateAlertRuleModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+            />
         </div>
     );
 }
