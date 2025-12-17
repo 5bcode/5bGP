@@ -1,18 +1,79 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
-@theme static {
+@theme {
   --font-sans: 'Public Sans', sans-serif;
 
-  --color-green-50: #EFFDF5;
-  --color-green-100: #D9FBE8;
-  --color-green-200: #B3F5D1;
-  --color-green-300: #75EDAE;
-  --color-green-400: #00DC82;
-  --color-green-500: #00C16A;
-  --color-green-600: #00A155;
-  --color-green-700: #007F45;
-  --color-green-800: #016538;
-  --color-green-900: #0A5331;
-  --color-green-950: #052E16;
+  /* Custom Colors from React App */
+  --color-background: var(--bg-app);
+  --color-sidebar: var(--bg-sidebar);
+  --color-card: var(--bg-card);
+  --color-hover: var(--bg-hover);
+  
+  /* Renaming to avoid conflict with Nuxt UI 'primary' palette */
+  --color-txt-primary: var(--text-primary); 
+  --color-txt-secondary: var(--text-secondary);
+  --color-txt-muted: var(--text-muted);
+  
+  --color-gold: var(--accent-gold);
+  --color-accent-green: var(--accent-green);
+  --color-accent-red: var(--accent-red);
+  --color-border: var(--border-color);
+}
+
+:root {
+    /* Default (Molten) */
+    --bg-app: #050505;
+    --bg-sidebar: #0a0a0a;
+    --bg-card: #0f1113;
+    --bg-hover: #16181b;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-gold: #fbbf24;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --border-color: #262626;
+}
+
+.theme-midnight {
+    --bg-app: #000000;
+    --bg-sidebar: #000000;
+    --bg-card: #050505;
+    --bg-hover: #0a0a0a;
+    --text-primary: #ffffff;
+    --text-secondary: #a3a3a3;
+    --text-muted: #525252;
+    --accent-gold: #fcd34d;
+    --border-color: #171717;
+}
+
+.theme-runelite {
+    --bg-app: #1e1e1e;
+    --bg-sidebar: #252526;
+    --bg-card: #2d2d2d;
+    --bg-hover: #3e3e42;
+    --text-primary: #d4d4d4;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent-gold: #ff981f;
+    --border-color: #3e3e42;
+}
+
+/* Custom Utilities */
+.glass-panel {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #27272a;
+    border-radius: 9999px;
 }
