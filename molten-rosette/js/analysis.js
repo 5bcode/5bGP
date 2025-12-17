@@ -103,3 +103,54 @@ export function calculateOpportunityScores(items) {
         item.score = (pProfit * 0.5) + (pVol * 0.3) + (pRoi * 0.2);
     });
 }
+
+/**
+ * Calculates Simple Moving Average (SMA) for an array of numbers.
+ * @param {Array<number>} data - Array of prices
+ * @param {number} period - SMA period (e.g., 12)
+ * @returns {Array<number|null>} Array of SMA values, padded with null
+ */
+export function calculateSMA(data, period) {
+    const sma = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            sma.push(null);
+            continue;
+        }
+        let sum = 0;
+        for (let j = 0; j < period; j++) {
+            sum += data[i - j];
+        }
+        sma.push(sum / period);
+    }
+    return sma;
+}
+
+/**
+ * Calculates High Alchemy Profit.
+ * @param {number} itemHighAlch - The item's high alch value
+ * @param {number} buyPrice - The GE buy price (or low price)
+ * @param {number} natureRunePrice - Current price of a Nature Rune
+ * @returns {number} Profit from alching
+ */
+export function getAlchProfit(itemHighAlch, buyPrice, natureRunePrice) {
+    if (!itemHighAlch || !buyPrice || !natureRunePrice) return 0;
+    return itemHighAlch - buyPrice - natureRunePrice;
+}
+
+/**
+ * Detects market activity signals (Pump/Dump/Spike).
+ * Using available data: comparing current spot price vs 5m average.
+ * @param {object} item - Processed item object with prices
+ * @returns {object} { type: 'pump'|'dump'|'stable', strength: number }
+ */
+export function detectMarketActivity(item) {
+    // We use buyPrice (low) and sellPrice (high)
+    // If we had 1h average, we would use that.
+    // Fallback: Compare current Sell Price (High) to Avg High 5m if available,
+    // or just assume 'stable' if insufficient data.
+    
+    // Note: item object here is the tableData row, which might need more raw data passed in
+    // For now, let's implement a simple heuristic if we had the data.
+    return { type: 'stable', strength: 0 };
+}

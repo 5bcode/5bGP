@@ -1,5 +1,5 @@
 import { fetchLatestPrices, fetchMapping, fetchItemTimeseries } from './api.js';
-import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityScores } from './analysis.js';
+import { calculateTax, getNetProfit, getROI, formatNumber, calculateOpportunityScores, getAlchProfit } from './analysis.js';
 import { renderPriceChart } from './charts.js';
 import { getRemainingLimit, trackPurchase } from './limitTracker.js';
 
@@ -75,6 +75,9 @@ async function updatePrices() {
 function processData() {
     tableData = [];
     
+    // Get Nature Rune price for Alch calculations (ID 561)
+    const natureRunePrice = pricesMap['561']?.high || 0;
+
     for (const [id, price] of Object.entries(pricesMap)) {
         const itemDef = itemsMap[id];
         if (!itemDef) continue;
@@ -86,6 +89,7 @@ function processData() {
 
         const netProfit = getNetProfit(effectiveBuy, effectiveSell);
         const roi = getROI(netProfit, effectiveBuy);
+        const alchProfit = getAlchProfit(itemDef.highalch, effectiveBuy, natureRunePrice);
         
         const volume = (price.highPriceVolume || 0) + (price.lowPriceVolume || 0);
 
@@ -97,6 +101,7 @@ function processData() {
             sellPrice: effectiveSell,
             margin: netProfit,
             roi: roi,
+            alchProfit: alchProfit,
             volume: volume,
             limit: itemDef.limit,
             timestamp: Math.max(price.highTime, price.lowTime)
@@ -146,6 +151,7 @@ function renderTable() {
             <td>${formatNumber(item.sellPrice)}</td>
             <td class="${marginClass}">${formatNumber(item.margin)}</td>
             <td class="${marginClass}">${item.roi > 1000 ? formatNumber(item.roi) : item.roi.toFixed(2)}%</td>
+            <td class="${item.alchProfit > 0 ? 'profit-positive' : ''}">${formatNumber(item.alchProfit)}</td>
             <td>${item.score ? item.score.toFixed(1) : '0.0'}</td>
             <td>${formatNumber(item.volume)}</td>
             <td>${item.limit ? `${formatNumber(remainingLimit)} / ${formatNumber(item.limit)}` : '-'}</td>
