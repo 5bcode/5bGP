@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePreferencesStore } from '~/stores/preferences'
+import { usePreferencesStore } from '../../stores/preferences'
 
 const router = useRouter()
 const preferences = usePreferencesStore()

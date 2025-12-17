@@ -34,8 +34,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useMarketData } from '~/composables/useMarketData'
-import type { EnhancedMarketItem } from '~/composables/useMarketData'
+import { useMarketData } from '../../composables/useMarketData'
+import type { EnhancedMarketItem } from '../../composables/useMarketData'
 import MarketChart from '~/components/MarketChart.vue'
 
 useHead({
