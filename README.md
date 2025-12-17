@@ -2,15 +2,14 @@
 
 This repository contains the source code for the 5bGP (5 Billion Gold Pieces) flipping dashboard, a sophisticated trading tool for Old School RuneScape.
 
-## Project Status: Migration in Progress
+## Project Status: Active Development
 
-We are currently migrating the application from a React-based architecture to a Nuxt 4 (Vue 3) monorepo structure.
+The application is built with Nuxt 4 (Vue 3) and is in active development.
 
 ### Repository Structure
 
-- **`5bgp-nuxt/`**: The new Nuxt 4 + Vue 3 application. This is the active development target.
-- **`frontend/`**: The legacy React + Vite application. This is being used as a reference for the migration.
-- **`composables/`, `stores/`, `types/`**: Shared utilities (currently empty/WIP) intended for the monorepo structure.
+- **`5bgp-nuxt/`**: The Nuxt 4 + Vue 3 application (primary implementation)
+- **`composables/`, `stores/`, `types/`**: Shared utilities for the monorepo structure
 
 ## Getting Started
 
@@ -20,18 +19,10 @@ We are currently migrating the application from a React-based architecture to a 
 
 ### Development
 
-To work on the new Nuxt application:
+To work on the Nuxt application:
 
 ```bash
 cd 5bgp-nuxt
-pnpm install
-pnpm dev
-```
-
-To view the legacy React application (reference):
-
-```bash
-cd frontend
 pnpm install
 pnpm dev
 ```

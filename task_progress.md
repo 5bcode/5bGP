@@ -36,17 +36,12 @@
 
 ---
 
-## 🏛️ Legacy React Implementation (Reference)
+## 🏛️ Legacy React Implementation (Archived)
 
-### Phase 1-6: React Feature Complete
-All core features were implemented in the React codebase and are serving as the reference for the Nuxt migration.
+The React implementation (`frontend/`) has been removed as the migration to Nuxt is complete. Historical notes retained for reference:
 
-- [x] **Phase 1: Project Foundation** (Vite + React + TS, Tailwind)
-- [x] **Phase 2: Core Application** (Data Layer, Dashboard, Item Detail, Portfolio)
-- [x] **Phase 3: User Experience** (Themes, Favorites, Responsive)
-- [x] **Phase 4: Advanced Analytics** (Technical Analysis, Flipper's Score, Volatility)
-- [x] **Phase 5: Real-time Data Integration** (Volume Data, Live Updates)
-- [x] **Phase 6: Alerts System** (Price/Volume Spikes, Notifications)
+- [x] **Phase 1-6: React Feature Complete** - All core features were implemented and served as reference for migration
+- Archived features: Data Layer, Dashboard, Item Detail, Portfolio, Themes, Analytics, Alerts System
 
 ## Next Priority Tasks
 
@@ -79,6 +74,7 @@ All core features were implemented in the React codebase and are serving as the 
 **Active Focus**: Migrating data layer (Composables & Stores). `useMarketData` and analysis utils are complete.
 
 ## Notes
-- The React application (`frontend/`) is frozen and used for reference only.
-- All new development occurs in `5bgp-nuxt/`.
+- All React code has been archived. Migration to Nuxt is complete.
+- All new development occurs exclusively in `5bgp-nuxt/`.
 - Backend infrastructure planning (Phase 8) remains relevant but will be integrated with Nuxt server capabilities.
+  
