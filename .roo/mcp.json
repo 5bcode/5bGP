@@ -1,12 +1,1 @@
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "Gary"
-      ]
-    }
-  }
-}
+{"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","Gary"],"disabled":true,"alwaysAllow":[]}}}
