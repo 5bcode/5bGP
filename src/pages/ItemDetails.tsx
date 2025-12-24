@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import Layout from '@/components/Layout';
 import PriceChart from '@/components/PriceChart';
 import { calculateMargin, calculateVolatility } from '@/lib/osrs-math';
 import { Button } from "@/components/ui/button";
@@ -81,7 +80,7 @@ const ItemDetails = () => {
 
   if (isLoading) {
     return (
-      <Layout>
+      <>
         <div className="space-y-4 animate-pulse">
           <div className="h-12 w-1/3 bg-slate-800 rounded" />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -89,18 +88,18 @@ const ItemDetails = () => {
           </div>
           <div className="h-[400px] bg-slate-800 rounded" />
         </div>
-      </Layout>
+      </>
     );
   }
 
   if (!itemData || !itemData.price) {
     return (
-      <Layout>
+      <>
         <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
           <h2 className="text-2xl font-bold mb-2">Item Not Found</h2>
           <Link to="/" className="text-emerald-500 hover:underline">Return to Dashboard</Link>
         </div>
-      </Layout>
+      </>
     );
   }
 
@@ -133,7 +132,7 @@ const ItemDetails = () => {
   }
 
   return (
-    <Layout>
+    <>
       <div className="mb-6 flex items-center justify-between">
         <Link to="/" className="flex items-center text-slate-400 hover:text-emerald-400 transition-colors">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
@@ -191,7 +190,7 @@ const ItemDetails = () => {
       </div>
 
       <HistoryTable history={itemHistory} onDelete={handleDeleteTrade} />
-    </Layout>
+    </>
   );
 };
 

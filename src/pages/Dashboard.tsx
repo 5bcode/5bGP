@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import Layout from '@/components/Layout';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
@@ -97,7 +96,7 @@ const Dashboard = () => {
   }
 
   return (
-    <Layout>
+    <>
       <div className="flex flex-col items-center justify-center mb-8">
         <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
           Market Terminal
@@ -220,7 +219,7 @@ const Dashboard = () => {
         onClear={() => setAlerts([])} 
         onRemove={(id) => setAlerts(prev => prev.filter(a => a.id !== id))} 
       />
-    </Layout>
+    </>
   );
 };
 

@@ -1,11 +1,11 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, Outlet } from 'react-router-dom';
 import { Terminal, BarChart2, TrendingUp, Command, History, Radar } from 'lucide-react';
 import MarketTicker from './MarketTicker';
 import CommandMenu from './CommandMenu';
 import { cn } from '@/lib/utils';
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const Layout = () => {
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -57,7 +57,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       </nav>
 
       <main className="container mx-auto px-4 py-8 flex-1">
-        {children}
+        <Outlet />
       </main>
 
       <footer className="border-t border-slate-900 py-6 mt-auto bg-slate-950">

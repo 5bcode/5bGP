@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import Layout from '@/components/Layout';
 import { Item } from '@/services/osrs-api';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
@@ -107,7 +106,7 @@ const Scanner = () => {
   }
 
   return (
-    <Layout>
+    <>
         <div className="mb-6">
             <Link to="/" className="text-slate-400 hover:text-emerald-400 flex items-center gap-2 mb-4 transition-colors">
                 <ArrowLeft size={16} /> Back to Dashboard
@@ -186,7 +185,7 @@ const Scanner = () => {
                 />
             )}
         </div>
-    </Layout>
+    </>
   );
 };
 

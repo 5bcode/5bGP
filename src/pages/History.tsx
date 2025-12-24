@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import Layout from '@/components/Layout';
 import Analytics from '@/components/Analytics';
 import { Trade } from '@/components/TradeLogDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -126,7 +125,7 @@ const History = () => {
   };
 
   return (
-    <Layout>
+    <>
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
         <div>
             <h1 className="text-3xl font-bold text-slate-100">Trade Portfolio</h1>
@@ -242,7 +241,7 @@ const History = () => {
             </p>
         </div>
       )}
-    </Layout>
+    </>
   );
 };
 
