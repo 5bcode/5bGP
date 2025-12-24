@@ -4,9 +4,10 @@ import { MarketOpportunity } from '@/hooks/use-market-analysis';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatGP } from "@/lib/osrs-math";
-import { ArrowDown, TrendingUp, DollarSign, Plus } from "lucide-react";
+import { ArrowDown, TrendingUp, DollarSign, Plus, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Item } from "@/services/osrs-api";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface OpportunityBoardProps {
   dumps: MarketOpportunity[];
@@ -34,13 +35,20 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem }: OpportunityBoardPro
             {dumps.map((opp) => (
               <div key={opp.item.id} className="flex items-center justify-between p-3 hover:bg-rose-900/20 transition-colors group">
                 <div className="flex-1 min-w-0 pr-4">
-                  <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
-                    {opp.item.name}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                      <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
+                        {opp.item.name}
+                      </Link>
+                      {opp.item.limit && (
+                        <span className="text-[10px] text-slate-500 border border-slate-700 rounded px-1">
+                            Lim: {opp.item.limit}
+                        </span>
+                      )}
+                  </div>
                   <div className="text-xs text-rose-400 flex items-center gap-2">
                      <span>Current: {formatGP(opp.price.low)}</span>
                      <span className="text-slate-500">•</span>
-                     <span>Avg: {formatGP(opp.stats.avgLowPrice)}</span>
+                     <span className="text-emerald-400/80">Est. Profit: {formatGP(opp.secondaryMetric)}</span>
                   </div>
                 </div>
                 
@@ -60,7 +68,11 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem }: OpportunityBoardPro
               </div>
             ))}
             {dumps.length === 0 && (
-                <div className="p-4 text-center text-slate-500 text-sm">No significant dumps detected.</div>
+                <div className="p-8 flex flex-col items-center justify-center text-slate-500 text-center">
+                    <AlertCircle className="mb-2 h-8 w-8 opacity-20" />
+                    <p>No high-confidence crashes detected.</p>
+                    <p className="text-xs mt-1 text-slate-600">Checking liquidity & profit thresholds...</p>
+                </div>
             )}
           </div>
         </CardContent>
@@ -88,13 +100,13 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem }: OpportunityBoardPro
                   <div className="text-xs text-emerald-400/80 flex items-center gap-2">
                      <span>Buy: {formatGP(opp.price.low)}</span>
                      <span className="text-slate-500">•</span>
-                     <span>Vol: {formatGP(opp.stats.highPriceVolume + opp.stats.lowPriceVolume)}</span>
+                     <span>ROI: {opp.secondaryMetric.toFixed(2)}%</span>
                   </div>
                 </div>
                 
                 <div className="text-right mr-4">
                   <div className="font-bold text-emerald-400 text-lg">+{formatGP(opp.metric)}</div>
-                  <div className="text-[10px] text-slate-500 uppercase">Exp. Profit</div>
+                  <div className="text-[10px] text-slate-500 uppercase">Profit/Item</div>
                 </div>
 
                 <Button 
@@ -108,7 +120,7 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem }: OpportunityBoardPro
               </div>
             ))}
              {bestFlips.length === 0 && (
-                <div className="p-4 text-center text-slate-500 text-sm">Analyzing market data...</div>
+                <div className="p-8 text-center text-slate-500">Scanning market data...</div>
             )}
           </div>
         </CardContent>
