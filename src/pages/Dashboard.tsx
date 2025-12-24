@@ -4,6 +4,7 @@ import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
+import Analytics from '@/components/Analytics';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { Loader2, RefreshCw, Trash2, History } from 'lucide-react';
@@ -79,8 +80,6 @@ const Dashboard = () => {
     const interval = setInterval(async () => {
         const newPrices = await osrsApi.getLatestPrices();
         setPrices(newPrices);
-        // Also refresh 24h stats occasionally?
-        // osrsApi.get24hStats() is cached for 5 min, so calling it here is safe but might be redundant every 60s
     }, settings.refreshInterval * 1000);
     return () => clearInterval(interval);
   }, [settings.refreshInterval]);
@@ -130,20 +129,16 @@ const Dashboard = () => {
       setTrades(prev => [trade, ...prev]);
   }
 
-  const totalProfit = trades.reduce((acc, t) => acc + t.profit, 0);
-
   return (
     <Layout>
-      <div className="flex flex-col items-center justify-center mb-12">
-        <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">
+      <div className="flex flex-col items-center justify-center mb-8">
+        <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
           Market Terminal
         </h1>
-        <p className="text-slate-500 mb-8 max-w-lg text-center">
-          Real-time volatility monitoring and tax-adjusted margin calculations for OSRS flipping.
-        </p>
-        
         <ItemSearch items={items} onSelect={handleAddItem} isLoading={loading} />
       </div>
+
+      {trades.length > 0 && <Analytics trades={trades} />}
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -166,13 +161,6 @@ const Dashboard = () => {
                         <DialogTitle>Trade History</DialogTitle>
                     </DialogHeader>
                     <div className="mt-4">
-                        <div className="flex justify-between items-center mb-4 p-4 bg-slate-950 rounded-lg">
-                            <span className="text-slate-400">Total Profit</span>
-                            <span className={`text-xl font-mono font-bold ${totalProfit > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {totalProfit > 0 ? '+' : ''}{formatGP(totalProfit)}
-                            </span>
-                        </div>
-                        
                         {trades.length === 0 ? (
                             <p className="text-center text-slate-500 py-8">No trades logged yet.</p>
                         ) : (
@@ -223,12 +211,13 @@ const Dashboard = () => {
             <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
           {trackedItems.map(item => (
             <div key={item.id} className="relative group h-full">
                 <MarginCard 
                     item={item} 
                     priceData={prices[item.id]} 
+                    stats={stats[item.id]}
                     onLogTrade={handleLogTrade}
                 />
                 <button 
@@ -236,7 +225,7 @@ const Dashboard = () => {
                     className="absolute -top-2 -right-2 bg-slate-800 text-slate-400 hover:text-rose-500 hover:bg-slate-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     title="Remove item"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <Trash2 size={14} />
                 </button>
             </div>
           ))}
