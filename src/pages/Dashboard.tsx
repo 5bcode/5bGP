@@ -5,9 +5,11 @@ import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import Analytics from '@/components/Analytics';
+import OpportunityBoard from '@/components/OpportunityBoard';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
-import { Loader2, RefreshCw, Trash2, History } from 'lucide-react';
+import { useMarketAnalysis } from '@/hooks/use-market-analysis';
+import { Loader2, RefreshCw, Trash2, History, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
@@ -89,8 +91,9 @@ const Dashboard = () => {
       setAlerts(prev => [alert, ...prev].slice(0, 50)); // Keep last 50
   }, []);
 
-  // Price Monitor Hook
+  // Hooks
   usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, handleAlert);
+  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -137,6 +140,15 @@ const Dashboard = () => {
         </h1>
         <ItemSearch items={items} onSelect={handleAddItem} isLoading={loading} />
       </div>
+      
+      {/* GLOBAL ANALYSIS */}
+      {!loading && (
+        <OpportunityBoard 
+            dumps={dumps} 
+            bestFlips={bestFlips} 
+            onTrackItem={handleAddItem} 
+        />
+      )}
 
       {trades.length > 0 && <Analytics trades={trades} />}
 
