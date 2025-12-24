@@ -56,7 +56,7 @@ const MarginCard = ({ item, priceData, stats, onLogTrade }: MarginCardProps) => 
                 <TooltipTrigger>
                     <div className="w-2 h-2 rounded-full bg-amber-500/50"></div>
                 </TooltipTrigger>
-                <TooltipContent>Data > 5m old</TooltipContent>
+                <TooltipContent>Data &gt; 5m old</TooltipContent>
              </Tooltip>
          )}
       </div>
