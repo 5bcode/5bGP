@@ -4,17 +4,14 @@ import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
-import Analytics from '@/components/Analytics';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
-import { Loader2, RefreshCw, Trash2, History, Filter } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const Dashboard = () => {
@@ -38,18 +35,15 @@ const Dashboard = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Trade History
-  const [trades, setTrades] = useState<Trade[]>(() => {
-      const saved = localStorage.getItem('tradeHistory');
-      return saved ? JSON.parse(saved) : [];
-  });
+  // Trade History persistence dummy update to trigger local storage sync if needed
+  // In a real app we might use context, but here we just need to ensure the TradeLogDialog callback works
+  // We don't display history here anymore.
 
   // Live Alerts
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
 
   // Persistence
   useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
-  useEffect(() => { localStorage.setItem('tradeHistory', JSON.stringify(trades)); }, [trades]);
   useEffect(() => { localStorage.setItem('appSettings', JSON.stringify(settings)); }, [settings]);
   
   // Initial Data Load
@@ -135,7 +129,10 @@ const Dashboard = () => {
   }
 
   const handleLogTrade = (trade: Trade) => {
-      setTrades(prev => [trade, ...prev]);
+      const saved = localStorage.getItem('tradeHistory');
+      const history = saved ? JSON.parse(saved) : [];
+      localStorage.setItem('tradeHistory', JSON.stringify([trade, ...history]));
+      toast.success("Trade logged to History");
   }
 
   return (
@@ -185,8 +182,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {trades.length > 0 && <Analytics trades={trades} />}
-
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
              <h2 className="text-xl font-semibold text-slate-200">
@@ -197,40 +192,6 @@ const Dashboard = () => {
         </div>
         
         <div className="flex gap-2">
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="border-slate-800 bg-slate-900 text-slate-300">
-                        <History className="mr-2 h-4 w-4" /> History
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Trade History</DialogTitle>
-                    </DialogHeader>
-                    <div className="mt-4">
-                        {trades.length === 0 ? (
-                            <p className="text-center text-slate-500 py-8">No trades logged yet.</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {trades.map(trade => (
-                                    <div key={trade.id} className="p-3 bg-slate-800/50 rounded flex justify-between items-center border border-slate-700">
-                                        <div>
-                                            <div className="font-bold text-slate-200">{trade.itemName}</div>
-                                            <div className="text-xs text-slate-500">
-                                                {new Date(trade.timestamp).toLocaleDateString()} • {trade.quantity} qty
-                                            </div>
-                                        </div>
-                                        <div className={`font-mono ${trade.profit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                            {trade.profit > 0 ? '+' : ''}{formatGP(trade.profit)}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
-
             {trackedItems.length > 0 && (
                 <Button
                     variant="ghost"

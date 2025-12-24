@@ -7,6 +7,7 @@ import { formatGP } from "@/lib/osrs-math";
 import { ArrowDown, TrendingUp, Plus, AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Item } from "@/services/osrs-api";
+import ItemIcon from './ItemIcon';
 
 interface OpportunityBoardProps {
   dumps: MarketOpportunity[];
@@ -43,25 +44,28 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem, filter }: Opportunity
           <div className="divide-y divide-rose-900/30">
             {dumps.map((opp) => (
               <div key={opp.item.id} className="flex items-center justify-between p-3 hover:bg-rose-900/20 transition-colors group">
-                <div className="flex-1 min-w-0 pr-4">
-                  <div className="flex items-center gap-2">
-                      <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
-                        {opp.item.name}
-                      </Link>
-                      {opp.item.limit && (
-                        <span className="text-[10px] text-slate-500 border border-slate-700 rounded px-1">
-                            Lim: {opp.item.limit}
-                        </span>
-                      )}
-                  </div>
-                  <div className="text-xs text-rose-400 flex items-center gap-2">
-                     <span>Current: {formatGP(opp.price.low)}</span>
-                     <span className="text-slate-500">•</span>
-                     <span className="text-emerald-400/80">Est. Profit: {formatGP(opp.secondaryMetric)}</span>
+                <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                  <ItemIcon item={opp.item} size="md" className="shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
+                            {opp.item.name}
+                        </Link>
+                        {opp.item.limit && (
+                            <span className="text-[10px] text-slate-500 border border-slate-700 rounded px-1">
+                                Lim: {opp.item.limit}
+                            </span>
+                        )}
+                    </div>
+                    <div className="text-xs text-rose-400 flex items-center gap-2">
+                        <span>Current: {formatGP(opp.price.low)}</span>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-emerald-400/80">Est. Profit: {formatGP(opp.secondaryMetric)}</span>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="text-right mr-4">
+                <div className="text-right mr-4 shrink-0">
                   <div className="font-bold text-rose-500 text-lg">-{opp.metric.toFixed(1)}%</div>
                   <div className="text-[10px] text-slate-500 uppercase">Drop</div>
                 </div>
@@ -69,7 +73,7 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem, filter }: Opportunity
                 <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="h-8 w-8 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                    className="h-8 w-8 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 shrink-0"
                     onClick={() => onTrackItem(opp.item)}
                 >
                     <Plus className="h-4 w-4" />
@@ -111,18 +115,21 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem, filter }: Opportunity
           <div className="divide-y divide-emerald-900/30">
             {bestFlips.map((opp) => (
               <div key={opp.item.id} className="flex items-center justify-between p-3 hover:bg-emerald-900/20 transition-colors group">
-                <div className="flex-1 min-w-0 pr-4">
-                  <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
-                    {opp.item.name}
-                  </Link>
-                  <div className="text-xs text-emerald-400/80 flex items-center gap-2">
-                     <span>Buy: {formatGP(opp.price.low)}</span>
-                     <span className="text-slate-500">•</span>
-                     <span>ROI: {opp.secondaryMetric.toFixed(2)}%</span>
+                <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                  <ItemIcon item={opp.item} size="md" className="shrink-0" />
+                  <div className="min-w-0">
+                    <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
+                        {opp.item.name}
+                    </Link>
+                    <div className="text-xs text-emerald-400/80 flex items-center gap-2">
+                        <span>Buy: {formatGP(opp.price.low)}</span>
+                        <span className="text-slate-500">•</span>
+                        <span>ROI: {opp.secondaryMetric.toFixed(2)}%</span>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="text-right mr-4">
+                <div className="text-right mr-4 shrink-0">
                   <div className="font-bold text-emerald-400 text-lg">+{formatGP(opp.metric)}</div>
                   <div className="text-[10px] text-slate-500 uppercase">Profit/Item</div>
                 </div>
@@ -130,7 +137,7 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem, filter }: Opportunity
                 <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="h-8 w-8 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                    className="h-8 w-8 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 shrink-0"
                     onClick={() => onTrackItem(opp.item)}
                 >
                     <Plus className="h-4 w-4" />

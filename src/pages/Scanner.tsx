@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import ItemIcon from '@/components/ItemIcon';
 
 const Scanner = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -141,7 +142,7 @@ const Scanner = () => {
                 <Table>
                     <TableHeader className="bg-slate-950">
                         <TableRow className="border-slate-800 hover:bg-slate-950">
-                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="w-[80px]"></TableHead>
                             <TableHead className="text-slate-400">Item</TableHead>
                             <TableHead className="text-right text-slate-400">Buy Price</TableHead>
                             <TableHead className="text-right text-slate-400">
@@ -159,9 +160,7 @@ const Scanner = () => {
                         {displayData.map((row) => (
                             <TableRow key={row.item.id} className="border-slate-800 hover:bg-slate-800/50">
                                 <TableCell>
-                                    <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-xs text-slate-500 font-bold">
-                                        {row.item.name.charAt(0)}
-                                    </div>
+                                    <ItemIcon item={row.item} size="md" />
                                 </TableCell>
                                 <TableCell className="font-medium text-slate-200">
                                     <div className="flex flex-col">

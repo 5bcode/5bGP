@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import TradeLogDialog, { Trade } from './TradeLogDialog';
 import PriceChart from './PriceChart';
+import ItemIcon from './ItemIcon';
 
 interface MarginCardProps {
   item: Item;
@@ -63,7 +64,8 @@ const MarginCard = ({ item, priceData, stats, onLogTrade }: MarginCardProps) => 
       </div>
 
       <CardHeader className="bg-slate-950/50 border-b border-slate-800 pb-3 pt-4">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start gap-3">
+          <ItemIcon item={item} size="md" className="bg-slate-900 rounded-md border border-slate-800 shrink-0" />
           <div className="flex-1 min-w-0 pr-2">
              <Link to={`/item/${item.id}`} className="hover:text-emerald-400 transition-colors block">
                 <CardTitle className="text-lg font-bold text-slate-100 truncate flex items-center gap-2" title={item.name}>
@@ -94,6 +96,7 @@ const MarginCard = ({ item, priceData, stats, onLogTrade }: MarginCardProps) => 
              <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-3xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
+                        <ItemIcon item={item} size="sm" />
                         {item.name} <span className="text-slate-500 font-normal text-sm">Last 24h Trend</span>
                     </DialogTitle>
                 </DialogHeader>

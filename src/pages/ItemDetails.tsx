@@ -15,6 +15,7 @@ import {
     AlertTriangle, ShieldCheck, Zap, TrendingUp, TrendingDown, Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ItemIcon from '@/components/ItemIcon';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -148,11 +149,8 @@ const ItemDetails = () => {
 
       {/* Header Section */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 bg-slate-900/50 p-6 rounded-lg border border-slate-800 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center border border-slate-700 shadow-inner">
-                {/* Fallback for missing icons */}
-                <span className="text-2xl font-bold text-slate-500 select-none">{item.name.charAt(0)}</span>
-            </div>
+        <div className="flex items-center gap-6">
+            <ItemIcon item={item} size="lg" className="bg-slate-800 rounded-lg border border-slate-700 shadow-inner" />
             <div>
                 <h1 className="text-3xl font-bold text-slate-100 tracking-tight">{item.name}</h1>
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-400">

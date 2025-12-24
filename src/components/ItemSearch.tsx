@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
 import { Item } from "@/services/osrs-api";
 import Fuse from 'fuse.js';
+import ItemIcon from './ItemIcon';
 
 interface ItemSearchProps {
   items: Item[];
@@ -72,14 +73,17 @@ const ItemSearch = ({ items, onSelect, isLoading }: ItemSearchProps) => {
           {results.map((item) => (
             <button
               key={item.id}
-              className="w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors flex items-center justify-between group border-b border-slate-800/50 last:border-0"
+              className="w-full text-left px-4 py-2 hover:bg-slate-800 transition-colors flex items-center justify-between group border-b border-slate-800/50 last:border-0"
               onClick={() => {
                 onSelect(item);
                 setQuery("");
                 setIsOpen(false);
               }}
             >
-              <span className="font-medium text-slate-200 group-hover:text-emerald-400">{item.name}</span>
+              <div className="flex items-center gap-3">
+                  <ItemIcon item={item} size="sm" />
+                  <span className="font-medium text-slate-200 group-hover:text-emerald-400">{item.name}</span>
+              </div>
               <div className="flex items-center gap-2">
                  {item.limit && (
                      <span className="text-[10px] uppercase text-slate-500 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
