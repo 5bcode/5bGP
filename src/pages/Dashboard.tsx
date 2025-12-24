@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
+import SettingsDialog from '@/components/SettingsDialog';
+import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { Loader2, RefreshCw, Trash2, History } from 'lucide-react';
@@ -17,26 +19,31 @@ const Dashboard = () => {
   const [stats, setStats] = useState<Record<string, Stats24h>>({});
   const [loading, setLoading] = useState(true);
   
-  // Load tracked items from localStorage
+  // Settings State
+  const [settings, setSettings] = useState(() => {
+      const saved = localStorage.getItem('appSettings');
+      return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60 };
+  });
+
+  // Load tracked items
   const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('trackedItems');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Load trade history
+  // Trade History
   const [trades, setTrades] = useState<Trade[]>(() => {
       const saved = localStorage.getItem('tradeHistory');
       return saved ? JSON.parse(saved) : [];
   });
 
-  // Persist state
-  useEffect(() => {
-    localStorage.setItem('trackedItems', JSON.stringify(trackedItems));
-  }, [trackedItems]);
+  // Live Alerts
+  const [alerts, setAlerts] = useState<MarketAlert[]>([]);
 
-  useEffect(() => {
-    localStorage.setItem('tradeHistory', JSON.stringify(trades));
-  }, [trades]);
+  // Persistence
+  useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
+  useEffect(() => { localStorage.setItem('tradeHistory', JSON.stringify(trades)); }, [trades]);
+  useEffect(() => { localStorage.setItem('appSettings', JSON.stringify(settings)); }, [settings]);
   
   // Initial Data Load
   useEffect(() => {
@@ -60,23 +67,31 @@ const Dashboard = () => {
         }
       } catch (e) {
         toast.error("Failed to load OSRS data");
-        console.error(e);
       } finally {
         setLoading(false);
       }
     };
-    
     init();
+  }, []);
 
+  // Polling Interval
+  useEffect(() => {
     const interval = setInterval(async () => {
         const newPrices = await osrsApi.getLatestPrices();
         setPrices(newPrices);
-    }, 60000);
-
+        // Also refresh 24h stats occasionally?
+        // osrsApi.get24hStats() is cached for 5 min, so calling it here is safe but might be redundant every 60s
+    }, settings.refreshInterval * 1000);
     return () => clearInterval(interval);
+  }, [settings.refreshInterval]);
+
+  // Alert Handler
+  const handleAlert = useCallback((alert: MarketAlert) => {
+      setAlerts(prev => [alert, ...prev].slice(0, 50)); // Keep last 50
   }, []);
 
-  usePriceMonitor(prices, stats, trackedItems);
+  // Price Monitor Hook
+  usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, handleAlert);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -105,7 +120,7 @@ const Dashboard = () => {
   }
 
   const handleClearAll = () => {
-      if (confirm("Are you sure you want to clear your watchlist?")) {
+      if (confirm("Clear watchlist?")) {
           setTrackedItems([]);
           toast.success("Watchlist cleared");
       }
@@ -131,10 +146,14 @@ const Dashboard = () => {
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-slate-200">
-            Active Watchlist 
-            <span className="ml-2 text-sm text-slate-500 font-normal">({trackedItems.length} items)</span>
-        </h2>
+        <div className="flex items-center gap-4">
+             <h2 className="text-xl font-semibold text-slate-200">
+                Active Watchlist 
+                <span className="ml-2 text-sm text-slate-500 font-normal">({trackedItems.length} items)</span>
+            </h2>
+            <SettingsDialog settings={settings} onSave={setSettings} />
+        </div>
+        
         <div className="flex gap-2">
             <Dialog>
                 <DialogTrigger asChild>
@@ -204,7 +223,7 @@ const Dashboard = () => {
             <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
           {trackedItems.map(item => (
             <div key={item.id} className="relative group h-full">
                 <MarginCard 
@@ -230,6 +249,12 @@ const Dashboard = () => {
           )}
         </div>
       )}
+
+      <LiveFeed 
+        alerts={alerts} 
+        onClear={() => setAlerts([])} 
+        onRemove={(id) => setAlerts(prev => prev.filter(a => a.id !== id))} 
+      />
     </Layout>
   );
 };
