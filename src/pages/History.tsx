@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import Analytics from '@/components/Analytics';
 import { Trade } from '@/components/TradeLogDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, Upload } from 'lucide-react';
+import { Download, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { toast } from 'sonner';
 
 const History = () => {
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+      key: 'timestamp', 
+      direction: 'desc' 
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('tradeHistory');
@@ -21,6 +25,52 @@ const History = () => {
       }
     }
   }, []);
+
+  const sortedTrades = useMemo(() => {
+    return [...trades].sort((a, b) => {
+        let aValue: any = 0;
+        let bValue: any = 0;
+
+        switch(sortConfig.key) {
+            case 'timestamp': 
+                aValue = new Date(a.timestamp).getTime(); 
+                bValue = new Date(b.timestamp).getTime(); 
+                break;
+            case 'item': 
+                aValue = a.itemName; 
+                bValue = b.itemName; 
+                break;
+            case 'quantity': 
+                aValue = a.quantity; 
+                bValue = b.quantity; 
+                break;
+            case 'buy': 
+                aValue = a.buyPrice; 
+                bValue = b.buyPrice; 
+                break;
+            case 'sell': 
+                aValue = a.sellPrice; 
+                bValue = b.sellPrice; 
+                break;
+            case 'profit': 
+                aValue = a.profit; 
+                bValue = b.profit; 
+                break;
+            default: return 0;
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+  }, [trades, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
 
   const handleDelete = (id: string) => {
     if (confirm("Are you sure you want to delete this trade?")) {
@@ -68,6 +118,13 @@ const History = () => {
     document.body.removeChild(link);
   };
 
+  const SortIcon = ({ column }: { column: string }) => {
+      if (sortConfig.key !== column) return <ArrowUpDown size={14} className="ml-1 opacity-20" />;
+      return sortConfig.direction === 'asc' 
+        ? <ArrowUp size={14} className="ml-1 text-emerald-500" /> 
+        : <ArrowDown size={14} className="ml-1 text-emerald-500" />;
+  };
+
   return (
     <Layout>
       <div className="flex items-center justify-between mb-8">
@@ -90,17 +147,53 @@ const History = () => {
                 <Table>
                     <TableHeader className="bg-slate-950">
                         <TableRow className="border-slate-800 hover:bg-slate-950">
-                            <TableHead className="text-slate-400">Date</TableHead>
-                            <TableHead className="text-slate-400">Item</TableHead>
-                            <TableHead className="text-right text-slate-400">Qty</TableHead>
-                            <TableHead className="text-right text-slate-400">Buy</TableHead>
-                            <TableHead className="text-right text-slate-400">Sell</TableHead>
-                            <TableHead className="text-right text-slate-400">Profit</TableHead>
+                            <TableHead 
+                                className="text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('timestamp')}
+                            >
+                                <div className="flex items-center gap-1">Date <SortIcon column="timestamp"/></div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('item')}
+                            >
+                                <div className="flex items-center gap-1">Item <SortIcon column="item"/></div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('quantity')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Qty <SortIcon column="quantity"/></div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('buy')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Buy <SortIcon column="buy"/></div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('sell')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Sell <SortIcon column="sell"/></div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('profit')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Profit <SortIcon column="profit"/></div>
+                            </TableHead>
+                            
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {trades.map((trade) => (
+                        {sortedTrades.map((trade) => (
                             <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/50">
                                 <TableCell className="text-slate-400 font-mono text-xs">
                                     {new Date(trade.timestamp).toLocaleString()}

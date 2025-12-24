@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
-import { Loader2, ArrowLeft, TrendingUp, ArrowDown, ExternalLink, Plus } from 'lucide-react';
+import { Loader2, ArrowLeft, TrendingUp, ArrowDown, ExternalLink, Plus, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import ItemIcon from '@/components/ItemIcon';
+import { cn } from '@/lib/utils';
 
 const Scanner = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18,6 +19,12 @@ const Scanner = () => {
 
   const [filter, setFilter] = useState<AnalysisFilter>(filterParam);
   const [type, setType] = useState<'crash'|'flip'>(typeParam);
+  
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+      key: 'score', 
+      direction: 'desc' 
+  });
 
   const [items, setItems] = useState<Item[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -52,7 +59,56 @@ const Scanner = () => {
 
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, filter);
   const data = type === 'crash' ? dumps : bestFlips;
-  const displayData = data.slice(0, 100);
+  
+  // We take the top 100 based on the default scoring FIRST, then allow sorting within that pool.
+  // This prevents "sorting by name" giving us worthless items starting with 'A'.
+  const displayData = useMemo(() => {
+      const topItems = data.slice(0, 100);
+      
+      return [...topItems].sort((a, b) => {
+          let aValue: any = 0;
+          let bValue: any = 0;
+
+          switch(sortConfig.key) {
+              case 'name': 
+                  aValue = a.item.name; 
+                  bValue = b.item.name; 
+                  break;
+              case 'price': 
+                  aValue = a.price.low; 
+                  bValue = b.price.low; 
+                  break;
+              case 'metric': // Drop % or Profit
+                  aValue = a.metric; 
+                  bValue = b.metric; 
+                  break;
+              case 'secondary': // Potential or ROI
+                  aValue = a.secondaryMetric; 
+                  bValue = b.secondaryMetric; 
+                  break;
+              case 'volume': 
+                  aValue = a.stats.highPriceVolume + a.stats.lowPriceVolume; 
+                  bValue = b.stats.highPriceVolume + b.stats.lowPriceVolume; 
+                  break;
+              case 'score': 
+                  aValue = a.score; 
+                  bValue = b.score; 
+                  break;
+              default: return 0;
+          }
+
+          if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+          if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+          return 0;
+      });
+  }, [data, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
 
   const handleTrack = (item: Item) => {
     const saved = localStorage.getItem('trackedItems');
@@ -64,6 +120,13 @@ const Scanner = () => {
     localStorage.setItem('trackedItems', JSON.stringify([item, ...tracked]));
     toast.success(`Tracking ${item.name}`);
   }
+
+  const SortIcon = ({ column }: { column: string }) => {
+      if (sortConfig.key !== column) return <ArrowUpDown size={14} className="ml-1 opacity-20" />;
+      return sortConfig.direction === 'asc' 
+        ? <ArrowUp size={14} className="ml-1 text-emerald-500" /> 
+        : <ArrowDown size={14} className="ml-1 text-emerald-500" />;
+  };
 
   return (
     <Layout>
@@ -143,16 +206,53 @@ const Scanner = () => {
                     <TableHeader className="bg-slate-950">
                         <TableRow className="border-slate-800 hover:bg-slate-950">
                             <TableHead className="w-[80px]"></TableHead>
-                            <TableHead className="text-slate-400">Item</TableHead>
-                            <TableHead className="text-right text-slate-400">Buy Price</TableHead>
-                            <TableHead className="text-right text-slate-400">
-                                {type === 'crash' ? 'Drop %' : 'Profit / Item'}
+                            
+                            <TableHead 
+                                className="text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('name')}
+                            >
+                                <div className="flex items-center gap-1">Item <SortIcon column="name"/></div>
                             </TableHead>
-                            <TableHead className="text-right text-slate-400">
-                                {type === 'crash' ? 'Potential Profit' : 'ROI'}
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('price')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Buy Price <SortIcon column="price"/></div>
                             </TableHead>
-                            <TableHead className="text-right text-slate-400">Volume (24h)</TableHead>
-                            <TableHead className="text-right text-slate-400">Score</TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('metric')}
+                            >
+                                <div className="flex items-center justify-end gap-1">
+                                    {type === 'crash' ? 'Drop %' : 'Profit / Item'} <SortIcon column="metric"/>
+                                </div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('secondary')}
+                            >
+                                <div className="flex items-center justify-end gap-1">
+                                    {type === 'crash' ? 'Potential Profit' : 'ROI'} <SortIcon column="secondary"/>
+                                </div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('volume')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Volume (24h) <SortIcon column="volume"/></div>
+                            </TableHead>
+                            
+                            <TableHead 
+                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                onClick={() => handleSort('score')}
+                            >
+                                <div className="flex items-center justify-end gap-1">Score <SortIcon column="score"/></div>
+                            </TableHead>
+                            
                             <TableHead className="w-[100px]"></TableHead>
                         </TableRow>
                     </TableHeader>
