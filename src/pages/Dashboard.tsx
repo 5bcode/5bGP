@@ -5,9 +5,10 @@ import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
-import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
+import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
+import { useMarketData } from '@/hooks/use-osrs-query';
 import { Loader2, RefreshCw, Trash2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -15,29 +16,23 @@ import { Trade } from '@/components/TradeLogDialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const Dashboard = () => {
-  const [items, setItems] = useState<Item[]>([]);
-  const [prices, setPrices] = useState<Record<string, PriceData>>({});
-  const [stats, setStats] = useState<Record<string, Stats24h>>({});
-  const [loading, setLoading] = useState(true);
-  
-  // Market Scanner Filter
-  const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
-  
   // Settings State
   const [settings, setSettings] = useState(() => {
       const saved = localStorage.getItem('appSettings');
       return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60 };
   });
 
+  // React Query Hook
+  const { items, prices, stats, isLoading, refetch } = useMarketData();
+  
+  // Market Scanner Filter
+  const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
+  
   // Load tracked items
   const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('trackedItems');
     return saved ? JSON.parse(saved) : [];
   });
-
-  // Trade History persistence dummy update to trigger local storage sync if needed
-  // In a real app we might use context, but here we just need to ensure the TradeLogDialog callback works
-  // We don't display history here anymore.
 
   // Live Alerts
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
@@ -46,64 +41,29 @@ const Dashboard = () => {
   useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
   useEffect(() => { localStorage.setItem('appSettings', JSON.stringify(settings)); }, [settings]);
   
-  // Initial Data Load
+  // Initialize Default Items if empty and data loaded
   useEffect(() => {
-    const init = async () => {
-      try {
-        const [mappingData, priceData, statsData] = await Promise.all([
-          osrsApi.getMapping(),
-          osrsApi.getLatestPrices(),
-          osrsApi.get24hStats()
-        ]);
-        
-        setItems(mappingData);
-        setPrices(priceData);
-        setStats(statsData);
-        
-        if (mappingData.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
-            const defaults = mappingData.filter(i => 
-                [12934, 13190, 554, 560, 4151].includes(i.id)
-            );
-            setTrackedItems(defaults);
-        }
-      } catch (e) {
-        toast.error("Failed to load OSRS data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, []);
-
-  // Polling Interval
-  useEffect(() => {
-    const interval = setInterval(async () => {
-        const newPrices = await osrsApi.getLatestPrices();
-        setPrices(newPrices);
-    }, settings.refreshInterval * 1000);
-    return () => clearInterval(interval);
-  }, [settings.refreshInterval]);
+    if (!isLoading && items.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
+        const defaults = items.filter(i => 
+            [12934, 13190, 554, 560, 4151].includes(i.id)
+        );
+        setTrackedItems(defaults);
+    }
+  }, [isLoading, items, trackedItems.length]);
 
   // Alert Handler
   const handleAlert = useCallback((alert: MarketAlert) => {
-      setAlerts(prev => [alert, ...prev].slice(0, 50)); // Keep last 50
+      setAlerts(prev => [alert, ...prev].slice(0, 50)); 
   }, []);
 
-  // Hooks
+  // Monitor Hooks
   usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, handleAlert);
   
   // Apply filter to analysis
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, scannerFilter);
 
   const handleRefresh = async () => {
-    setLoading(true);
-    const [newPrices, newStats] = await Promise.all([
-        osrsApi.getLatestPrices(),
-        osrsApi.get24hStats()
-    ]);
-    setPrices(newPrices);
-    setStats(newStats);
-    setLoading(false);
+    await refetch();
     toast.success("Market data refreshed");
   };
 
@@ -141,11 +101,11 @@ const Dashboard = () => {
         <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
           Market Terminal
         </h1>
-        <ItemSearch items={items} onSelect={handleAddItem} isLoading={loading} />
+        <ItemSearch items={items} onSelect={handleAddItem} isLoading={isLoading} />
       </div>
       
       {/* GLOBAL ANALYSIS */}
-      {!loading && (
+      {!isLoading && (
         <div className="space-y-4 mb-8">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -208,13 +168,13 @@ const Dashboard = () => {
                 onClick={handleRefresh}
                 className="border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
             >
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 Refresh
             </Button>
         </div>
       </div>
 
-      {loading && items.length === 0 ? (
+      {isLoading && items.length === 0 ? (
         <div className="flex justify-center py-20">
             <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
         </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ComposedChart, 
   Area, 
@@ -9,7 +9,8 @@ import {
   ResponsiveContainer, 
   CartesianGrid 
 } from 'recharts';
-import { osrsApi, TimeSeriesPoint, TimeStep } from '@/services/osrs-api';
+import { TimeStep } from '@/services/osrs-api';
+import { useTimeseries } from '@/hooks/use-osrs-query';
 import { Loader2 } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -19,43 +20,29 @@ interface PriceChartProps {
 }
 
 const PriceChart = ({ itemId }: PriceChartProps) => {
-  const [data, setData] = useState<TimeSeriesPoint[]>([]);
-  const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<TimeStep>('5m');
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const points = await osrsApi.getTimeseries(itemId, timeframe);
-        // Filter valid points but be less aggressive to keep volume data if possible
-        // Ideally we want points where we have at least SOME data
-        const validPoints = points.filter(p => p.avgHighPrice || p.avgLowPrice || p.highPriceVolume || p.lowPriceVolume);
-        
-        let sliceSize = 100;
-        if (timeframe === '1h') sliceSize = 168; // 1 week
-        if (timeframe === '6h') sliceSize = 120; // 1 month
-        if (timeframe === '24h') sliceSize = 365; // 1 year
-
-        setData(validPoints.slice(-sliceSize));
-      } catch (error) {
-        console.error("Chart data failed", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [itemId, timeframe]);
+  const { data: points = [], isLoading } = useTimeseries(itemId, timeframe);
 
   const formattedData = useMemo(() => {
-    return data.map(point => ({
+    // Filter valid points but be less aggressive to keep volume data if possible
+    const validPoints = points.filter(p => p.avgHighPrice || p.avgLowPrice || p.highPriceVolume || p.lowPriceVolume);
+        
+    let sliceSize = 100;
+    if (timeframe === '1h') sliceSize = 168; // 1 week
+    if (timeframe === '6h') sliceSize = 120; // 1 month
+    if (timeframe === '24h') sliceSize = 365; // 1 year
+
+    const sliced = validPoints.slice(-sliceSize);
+
+    return sliced.map(point => ({
         ...point,
         time: point.timestamp * 1000,
         high: point.avgHighPrice,
         low: point.avgLowPrice,
         volume: (point.highPriceVolume || 0) + (point.lowPriceVolume || 0)
     }));
-  }, [data]);
+  }, [points, timeframe]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -129,11 +116,11 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
         </ToggleGroup>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="h-[300px] w-full flex items-center justify-center bg-slate-950/30 rounded-lg border border-slate-800/50">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
         </div>
-      ) : data.length === 0 ? (
+      ) : formattedData.length === 0 ? (
         <div className="h-[300px] w-full flex items-center justify-center text-slate-500 bg-slate-950/20 rounded-lg border border-dashed border-slate-800">
             No chart data available for this timeframe
         </div>

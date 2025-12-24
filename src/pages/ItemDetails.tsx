@@ -1,54 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import PriceChart from '@/components/PriceChart';
 import TradeLogDialog, { Trade } from '@/components/TradeLogDialog';
-import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
-import { calculateMargin, calculateVolatility, formatGP, calculateDumpScore } from '@/lib/osrs-math';
+import { calculateMargin, calculateVolatility, formatGP } from '@/lib/osrs-math';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { 
     ArrowLeft, ExternalLink, Activity, BarChart3, Clock, DollarSign, 
-    AlertTriangle, ShieldCheck, Zap, TrendingUp, TrendingDown, Copy
+    AlertTriangle, ShieldCheck, Zap, TrendingUp, Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ItemIcon from '@/components/ItemIcon';
+import { useMarketData } from '@/hooks/use-osrs-query';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
-  const [item, setItem] = useState<Item | null>(null);
-  const [price, setPrice] = useState<PriceData | null>(null);
-  const [stats, setStats] = useState<Stats24h | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { items, prices, stats, isLoading } = useMarketData();
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!id) return;
-      setLoading(true);
-      try {
-        const [mapping, prices, statsData] = await Promise.all([
-          osrsApi.getMapping(),
-          osrsApi.getLatestPrices(),
-          osrsApi.get24hStats()
-        ]);
-
-        const foundItem = mapping.find(i => i.id.toString() === id);
-        if (foundItem) {
-          setItem(foundItem);
-          setPrice(prices[foundItem.id]);
-          setStats(statsData[foundItem.id]);
-        }
-      } catch (e) {
-        toast.error("Failed to load item details");
-      } finally {
-        setLoading(false);
-      }
+  const itemData = useMemo(() => {
+    if (!id || isLoading || items.length === 0) return null;
+    const foundItem = items.find(i => i.id.toString() === id);
+    if (!foundItem) return null;
+    
+    return {
+        item: foundItem,
+        price: prices[foundItem.id],
+        stat: stats[foundItem.id]
     };
-    loadData();
-  }, [id]);
+  }, [id, items, prices, stats, isLoading]);
 
   const handleLogTrade = (trade: Trade) => {
     const saved = localStorage.getItem('tradeHistory');
@@ -62,7 +44,7 @@ const ItemDetails = () => {
       toast.success(`Copied ${label} to clipboard`);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Layout>
         <div className="space-y-4 animate-pulse">
@@ -76,7 +58,7 @@ const ItemDetails = () => {
     );
   }
 
-  if (!item || !price) {
+  if (!itemData || !itemData.price) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
@@ -87,14 +69,16 @@ const ItemDetails = () => {
     );
   }
 
+  const { item, price, stat } = itemData;
+
   // --- CORE CALCULATIONS ---
   const { net, roi, tax } = calculateMargin(price.low, price.high);
   const volatility = calculateVolatility(price.high, price.low);
-  const volume = stats ? stats.highPriceVolume + stats.lowPriceVolume : 0;
+  const volume = stat ? stat.highPriceVolume + stat.lowPriceVolume : 0;
   
   // Advanced Analysis Logic
   const spread = price.high - price.low;
-  const avgSpread = stats ? (stats.avgHighPrice - stats.avgLowPrice) : 0;
+  const avgSpread = stat ? (stat.avgHighPrice - stat.avgLowPrice) : 0;
   const spreadDifference = avgSpread > 0 ? ((spread - avgSpread) / avgSpread) * 100 : 0;
   
   // Alch Arbitrage
@@ -103,7 +87,7 @@ const ItemDetails = () => {
   const isAlchable = highAlchProfit > 0;
 
   // Demand Pressure (Buy Vol vs Sell Vol)
-  const buyPressure = stats ? (stats.highPriceVolume / (volume || 1)) * 100 : 50;
+  const buyPressure = stat ? (stat.highPriceVolume / (volume || 1)) * 100 : 50;
 
   // Smart Recommendation Engine
   let recommendation = "Neutral";
@@ -355,7 +339,7 @@ const ItemDetails = () => {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {stats ? (
+                    {stat ? (
                         <div className="space-y-4">
                             <div>
                                 <div className="flex justify-between text-sm mb-1">

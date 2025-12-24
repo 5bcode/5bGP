@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
+import { Item } from '@/services/osrs-api';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
+import { useMarketData } from '@/hooks/use-osrs-query';
 import { Loader2, ArrowLeft, TrendingUp, ArrowDown, ExternalLink, Plus, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -10,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import ItemIcon from '@/components/ItemIcon';
-import { cn } from '@/lib/utils';
 
 const Scanner = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,42 +26,17 @@ const Scanner = () => {
       direction: 'desc' 
   });
 
-  const [items, setItems] = useState<Item[]>([]);
-  const [prices, setPrices] = useState<Record<string, PriceData>>({});
-  const [stats, setStats] = useState<Record<string, Stats24h>>({});
-  const [loading, setLoading] = useState(true);
+  // React Query
+  const { items, prices, stats, isLoading } = useMarketData();
 
   useEffect(() => {
     // Update URL when state changes
     setSearchParams({ type, filter });
   }, [type, filter, setSearchParams]);
 
-  useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      try {
-        const [mappingData, priceData, statsData] = await Promise.all([
-          osrsApi.getMapping(),
-          osrsApi.getLatestPrices(),
-          osrsApi.get24hStats()
-        ]);
-        setItems(mappingData);
-        setPrices(priceData);
-        setStats(statsData);
-      } catch (e) {
-        toast.error("Failed to load OSRS data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, []);
-
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, filter);
   const data = type === 'crash' ? dumps : bestFlips;
   
-  // We take the top 100 based on the default scoring FIRST, then allow sorting within that pool.
-  // This prevents "sorting by name" giving us worthless items starting with 'A'.
   const displayData = useMemo(() => {
       const topItems = data.slice(0, 100);
       
@@ -193,7 +168,7 @@ const Scanner = () => {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-            {loading ? (
+            {isLoading ? (
                 <div className="h-64 flex items-center justify-center">
                     <Loader2 className="animate-spin text-emerald-500 h-8 w-8" />
                 </div>
