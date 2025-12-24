@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Item, PriceData, Stats24h } from "@/services/osrs-api";
 import { calculateMargin, formatGP, calculateVolatility } from "@/lib/osrs-math";
-import { AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
+import { AlertTriangle, TrendingUp, BarChart3, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -64,9 +65,12 @@ const MarginCard = ({ item, priceData, stats, onLogTrade }: MarginCardProps) => 
       <CardHeader className="bg-slate-950/50 border-b border-slate-800 pb-3 pt-4">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0 pr-2">
-             <CardTitle className="text-lg font-bold text-slate-100 truncate" title={item.name}>
-                {item.name}
-             </CardTitle>
+             <Link to={`/item/${item.id}`} className="hover:text-emerald-400 transition-colors block">
+                <CardTitle className="text-lg font-bold text-slate-100 truncate flex items-center gap-2" title={item.name}>
+                    {item.name}
+                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-50 transition-opacity" />
+                </CardTitle>
+             </Link>
              <div className="flex items-center gap-2 mt-1">
                 {item.limit && (
                     <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">

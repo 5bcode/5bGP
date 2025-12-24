@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { MarketOpportunity } from '@/hooks/use-market-analysis';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +34,9 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem }: OpportunityBoardPro
             {dumps.map((opp) => (
               <div key={opp.item.id} className="flex items-center justify-between p-3 hover:bg-rose-900/20 transition-colors group">
                 <div className="flex-1 min-w-0 pr-4">
-                  <div className="font-bold text-slate-200 truncate">{opp.item.name}</div>
+                  <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
+                    {opp.item.name}
+                  </Link>
                   <div className="text-xs text-rose-400 flex items-center gap-2">
                      <span>Current: {formatGP(opp.price.low)}</span>
                      <span className="text-slate-500">•</span>
@@ -79,7 +82,9 @@ const OpportunityBoard = ({ dumps, bestFlips, onTrackItem }: OpportunityBoardPro
             {bestFlips.map((opp) => (
               <div key={opp.item.id} className="flex items-center justify-between p-3 hover:bg-emerald-900/20 transition-colors group">
                 <div className="flex-1 min-w-0 pr-4">
-                  <div className="font-bold text-slate-200 truncate">{opp.item.name}</div>
+                  <Link to={`/item/${opp.item.id}`} className="font-bold text-slate-200 truncate hover:text-emerald-400 transition-colors block">
+                    {opp.item.name}
+                  </Link>
                   <div className="text-xs text-emerald-400/80 flex items-center gap-2">
                      <span>Buy: {formatGP(opp.price.low)}</span>
                      <span className="text-slate-500">•</span>
