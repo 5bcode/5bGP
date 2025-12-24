@@ -5,11 +5,12 @@ import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
+import MarketOverview from '@/components/MarketOverview';
 import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
-import { Loader2, RefreshCw, Trash2, Filter } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, Filter, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
@@ -104,47 +105,54 @@ const Dashboard = () => {
         <ItemSearch items={items} onSelect={handleAddItem} isLoading={isLoading} />
       </div>
       
-      {/* GLOBAL ANALYSIS */}
       {!isLoading && (
-        <div className="space-y-4 mb-8">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-400">Scanner Strategy:</span>
-                    <ToggleGroup 
-                        type="single" 
-                        value={scannerFilter} 
-                        onValueChange={(v) => v && setScannerFilter(v as AnalysisFilter)}
-                        className="bg-slate-900 border border-slate-800 rounded-lg p-1"
-                    >
-                        <ToggleGroupItem value="all" size="sm" className="text-xs data-[state=on]:bg-emerald-600/20 data-[state=on]:text-emerald-400">
-                            Balanced
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="high_volume" size="sm" className="text-xs data-[state=on]:bg-blue-600/20 data-[state=on]:text-blue-400">
-                            High Volume
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="high_ticket" size="sm" className="text-xs data-[state=on]:bg-amber-600/20 data-[state=on]:text-amber-400">
-                            Big Ticket
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="f2p" size="sm" className="text-xs data-[state=on]:bg-slate-700 data-[state=on]:text-white">
-                            F2P Only
-                        </ToggleGroupItem>
-                    </ToggleGroup>
+        <>
+            {/* MARKET OVERVIEW */}
+            <MarketOverview items={items} prices={prices} stats={stats} />
+
+            {/* GLOBAL OPPORTUNITIES */}
+            <div className="space-y-4 mb-10">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-400">Scanner Strategy:</span>
+                        <ToggleGroup 
+                            type="single" 
+                            value={scannerFilter} 
+                            onValueChange={(v) => v && setScannerFilter(v as AnalysisFilter)}
+                            className="bg-slate-900 border border-slate-800 rounded-lg p-1"
+                        >
+                            <ToggleGroupItem value="all" size="sm" className="text-xs data-[state=on]:bg-emerald-600/20 data-[state=on]:text-emerald-400">
+                                Balanced
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="high_volume" size="sm" className="text-xs data-[state=on]:bg-blue-600/20 data-[state=on]:text-blue-400">
+                                High Volume
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="high_ticket" size="sm" className="text-xs data-[state=on]:bg-amber-600/20 data-[state=on]:text-amber-400">
+                                Big Ticket
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="f2p" size="sm" className="text-xs data-[state=on]:bg-slate-700 data-[state=on]:text-white">
+                                F2P Only
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                    </div>
                 </div>
+                
+                <OpportunityBoard 
+                    dumps={dumps.slice(0, 8)} 
+                    bestFlips={bestFlips.slice(0, 8)} 
+                    onTrackItem={handleAddItem}
+                    filter={scannerFilter}
+                />
             </div>
-            
-            <OpportunityBoard 
-                dumps={dumps.slice(0, 8)} 
-                bestFlips={bestFlips.slice(0, 8)} 
-                onTrackItem={handleAddItem}
-                filter={scannerFilter}
-            />
-        </div>
+        </>
       )}
 
+      {/* WATCHLIST */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-             <h2 className="text-xl font-semibold text-slate-200">
+             <h2 className="text-xl font-semibold text-slate-200 flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5 text-emerald-500" />
                 Active Watchlist 
                 <span className="ml-2 text-sm text-slate-500 font-normal">({trackedItems.length} items)</span>
             </h2>
