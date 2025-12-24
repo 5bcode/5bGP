@@ -12,10 +12,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { osrsApi, Item } from '@/services/osrs-api';
 import { Calculator, Home, TrendingUp, Search } from 'lucide-react';
+import TaxCalculator from './TaxCalculator';
 
 const CommandMenu = () => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
+  const [calcOpen, setCalcOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,10 +35,6 @@ const CommandMenu = () => {
   useEffect(() => {
     if (open && items.length === 0) {
         osrsApi.getMapping().then(data => {
-            // Filter to relevant items to keep search fast? 
-            // Fuse/CMDK handles large lists okay, but 4000 items might be heavy.
-            // Let's just take tradeable ones or top 1000? 
-            // For now, take all, it should be fine.
             setItems(data);
         });
     }
@@ -49,9 +47,9 @@ const CommandMenu = () => {
 
   return (
     <>
-      <div className="hidden">
-        {/* Hidden trigger hint if needed, or just rely on docs */}
-      </div>
+      <div className="hidden"></div>
+      <TaxCalculator isOpen={calcOpen} onClose={() => setCalcOpen(false)} />
+      
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput placeholder="Type a command or search items..." />
         <CommandList className="bg-slate-950 text-slate-200 border-slate-800">
@@ -62,9 +60,9 @@ const CommandMenu = () => {
               <Home className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
             </CommandItem>
-            <CommandItem onSelect={() => runCommand(() => navigate('/'))}>
-              <TrendingUp className="mr-2 h-4 w-4" />
-              <span>Market Opportunities</span>
+            <CommandItem onSelect={() => runCommand(() => setCalcOpen(true))}>
+              <Calculator className="mr-2 h-4 w-4" />
+              <span>Tax Calculator</span>
             </CommandItem>
           </CommandGroup>
           

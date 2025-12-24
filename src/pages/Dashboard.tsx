@@ -8,19 +8,23 @@ import Analytics from '@/components/Analytics';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
-import { useMarketAnalysis } from '@/hooks/use-market-analysis';
-import { Loader2, RefreshCw, Trash2, History, Sparkles } from 'lucide-react';
+import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
+import { Loader2, RefreshCw, Trash2, History, Sparkles, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { formatGP } from '@/lib/osrs-math';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const Dashboard = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [stats, setStats] = useState<Record<string, Stats24h>>({});
   const [loading, setLoading] = useState(true);
+  
+  // Market Scanner Filter
+  const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
   
   // Settings State
   const [settings, setSettings] = useState(() => {
@@ -93,7 +97,9 @@ const Dashboard = () => {
 
   // Hooks
   usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, handleAlert);
-  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats);
+  
+  // Apply filter to analysis
+  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, scannerFilter);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -143,11 +149,39 @@ const Dashboard = () => {
       
       {/* GLOBAL ANALYSIS */}
       {!loading && (
-        <OpportunityBoard 
-            dumps={dumps} 
-            bestFlips={bestFlips} 
-            onTrackItem={handleAddItem} 
-        />
+        <div className="space-y-4 mb-8">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-slate-500" />
+                    <span className="text-sm font-medium text-slate-400">Scanner Strategy:</span>
+                    <ToggleGroup 
+                        type="single" 
+                        value={scannerFilter} 
+                        onValueChange={(v) => v && setScannerFilter(v as AnalysisFilter)}
+                        className="bg-slate-900 border border-slate-800 rounded-lg p-1"
+                    >
+                        <ToggleGroupItem value="all" size="sm" className="text-xs data-[state=on]:bg-emerald-600/20 data-[state=on]:text-emerald-400">
+                            Balanced
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="high_volume" size="sm" className="text-xs data-[state=on]:bg-blue-600/20 data-[state=on]:text-blue-400">
+                            High Volume
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="high_ticket" size="sm" className="text-xs data-[state=on]:bg-amber-600/20 data-[state=on]:text-amber-400">
+                            Big Ticket
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="f2p" size="sm" className="text-xs data-[state=on]:bg-slate-700 data-[state=on]:text-white">
+                            F2P Only
+                        </ToggleGroupItem>
+                    </ToggleGroup>
+                </div>
+            </div>
+            
+            <OpportunityBoard 
+                dumps={dumps} 
+                bestFlips={bestFlips} 
+                onTrackItem={handleAddItem} 
+            />
+        </div>
       )}
 
       {trades.length > 0 && <Analytics trades={trades} />}
