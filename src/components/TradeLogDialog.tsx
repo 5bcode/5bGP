@@ -1,18 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Item, PriceData } from "@/services/osrs-api";
-import { calculateTax, formatGP } from "@/lib/osrs-math";
-import { PlusCircle } from 'lucide-react';
+import { Item, PriceData } from '@/services/osrs-api';
+import { Calculator, Save, AlertCircle } from 'lucide-react';
+import { formatGP } from '@/lib/osrs-math';
 import { toast } from 'sonner';
-
-interface TradeLogDialogProps {
-  item: Item;
-  priceData?: PriceData;
-  onSave: (trade: Trade) => void;
-}
 
 export interface Trade {
   id: string;
@@ -21,41 +15,55 @@ export interface Trade {
   buyPrice: number;
   sellPrice: number;
   quantity: number;
-  timestamp: number;
   profit: number;
+  timestamp: number;
+}
+
+interface TradeLogDialogProps {
+  item: Item;
+  priceData?: PriceData;
+  onSave: (trade: Trade) => void;
 }
 
 const TradeLogDialog = ({ item, priceData, onSave }: TradeLogDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [buyPrice, setBuyPrice] = useState(priceData?.low?.toString() || "");
-  const [sellPrice, setSellPrice] = useState(priceData?.high?.toString() || "");
-  const [quantity, setQuantity] = useState(item.limit?.toString() || "1");
+  const [buyPrice, setBuyPrice] = useState(priceData?.low?.toString() || '');
+  const [sellPrice, setSellPrice] = useState(priceData?.high?.toString() || '');
+  const [quantity, setQuantity] = useState('1');
+  
+  // Computed values
+  const [projectedProfit, setProjectedProfit] = useState(0);
+  const [taxPaid, setTaxPaid] = useState(0);
+
+  useEffect(() => {
+    if (priceData && open) {
+        if (!buyPrice) setBuyPrice(priceData.low.toString());
+        if (!sellPrice) setSellPrice(priceData.high.toString());
+    }
+  }, [priceData, open]);
+
+  useEffect(() => {
+    const buy = parseInt(buyPrice) || 0;
+    const sell = parseInt(sellPrice) || 0;
+    const qty = parseInt(quantity) || 0;
+
+    const totalRevenue = sell * qty;
+    const tax = Math.floor(totalRevenue * 0.01); // 1% tax
+    const totalCost = buy * qty;
+    
+    setTaxPaid(tax);
+    setProjectedProfit(totalRevenue - totalCost - tax);
+  }, [buyPrice, sellPrice, quantity]);
 
   const handleSave = () => {
     const buy = parseInt(buyPrice);
     const sell = parseInt(sellPrice);
     const qty = parseInt(quantity);
 
-    if (isNaN(buy) || isNaN(sell) || isNaN(qty)) {
-        toast.error("Please enter valid numbers");
+    if (!buy || !sell || !qty) {
+        toast.error("Please fill in all fields");
         return;
     }
-
-    const totalRevenue = sell * qty;
-    const totalCost = buy * qty;
-    const tax = calculateTax(totalRevenue); // Tax is on total sale? No, tax is per item usually in calculations but OSRS tax is on the offer. 
-    // Actually OSRS GE Tax: 1% capped at 5m per item slot.
-    // If I sell 1000 items at once, the tax is calculated on the total value of that specific trade slot? No, it's per item sold.
-    // "The tax is applied to the total value of the offer." -> Wait.
-    // Spec says: "2% tax on total sell price, capped at 5,000,000 GP".
-    // I will assume the tax is on the total revenue of the trade.
-    
-    // Recalculating based on spec:
-    // "2% tax on total sell price"
-    let totalTax = Math.floor(totalRevenue * 0.02); // Following spec 2%
-    if (totalTax > 5000000) totalTax = 5000000;
-
-    const profit = totalRevenue - totalCost - totalTax;
 
     const trade: Trade = {
         id: crypto.randomUUID(),
@@ -64,58 +72,96 @@ const TradeLogDialog = ({ item, priceData, onSave }: TradeLogDialogProps) => {
         buyPrice: buy,
         sellPrice: sell,
         quantity: qty,
-        timestamp: Date.now(),
-        profit: profit
+        profit: projectedProfit,
+        timestamp: Date.now()
     };
 
     onSave(trade);
     setOpen(false);
-    toast.success(`Trade logged! Profit: ${formatGP(profit)}`);
+    toast.success("Trade recorded!");
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full mt-4 border-slate-700 bg-slate-800/50 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/50">
-          <PlusCircle className="mr-2 h-4 w-4" /> Log Trade
+        <Button variant="outline" size="sm" className="bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-emerald-500 transition-colors">
+            <Calculator className="mr-2 h-4 w-4 text-emerald-500" /> Log Flip
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+      <DialogContent className="bg-slate-950 border-slate-800 text-slate-100 sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Log Flip: {item.name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Calculator className="text-emerald-500" size={20} />
+            Log Trade: <span className="text-slate-400">{item.name}</span>
+          </DialogTitle>
         </DialogHeader>
+        
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Buy Price</Label>
-              <Input 
-                value={buyPrice} 
-                onChange={(e) => setBuyPrice(e.target.value)} 
-                className="bg-slate-950 border-slate-800"
-              />
+                <Label htmlFor="buy" className="text-xs text-slate-400">Buy Price</Label>
+                <div className="relative">
+                    <Input 
+                        id="buy" 
+                        value={buyPrice} 
+                        onChange={(e) => setBuyPrice(e.target.value)}
+                        className="bg-slate-900 border-slate-800 focus:border-blue-500 text-right pr-8 font-mono"
+                        placeholder="0"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-600">gp</span>
+                </div>
             </div>
             <div className="space-y-2">
-              <Label>Sell Price</Label>
-              <Input 
-                value={sellPrice} 
-                onChange={(e) => setSellPrice(e.target.value)} 
-                className="bg-slate-950 border-slate-800"
-              />
+                <Label htmlFor="sell" className="text-xs text-slate-400">Sell Price</Label>
+                <div className="relative">
+                    <Input 
+                        id="sell" 
+                        value={sellPrice} 
+                        onChange={(e) => setSellPrice(e.target.value)}
+                        className="bg-slate-900 border-slate-800 focus:border-emerald-500 text-right pr-8 font-mono"
+                        placeholder="0"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-600">gp</span>
+                </div>
             </div>
           </div>
+
           <div className="space-y-2">
-            <Label>Quantity</Label>
+            <Label htmlFor="qty" className="text-xs text-slate-400">Quantity</Label>
             <Input 
+                id="qty" 
                 value={quantity} 
-                onChange={(e) => setQuantity(e.target.value)} 
-                className="bg-slate-950 border-slate-800"
+                onChange={(e) => setQuantity(e.target.value)}
+                className="bg-slate-900 border-slate-800 text-right font-mono"
+                placeholder="1"
             />
           </div>
+
+          {/* Real-time Calc */}
+          <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800 space-y-2">
+            <div className="flex justify-between text-xs text-slate-500">
+                <span>Est. Tax (1%)</span>
+                <span>-{formatGP(taxPaid)}</span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                <span className="text-sm font-medium text-slate-300">Net Profit</span>
+                <span className={`text-lg font-bold font-mono ${projectedProfit >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                    {projectedProfit > 0 ? '+' : ''}{formatGP(projectedProfit)}
+                </span>
+            </div>
+            {item.limit && parseInt(quantity) > item.limit && (
+                <div className="flex items-center gap-2 text-[10px] text-amber-500 pt-1">
+                    <AlertCircle size={10} />
+                    <span>Quantity exceeds GE limit ({item.limit})</span>
+                </div>
+            )}
+          </div>
         </div>
+
         <DialogFooter>
-            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                Save Trade
-            </Button>
+          <Button onClick={handleSave} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Save className="mr-2 h-4 w-4" /> Save Trade Record
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

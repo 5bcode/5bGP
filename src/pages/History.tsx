@@ -4,7 +4,7 @@ import Analytics from '@/components/Analytics';
 import { Trade } from '@/components/TradeLogDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Download, Trash2, ArrowUp, ArrowDown, ArrowUpDown, TrendingUp } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { toast } from 'sonner';
 
@@ -33,8 +33,8 @@ const History = () => {
 
         switch(sortConfig.key) {
             case 'timestamp': 
-                aValue = new Date(a.timestamp).getTime(); 
-                bValue = new Date(b.timestamp).getTime(); 
+                aValue = a.timestamp; // Fix: already number
+                bValue = b.timestamp; 
                 break;
             case 'item': 
                 aValue = a.itemName; 
@@ -127,8 +127,11 @@ const History = () => {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-slate-100">Trade History</h1>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 className="text-3xl font-bold text-slate-100">Trade Portfolio</h1>
+            <p className="text-slate-500">Track your performance and history.</p>
+        </div>
         <div className="flex gap-2">
              <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900 text-slate-300">
                 <Download className="mr-2 h-4 w-4" /> Export CSV
@@ -140,15 +143,18 @@ const History = () => {
       </div>
 
       {trades.length > 0 ? (
-        <>
+        <div className="space-y-8">
             <Analytics trades={trades} />
             
-            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden mt-8">
+            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+                <div className="p-4 border-b border-slate-800 bg-slate-950/50">
+                    <h2 className="text-lg font-semibold text-slate-200">Detailed History</h2>
+                </div>
                 <Table>
                     <TableHeader className="bg-slate-950">
                         <TableRow className="border-slate-800 hover:bg-slate-950">
                             <TableHead 
-                                className="text-slate-400 cursor-pointer hover:text-slate-200 select-none"
+                                className="text-slate-400 cursor-pointer hover:text-slate-200 select-none w-[180px]"
                                 onClick={() => handleSort('timestamp')}
                             >
                                 <div className="flex items-center gap-1">Date <SortIcon column="timestamp"/></div>
@@ -196,13 +202,16 @@ const History = () => {
                         {sortedTrades.map((trade) => (
                             <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/50">
                                 <TableCell className="text-slate-400 font-mono text-xs">
-                                    {new Date(trade.timestamp).toLocaleString()}
+                                    {new Date(trade.timestamp).toLocaleString(undefined, {
+                                        year: 'numeric', month: 'numeric', day: 'numeric', 
+                                        hour: '2-digit', minute: '2-digit'
+                                    })}
                                 </TableCell>
                                 <TableCell className="font-medium text-slate-200">
                                     {trade.itemName}
                                 </TableCell>
                                 <TableCell className="text-right text-slate-300 font-mono">
-                                    {trade.quantity}
+                                    {trade.quantity.toLocaleString()}
                                 </TableCell>
                                 <TableCell className="text-right text-slate-400 font-mono text-xs">
                                     {formatGP(trade.buyPrice)}
@@ -223,11 +232,14 @@ const History = () => {
                     </TableBody>
                 </Table>
             </div>
-        </>
+        </div>
       ) : (
         <div className="py-20 text-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20 text-slate-500">
-            <p className="text-lg mb-2">No trades recorded yet.</p>
-            <p className="text-sm">Log your flips from the Dashboard or Item Details page to see analytics here.</p>
+            <TrendingUp className="mx-auto h-12 w-12 text-slate-700 mb-4" />
+            <h3 className="text-lg font-medium text-slate-300 mb-2">No trades recorded yet</h3>
+            <p className="text-sm max-w-sm mx-auto">
+                Start logging your flips from the Item Details page to build your portfolio history and visualize your profits!
+            </p>
         </div>
       )}
     </Layout>
