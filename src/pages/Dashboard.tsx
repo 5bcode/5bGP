@@ -9,7 +9,7 @@ import OpportunityBoard from '@/components/OpportunityBoard';
 import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
-import { Loader2, RefreshCw, Trash2, History, Sparkles, Filter } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, History, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
@@ -177,9 +177,10 @@ const Dashboard = () => {
             </div>
             
             <OpportunityBoard 
-                dumps={dumps} 
-                bestFlips={bestFlips} 
-                onTrackItem={handleAddItem} 
+                dumps={dumps.slice(0, 8)} 
+                bestFlips={bestFlips.slice(0, 8)} 
+                onTrackItem={handleAddItem}
+                filter={scannerFilter}
             />
         </div>
       )}

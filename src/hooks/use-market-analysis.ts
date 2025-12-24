@@ -99,8 +99,8 @@ export function useMarketAnalysis(
     bestFlips.sort((a, b) => b.score - a.score);
     
     return {
-      dumps: dumps.slice(0, 8),
-      bestFlips: bestFlips.slice(0, 8),
+      dumps, // Return all (sorted)
+      bestFlips, // Return all (sorted)
     };
   }, [items, prices, stats, filter]);
 }
