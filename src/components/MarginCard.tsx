@@ -1,15 +1,17 @@
 import React from 'react';
 import { Item, PriceData } from "@/services/osrs-api";
 import { calculateMargin, formatGP, calculateVolatility } from "@/lib/osrs-math";
-import { TrendingDown, TrendingUp, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import TradeLogDialog, { Trade } from './TradeLogDialog';
 
 interface MarginCardProps {
   item: Item;
   priceData?: PriceData;
+  onLogTrade?: (trade: Trade) => void;
 }
 
-const MarginCard = ({ item, priceData }: MarginCardProps) => {
+const MarginCard = ({ item, priceData, onLogTrade }: MarginCardProps) => {
   if (!priceData) {
     return (
       <Card className="bg-slate-900/50 border-slate-800">
@@ -25,7 +27,7 @@ const MarginCard = ({ item, priceData }: MarginCardProps) => {
   const volatility = calculateVolatility(high, low);
   
   // Risk assessment
-  const isHighRisk = volatility > 50; // Arbitrary threshold based on 0-100 scale
+  const isHighRisk = volatility > 50; 
 
   // Time since update
   const now = Date.now() / 1000;
@@ -33,7 +35,7 @@ const MarginCard = ({ item, priceData }: MarginCardProps) => {
   const secondsAgo = Math.floor(now - lastUpdate);
 
   return (
-    <Card className="bg-slate-900 border-slate-800 overflow-hidden hover:border-slate-700 transition-all shadow-lg">
+    <Card className="bg-slate-900 border-slate-800 overflow-hidden hover:border-slate-700 transition-all shadow-lg flex flex-col h-full">
       <CardHeader className="bg-slate-950/50 border-b border-slate-800 pb-3">
         <div className="flex justify-between items-start">
           <div>
@@ -48,7 +50,7 @@ const MarginCard = ({ item, priceData }: MarginCardProps) => {
         </div>
       </CardHeader>
       
-      <CardContent className="p-0">
+      <CardContent className="p-0 flex-1 flex flex-col">
         <div className="grid grid-cols-2 divide-x divide-slate-800 border-b border-slate-800">
           <div className="p-4">
             <p className="text-xs text-slate-500 uppercase font-mono mb-1">Buy Price (Low)</p>
@@ -77,7 +79,7 @@ const MarginCard = ({ item, priceData }: MarginCardProps) => {
           </div>
         </div>
 
-        <div className="p-4 flex items-center justify-between bg-slate-900">
+        <div className="p-4 flex items-center justify-between bg-slate-900 flex-1">
           <div>
              <p className="text-xs text-slate-500">Potential Profit</p>
              <p className={`text-2xl font-bold font-mono ${net > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -94,6 +96,10 @@ const MarginCard = ({ item, priceData }: MarginCardProps) => {
           </div>
         </div>
         
+        <div className="px-4 pb-4 bg-slate-900">
+           {onLogTrade && <TradeLogDialog item={item} priceData={priceData} onSave={onLogTrade} />}
+        </div>
+
         <div className="bg-slate-950 py-1 px-4 text-[10px] text-slate-600 flex justify-between">
           <span>Updated {secondsAgo}s ago</span>
           <span>ID: {item.id}</span>

@@ -2,32 +2,57 @@ import React, { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
-import { osrsApi, Item, PriceData } from '@/services/osrs-api';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { osrsApi, Item, PriceData, Stats24h } from '@/services/osrs-api';
+import { usePriceMonitor } from '@/hooks/use-price-monitor';
+import { Loader2, RefreshCw, Trash2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { Trade } from '@/components/TradeLogDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { formatGP } from '@/lib/osrs-math';
 
 const Dashboard = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
+  const [stats, setStats] = useState<Record<string, Stats24h>>({});
   const [loading, setLoading] = useState(true);
-  const [trackedItems, setTrackedItems] = useState<Item[]>([]);
+  
+  // Load tracked items from localStorage
+  const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
+    const saved = localStorage.getItem('trackedItems');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Load trade history
+  const [trades, setTrades] = useState<Trade[]>(() => {
+      const saved = localStorage.getItem('tradeHistory');
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  // Persist state
+  useEffect(() => {
+    localStorage.setItem('trackedItems', JSON.stringify(trackedItems));
+  }, [trackedItems]);
+
+  useEffect(() => {
+    localStorage.setItem('tradeHistory', JSON.stringify(trades));
+  }, [trades]);
   
   // Initial Data Load
   useEffect(() => {
     const init = async () => {
       try {
-        const [mappingData, priceData] = await Promise.all([
+        const [mappingData, priceData, statsData] = await Promise.all([
           osrsApi.getMapping(),
-          osrsApi.getLatestPrices()
+          osrsApi.getLatestPrices(),
+          osrsApi.get24hStats()
         ]);
         
         setItems(mappingData);
         setPrices(priceData);
+        setStats(statsData);
         
-        // Add some default popular items to track if empty
-        if (mappingData.length > 0) {
-            // Examples: Zulrah scale, Old school bond, Fire rune
+        if (mappingData.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
             const defaults = mappingData.filter(i => 
                 [12934, 13190, 554, 560, 4151].includes(i.id)
             );
@@ -35,6 +60,7 @@ const Dashboard = () => {
         }
       } catch (e) {
         toast.error("Failed to load OSRS data");
+        console.error(e);
       } finally {
         setLoading(false);
       }
@@ -42,22 +68,26 @@ const Dashboard = () => {
     
     init();
 
-    // Auto-refresh prices every 60s
     const interval = setInterval(async () => {
         const newPrices = await osrsApi.getLatestPrices();
         setPrices(newPrices);
-        toast.success("Prices updated");
     }, 60000);
 
     return () => clearInterval(interval);
   }, []);
 
+  usePriceMonitor(prices, stats, trackedItems);
+
   const handleRefresh = async () => {
     setLoading(true);
-    const newPrices = await osrsApi.getLatestPrices();
+    const [newPrices, newStats] = await Promise.all([
+        osrsApi.getLatestPrices(),
+        osrsApi.get24hStats()
+    ]);
     setPrices(newPrices);
+    setStats(newStats);
     setLoading(false);
-    toast.success("Prices refreshed manually");
+    toast.success("Market data refreshed");
   };
 
   const handleAddItem = (item: Item) => {
@@ -66,12 +96,26 @@ const Dashboard = () => {
       return;
     }
     setTrackedItems(prev => [item, ...prev]);
-    toast.success(`Added ${item.name} to dashboard`);
+    toast.success(`Added ${item.name}`);
   };
 
   const handleRemoveItem = (id: number) => {
       setTrackedItems(prev => prev.filter(i => i.id !== id));
+      toast.info("Item removed");
   }
+
+  const handleClearAll = () => {
+      if (confirm("Are you sure you want to clear your watchlist?")) {
+          setTrackedItems([]);
+          toast.success("Watchlist cleared");
+      }
+  }
+
+  const handleLogTrade = (trade: Trade) => {
+      setTrades(prev => [trade, ...prev]);
+  }
+
+  const totalProfit = trades.reduce((acc, t) => acc + t.profit, 0);
 
   return (
     <Layout>
@@ -87,16 +131,72 @@ const Dashboard = () => {
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-slate-200">Active Watchlist</h2>
-        <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRefresh}
-            className="border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
-        >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Refresh Prices
-        </Button>
+        <h2 className="text-xl font-semibold text-slate-200">
+            Active Watchlist 
+            <span className="ml-2 text-sm text-slate-500 font-normal">({trackedItems.length} items)</span>
+        </h2>
+        <div className="flex gap-2">
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="border-slate-800 bg-slate-900 text-slate-300">
+                        <History className="mr-2 h-4 w-4" /> History
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Trade History</DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-4">
+                        <div className="flex justify-between items-center mb-4 p-4 bg-slate-950 rounded-lg">
+                            <span className="text-slate-400">Total Profit</span>
+                            <span className={`text-xl font-mono font-bold ${totalProfit > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                {totalProfit > 0 ? '+' : ''}{formatGP(totalProfit)}
+                            </span>
+                        </div>
+                        
+                        {trades.length === 0 ? (
+                            <p className="text-center text-slate-500 py-8">No trades logged yet.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {trades.map(trade => (
+                                    <div key={trade.id} className="p-3 bg-slate-800/50 rounded flex justify-between items-center border border-slate-700">
+                                        <div>
+                                            <div className="font-bold text-slate-200">{trade.itemName}</div>
+                                            <div className="text-xs text-slate-500">
+                                                {new Date(trade.timestamp).toLocaleDateString()} • {trade.quantity} qty
+                                            </div>
+                                        </div>
+                                        <div className={`font-mono ${trade.profit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {trade.profit > 0 ? '+' : ''}{formatGP(trade.profit)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {trackedItems.length > 0 && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearAll}
+                    className="text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            )}
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRefresh}
+                className="border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+            >
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Refresh
+            </Button>
+        </div>
       </div>
 
       {loading && items.length === 0 ? (
@@ -106,14 +206,15 @@ const Dashboard = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {trackedItems.map(item => (
-            <div key={item.id} className="relative group">
+            <div key={item.id} className="relative group h-full">
                 <MarginCard 
                     item={item} 
                     priceData={prices[item.id]} 
+                    onLogTrade={handleLogTrade}
                 />
                 <button 
                     onClick={() => handleRemoveItem(item.id)}
-                    className="absolute -top-2 -right-2 bg-slate-800 text-slate-400 hover:text-rose-500 hover:bg-slate-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2 -right-2 bg-slate-800 text-slate-400 hover:text-rose-500 hover:bg-slate-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     title="Remove item"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -122,8 +223,9 @@ const Dashboard = () => {
           ))}
           
           {trackedItems.length === 0 && (
-             <div className="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-xl">
-                 <p className="text-slate-500">Your watchlist is empty. Search for items above to start tracking.</p>
+             <div className="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20">
+                 <p className="text-slate-500">Your watchlist is empty.</p>
+                 <p className="text-sm text-slate-600 mt-2">Search for items above to start tracking prices and margins.</p>
              </div>
           )}
         </div>
