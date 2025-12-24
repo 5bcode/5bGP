@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Item, PriceData } from "@/services/osrs-api";
 import { calculateMargin, formatGP, calculateVolatility } from "@/lib/osrs-math";
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import TradeLogDialog, { Trade } from './TradeLogDialog';
+import PriceChart from './PriceChart';
 
 interface MarginCardProps {
   item: Item;
@@ -12,6 +15,8 @@ interface MarginCardProps {
 }
 
 const MarginCard = ({ item, priceData, onLogTrade }: MarginCardProps) => {
+  const [chartOpen, setChartOpen] = useState(false);
+
   if (!priceData) {
     return (
       <Card className="bg-slate-900/50 border-slate-800">
@@ -38,16 +43,36 @@ const MarginCard = ({ item, priceData, onLogTrade }: MarginCardProps) => {
     <Card className="bg-slate-900 border-slate-800 overflow-hidden hover:border-slate-700 transition-all shadow-lg flex flex-col h-full">
       <CardHeader className="bg-slate-950/50 border-b border-slate-800 pb-3">
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-xl font-bold text-slate-100">{item.name}</CardTitle>
-            <p className="text-xs text-slate-500 mt-1">Limit: {item.limit || 'Unknown'}</p>
+          <div className="flex-1">
+            <div className="flex justify-between items-start">
+               <div>
+                    <CardTitle className="text-xl font-bold text-slate-100">{item.name}</CardTitle>
+                    <p className="text-xs text-slate-500 mt-1">Limit: {item.limit || 'Unknown'}</p>
+               </div>
+               <Dialog open={chartOpen} onOpenChange={setChartOpen}>
+                 <DialogTrigger asChild>
+                   <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10">
+                     <TrendingUp className="h-4 w-4" />
+                   </Button>
+                 </DialogTrigger>
+                 <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            {item.name} <span className="text-slate-500 font-normal text-sm">Last 24h</span>
+                        </DialogTitle>
+                    </DialogHeader>
+                    {chartOpen && <PriceChart itemId={item.id} />}
+                 </DialogContent>
+               </Dialog>
+            </div>
           </div>
-          {isHighRisk && (
-            <div className="flex items-center gap-1 text-rose-500 text-xs font-bold uppercase bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">
+        </div>
+        
+        {isHighRisk && (
+            <div className="flex items-center gap-1 text-rose-500 text-xs font-bold uppercase bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20 w-fit mt-2">
               <AlertTriangle size={12} /> Volatile
             </div>
           )}
-        </div>
       </CardHeader>
       
       <CardContent className="p-0 flex-1 flex flex-col">

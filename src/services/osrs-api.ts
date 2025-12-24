@@ -26,6 +26,14 @@ export interface Stats24h {
   lowPriceVolume: number;
 }
 
+export interface TimeSeriesPoint {
+  timestamp: number;
+  avgHighPrice: number | null;
+  avgLowPrice: number | null;
+  highPriceVolume: number;
+  lowPriceVolume: number;
+}
+
 // Simple in-memory cache
 let mappingCache: Item[] | null = null;
 let pricesCache: Record<string, PriceData> | null = null;
@@ -95,6 +103,21 @@ export const osrsApi = {
     } catch (error) {
       console.error('Failed to fetch 24h stats:', error);
       return {};
+    }
+  },
+
+  async getTimeseries(id: number, timestep: '5m' | '1h' = '5m'): Promise<TimeSeriesPoint[]> {
+    try {
+      const response = await fetch(`${BASE_URL}/timeseries?timestep=${timestep}&id=${id}`, {
+         headers: {
+            'User-Agent': 'FlipTo5B-Client/1.0'
+        }
+      });
+      const json = await response.json();
+      return json.data;
+    } catch (error) {
+      console.error('Failed to fetch timeseries:', error);
+      return [];
     }
   }
 };
