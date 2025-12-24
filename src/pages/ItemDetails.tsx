@@ -2,20 +2,19 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import PriceChart from '@/components/PriceChart';
-import TradeLogDialog, { Trade } from '@/components/TradeLogDialog';
-import { calculateMargin, calculateVolatility, formatGP } from '@/lib/osrs-math';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { calculateMargin, calculateVolatility } from '@/lib/osrs-math';
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-    ArrowLeft, ExternalLink, Activity, BarChart3, Clock, DollarSign, 
-    AlertTriangle, ShieldCheck, Zap, TrendingUp, Copy, History, Trash2
-} from 'lucide-react';
+import { ArrowLeft, ExternalLink, Activity } from 'lucide-react';
 import { toast } from 'sonner';
-import ItemIcon from '@/components/ItemIcon';
 import { useMarketData } from '@/hooks/use-osrs-query';
+import { Trade } from '@/components/TradeLogDialog';
+
+// Modular Components
+import { ItemHeader } from '@/components/ItemHeader';
+import { MetricCards } from '@/components/MetricCards';
+import { DeepAnalysis } from '@/components/DeepAnalysis';
+import { VolumeAnalysis } from '@/components/VolumeAnalysis';
+import { HistoryTable } from '@/components/HistoryTable';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,7 +41,6 @@ const ItemDetails = () => {
             if (saved) {
                 try {
                     const allTrades: Trade[] = JSON.parse(saved);
-                    // Filter for this item and sort by date desc
                     const filtered = allTrades
                         .filter(t => t.itemId.toString() === id)
                         .sort((a, b) => b.timestamp - a.timestamp);
@@ -53,7 +51,6 @@ const ItemDetails = () => {
             }
         };
         loadHistory();
-        // Listen for storage events to update real-time if logged from another tab or dialog
         window.addEventListener('storage', loadHistory);
         return () => window.removeEventListener('storage', loadHistory);
       }
@@ -65,7 +62,6 @@ const ItemDetails = () => {
     const newHistory = [trade, ...history];
     localStorage.setItem('tradeHistory', JSON.stringify(newHistory));
     
-    // Update local state immediately
     setItemHistory(prev => [trade, ...prev]);
     toast.success("Trade logged to history");
   };
@@ -81,11 +77,6 @@ const ItemDetails = () => {
               toast.success("Trade deleted");
           }
       }
-  };
-
-  const copyToClipboard = (text: string, label: string) => {
-      navigator.clipboard.writeText(text);
-      toast.success(`Copied ${label} to clipboard`);
   };
 
   if (isLoading) {
@@ -115,45 +106,30 @@ const ItemDetails = () => {
 
   const { item, price, stat } = itemData;
 
-  // --- CORE CALCULATIONS ---
+  // --- CALCULATIONS ---
   const { net, roi, tax } = calculateMargin(price.low, price.high);
   const volatility = calculateVolatility(price.high, price.low);
   const volume = stat ? stat.highPriceVolume + stat.lowPriceVolume : 0;
   
-  // Advanced Analysis Logic
   const spread = price.high - price.low;
   const avgSpread = stat ? (stat.avgHighPrice - stat.avgLowPrice) : 0;
   const spreadDifference = avgSpread > 0 ? ((spread - avgSpread) / avgSpread) * 100 : 0;
   
-  // Alch Arbitrage
-  const natureRunePrice = 100; // rough estimate
+  const natureRunePrice = 100;
   const highAlchProfit = (item.highalch || 0) - price.low - natureRunePrice;
   const isAlchable = highAlchProfit > 0;
-
-  // Demand Pressure (Buy Vol vs Sell Vol)
   const buyPressure = stat ? (stat.highPriceVolume / (volume || 1)) * 100 : 50;
 
-  // Smart Recommendation Engine
+  // Recommendation Logic
   let recommendation = "Neutral";
-  let recColor = "text-slate-400";
-  let recIcon = <Activity size={16} />;
-
   if (net > 0 && roi > 2 && volatility < 20) {
       recommendation = "Strong Buy";
-      recColor = "text-emerald-400";
-      recIcon = <TrendingUp size={16} />;
   } else if (volatility > 80) {
       recommendation = "Extreme Volatility";
-      recColor = "text-rose-500";
-      recIcon = <AlertTriangle size={16} />;
   } else if (item.highalch && price.low < item.highalch) {
       recommendation = "Safe Floor (Alch)";
-      recColor = "text-blue-400";
-      recIcon = <ShieldCheck size={16} />;
   } else if (spreadDifference > 50) {
       recommendation = "Gap Widening";
-      recColor = "text-amber-400";
-      recIcon = <Zap size={16} />;
   }
 
   return (
@@ -163,11 +139,7 @@ const ItemDetails = () => {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
         </Link>
         <div className="flex gap-2">
-            <a 
-                href={`https://prices.runescape.wiki/osrs/item/${item.id}`} 
-                target="_blank" 
-                rel="noreferrer"
-            >
+            <a href={`https://prices.runescape.wiki/osrs/item/${item.id}`} target="_blank" rel="noreferrer">
                 <Button variant="outline" size="sm" className="bg-slate-900 border-slate-700 text-slate-300">
                     <ExternalLink className="mr-2 h-4 w-4" /> Wiki
                 </Button>
@@ -175,339 +147,50 @@ const ItemDetails = () => {
         </div>
       </div>
 
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 bg-slate-900/50 p-6 rounded-lg border border-slate-800 backdrop-blur-sm">
-        <div className="flex items-center gap-6">
-            <ItemIcon item={item} size="lg" className="bg-slate-800 rounded-lg border border-slate-700 shadow-inner" />
-            <div>
-                <h1 className="text-3xl font-bold text-slate-100 tracking-tight">{item.name}</h1>
-                <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-400">
-                    <Badge variant="outline" className="border-slate-700 bg-slate-950 font-mono text-xs">ID: {item.id}</Badge>
-                    {item.limit && (
-                        <Badge variant="outline" className="border-slate-700 bg-slate-950 text-xs">
-                            Limit: {item.limit.toLocaleString()}
-                        </Badge>
-                    )}
-                    {item.members ? (
-                         <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20">Members</Badge>
-                    ) : (
-                         <Badge variant="secondary" className="bg-slate-700 text-slate-300">F2P</Badge>
-                    )}
-                </div>
-            </div>
-        </div>
-        
-        <div className="flex flex-col items-end gap-2">
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border bg-slate-950 ${
-                recommendation === 'Strong Buy' ? 'border-emerald-500/50 text-emerald-400' :
-                recommendation === 'Extreme Volatility' ? 'border-rose-500/50 text-rose-500' :
-                'border-slate-700 text-slate-300'
-            }`}>
-                {recIcon}
-                <span className="font-bold text-sm">{recommendation}</span>
-            </div>
-            <TradeLogDialog item={item} priceData={price} onSave={handleLogTrade} />
-        </div>
-      </div>
+      <ItemHeader 
+        item={item} 
+        price={price} 
+        recommendation={recommendation} 
+        onLogTrade={handleLogTrade} 
+      />
 
-      {/* Primary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {/* BUY PRICE */}
-        <Card className="bg-slate-900 border-slate-800 relative group overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-            <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider">Buy Price (Insta Sell)</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-baseline gap-2">
-                    <div className="text-2xl font-bold text-slate-100 font-mono">{formatGP(price.low)}</div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => copyToClipboard(price.low.toString(), "Buy Price")}>
-                        <Copy size={12} />
-                    </Button>
-                </div>
-                <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                    <Clock size={12} /> {Math.floor((Date.now()/1000 - price.lowTime))}s ago
-                </div>
-            </CardContent>
-        </Card>
+      <MetricCards 
+        price={price} 
+        net={net} 
+        roi={roi} 
+        tax={tax} 
+        volatility={volatility} 
+      />
 
-        {/* SELL PRICE */}
-        <Card className="bg-slate-900 border-slate-800 relative group overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-            <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider">Sell Price (Insta Buy)</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-baseline gap-2">
-                    <div className="text-2xl font-bold text-slate-100 font-mono">{formatGP(price.high)}</div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => copyToClipboard(price.high.toString(), "Sell Price")}>
-                        <Copy size={12} />
-                    </Button>
-                </div>
-                <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                    <Clock size={12} /> {Math.floor((Date.now()/1000 - price.highTime))}s ago
-                </div>
-            </CardContent>
-        </Card>
+      <DeepAnalysis 
+        item={item} 
+        price={price} 
+        net={net} 
+        spreadDifference={spreadDifference} 
+        isAlchable={isAlchable} 
+        highAlchProfit={highAlchProfit} 
+      />
 
-        {/* MARGIN / PROFIT */}
-        <Card className="bg-slate-900 border-slate-800 relative overflow-hidden">
-            <div className={`absolute top-0 left-0 w-1 h-full ${net > 0 ? 'bg-emerald-400' : 'bg-rose-500'}`}></div>
-            <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Profit</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className={`text-2xl font-bold font-mono ${net > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                    {net > 0 ? '+' : ''}{formatGP(net)}
-                </div>
-                <div className="text-xs text-slate-500 mt-1 flex justify-between w-full">
-                    <span>Tax: <span className="text-rose-400">-{formatGP(tax)}</span></span>
-                    <span>ROI: <span className={roi > 2 ? 'text-emerald-500' : 'text-slate-400'}>{roi.toFixed(2)}%</span></span>
-                </div>
-            </CardContent>
-        </Card>
-
-        {/* RISK FACTOR */}
-        <Card className="bg-slate-900 border-slate-800">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider">Volatility Score</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center gap-2 mb-2">
-                    <div className="text-2xl font-bold text-slate-100 font-mono">{volatility.toFixed(1)}</div>
-                    {volatility > 50 && <AlertTriangle className="text-rose-500 animate-pulse" size={20} />}
-                </div>
-                <Progress value={volatility} max={100} className={`h-1.5 ${volatility > 50 ? "bg-rose-900" : "bg-slate-800"}`} />
-            </CardContent>
-        </Card>
-      </div>
-
-      {/* DEEP ANALYSIS ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* SPREAD VISUALIZER */}
-          <Card className="bg-slate-900 border-slate-800 md:col-span-2">
-             <CardHeader className="pb-4 border-b border-slate-800/50">
-                <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <DollarSign size={16} className="text-emerald-500" /> Margin Breakdown
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500">Visualizing where your profit comes from relative to tax.</CardDescription>
-             </CardHeader>
-             <CardContent className="pt-6">
-                <div className="relative h-12 bg-slate-950 rounded-lg flex items-center overflow-hidden border border-slate-800">
-                    {/* Buy Cost */}
-                    <div className="h-full bg-slate-800 flex items-center justify-center text-[10px] text-slate-400 border-r border-slate-700" style={{ width: '40%' }}>
-                        Cost
-                    </div>
-                    {/* Profit */}
-                    <div className="h-full bg-emerald-600/20 flex items-center justify-center text-xs font-bold text-emerald-400 relative" style={{ flex: 1 }}>
-                        <span className="z-10">Profit ({((net/price.high)*100).toFixed(1)}%)</span>
-                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-                    </div>
-                    {/* Tax */}
-                    <div className="h-full bg-rose-900/40 flex items-center justify-center text-[10px] text-rose-400 border-l border-rose-900/50" style={{ width: '10%' }}>
-                        Tax
-                    </div>
-                </div>
-                <div className="flex justify-between mt-2 text-xs text-slate-500 font-mono">
-                    <span>{formatGP(price.low)} (Buy)</span>
-                    <span>{formatGP(price.high)} (Sell)</span>
-                </div>
-                
-                {/* Comparison to Avg Spread */}
-                <div className="mt-6 p-3 bg-slate-950 rounded border border-slate-800 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">Current Margin vs 24h Avg</span>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-sm font-bold ${spreadDifference > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {spreadDifference > 0 ? '+' : ''}{spreadDifference.toFixed(1)}%
-                        </span>
-                        {spreadDifference > 20 && <Badge variant="outline" className="text-[10px] border-emerald-500/50 text-emerald-500">Wide Spread</Badge>}
-                    </div>
-                </div>
-             </CardContent>
-          </Card>
-
-          {/* ARBITRAGE & ALCH */}
-          <Card className="bg-slate-900 border-slate-800">
-             <CardHeader className="pb-4 border-b border-slate-800/50">
-                <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <ShieldCheck size={16} className="text-blue-500" /> Arbitrage Check
-                </CardTitle>
-             </CardHeader>
-             <CardContent className="pt-6 space-y-4">
-                <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-400">High Alch Value</span>
-                    <span className="font-mono text-slate-200">{formatGP(item.highalch || 0)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-400">Nature Rune</span>
-                    <span className="font-mono text-slate-500">~100 gp</span>
-                </div>
-                <div className="pt-2 border-t border-slate-800">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm font-bold text-slate-300">Alch Profit</span>
-                        <span className={`font-mono font-bold ${isAlchable ? 'text-emerald-400' : 'text-slate-500'}`}>
-                            {formatGP(highAlchProfit)}
-                        </span>
-                    </div>
-                </div>
-                
-                {isAlchable ? (
-                    <div className="p-2 bg-emerald-950/30 border border-emerald-900/50 rounded text-xs text-emerald-400 flex items-start gap-2">
-                        <ShieldCheck size={14} className="shrink-0 mt-0.5" />
-                        <span>Price is below alch value. This is a very safe floor price.</span>
-                    </div>
-                ) : (
-                    <div className="p-2 bg-slate-950 border border-slate-800 rounded text-xs text-slate-500">
-                        Price is above alch value. Normal market risk applies.
-                    </div>
-                )}
-             </CardContent>
-          </Card>
-      </div>
-
-      {/* CHART & HISTORICAL */}
+      {/* CHART & VOLUME */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-lg p-6">
             <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                <Activity className="text-emerald-500" size={20} /> Price Action (Last 4h)
+                <Activity className="text-emerald-500" size={20} /> Price Action
             </h3>
             <PriceChart itemId={item.id} />
         </div>
 
-        {/* VOLUME ANALYSIS */}
-        <div className="space-y-6">
-            <Card className="bg-slate-900 border-slate-800">
-                <CardHeader>
-                    <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                        <BarChart3 className="text-blue-500" size={16} /> Volume & Demand
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {stat ? (
-                        <div className="space-y-4">
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="text-slate-400">Daily Turnover</span>
-                                    <span className="text-slate-200 font-mono">{formatGP(volume)}</span>
-                                </div>
-                                
-                                {/* Buy vs Sell Pressure Bar */}
-                                <div className="mt-2">
-                                    <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                                        <span>Sell Pressure</span>
-                                        <span>Buy Pressure</span>
-                                    </div>
-                                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden flex">
-                                        <div 
-                                            className="bg-blue-500 transition-all duration-500" 
-                                            style={{ width: `${100 - buyPressure}%` }}
-                                        ></div>
-                                        <div 
-                                            className="bg-emerald-500 transition-all duration-500" 
-                                            style={{ width: `${buyPressure}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {item.limit && (
-                                <div className="pt-4 border-t border-slate-800">
-                                    <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-slate-400">Limit Saturation</span>
-                                        <span className="text-slate-200 font-mono">
-                                            {((volume / item.limit) * 100).toFixed(1)}%
-                                        </span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-500">
-                                        {volume > item.limit ? "High liquidity item." : "Low liquidity, easy to hit limit."}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <p className="text-slate-500 italic">No volume data available.</p>
-                    )}
-                </CardContent>
-            </Card>
-            
-            <Card className="bg-slate-900 border-slate-800">
-                <CardHeader>
-                     <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                        <DollarSign className="text-amber-500" size={16} /> Capital Required
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                    <div className="flex justify-between">
-                         <span className="text-slate-400">For 1 Limit</span>
-                         <span className="text-slate-200 font-mono">
-                            {item.limit ? formatGP(item.limit * price.low) : '--'}
-                         </span>
-                    </div>
-                    <div className="flex justify-between">
-                         <span className="text-slate-400">Max Potential Profit</span>
-                         <span className="text-emerald-400 font-mono font-bold">
-                            {item.limit ? formatGP(item.limit * net) : '--'}
-                         </span>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+        <VolumeAnalysis 
+            item={item}
+            price={price}
+            stat={stat}
+            volume={volume}
+            buyPressure={buyPressure}
+            net={net}
+        />
       </div>
 
-      {/* PERSONAL HISTORY */}
-      {itemHistory.length > 0 && (
-          <div className="mb-12 animate-in slide-in-from-bottom-5 duration-500">
-            <h3 className="text-xl font-bold text-slate-200 mb-4 flex items-center gap-2">
-                <History className="text-slate-500" size={24} /> 
-                Your History
-            </h3>
-            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-                <Table>
-                    <TableHeader className="bg-slate-950/50">
-                        <TableRow className="border-slate-800">
-                            <TableHead className="text-slate-400">Date</TableHead>
-                            <TableHead className="text-right text-slate-400">Qty</TableHead>
-                            <TableHead className="text-right text-slate-400">Buy</TableHead>
-                            <TableHead className="text-right text-slate-400">Sell</TableHead>
-                            <TableHead className="text-right text-slate-400">Profit</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {itemHistory.map((trade) => (
-                            <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/50">
-                                <TableCell className="font-mono text-xs text-slate-400">
-                                    {new Date(trade.timestamp).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-slate-300">
-                                    {trade.quantity.toLocaleString()}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-slate-400 text-xs">
-                                    {formatGP(trade.buyPrice)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-slate-400 text-xs">
-                                    {formatGP(trade.sellPrice)}
-                                </TableCell>
-                                <TableCell className={`text-right font-bold font-mono ${trade.profit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    {trade.profit > 0 ? '+' : ''}{formatGP(trade.profit)}
-                                </TableCell>
-                                <TableCell>
-                                    <Button 
-                                        size="icon" 
-                                        variant="ghost" 
-                                        className="h-6 w-6 text-slate-600 hover:text-rose-500"
-                                        onClick={() => handleDeleteTrade(trade.id)}
-                                    >
-                                        <Trash2 size={12} />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-          </div>
-      )}
+      <HistoryTable history={itemHistory} onDelete={handleDeleteTrade} />
     </Layout>
   );
 };
