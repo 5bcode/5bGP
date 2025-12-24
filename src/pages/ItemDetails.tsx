@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import PriceChart from '@/components/PriceChart';
@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
     ArrowLeft, ExternalLink, Activity, BarChart3, Clock, DollarSign, 
-    AlertTriangle, ShieldCheck, Zap, TrendingUp, Copy
+    AlertTriangle, ShieldCheck, Zap, TrendingUp, Copy, History, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ItemIcon from '@/components/ItemIcon';
@@ -19,6 +20,7 @@ import { useMarketData } from '@/hooks/use-osrs-query';
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
   const { items, prices, stats, isLoading } = useMarketData();
+  const [itemHistory, setItemHistory] = useState<Trade[]>([]);
 
   const itemData = useMemo(() => {
     if (!id || isLoading || items.length === 0) return null;
@@ -32,11 +34,53 @@ const ItemDetails = () => {
     };
   }, [id, items, prices, stats, isLoading]);
 
+  // Load history for this item
+  useEffect(() => {
+      if (id) {
+        const loadHistory = () => {
+            const saved = localStorage.getItem('tradeHistory');
+            if (saved) {
+                try {
+                    const allTrades: Trade[] = JSON.parse(saved);
+                    // Filter for this item and sort by date desc
+                    const filtered = allTrades
+                        .filter(t => t.itemId.toString() === id)
+                        .sort((a, b) => b.timestamp - a.timestamp);
+                    setItemHistory(filtered);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        };
+        loadHistory();
+        // Listen for storage events to update real-time if logged from another tab or dialog
+        window.addEventListener('storage', loadHistory);
+        return () => window.removeEventListener('storage', loadHistory);
+      }
+  }, [id]);
+
   const handleLogTrade = (trade: Trade) => {
     const saved = localStorage.getItem('tradeHistory');
     const history = saved ? JSON.parse(saved) : [];
-    localStorage.setItem('tradeHistory', JSON.stringify([trade, ...history]));
-    toast.success("Trade logged to local history");
+    const newHistory = [trade, ...history];
+    localStorage.setItem('tradeHistory', JSON.stringify(newHistory));
+    
+    // Update local state immediately
+    setItemHistory(prev => [trade, ...prev]);
+    toast.success("Trade logged to history");
+  };
+
+  const handleDeleteTrade = (tradeId: string) => {
+      if (confirm("Delete this trade record?")) {
+          const saved = localStorage.getItem('tradeHistory');
+          if (saved) {
+              const allTrades: Trade[] = JSON.parse(saved);
+              const newTrades = allTrades.filter(t => t.id !== tradeId);
+              localStorage.setItem('tradeHistory', JSON.stringify(newTrades));
+              setItemHistory(prev => prev.filter(t => t.id !== tradeId));
+              toast.success("Trade deleted");
+          }
+      }
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -409,6 +453,61 @@ const ItemDetails = () => {
             </Card>
         </div>
       </div>
+
+      {/* PERSONAL HISTORY */}
+      {itemHistory.length > 0 && (
+          <div className="mb-12 animate-in slide-in-from-bottom-5 duration-500">
+            <h3 className="text-xl font-bold text-slate-200 mb-4 flex items-center gap-2">
+                <History className="text-slate-500" size={24} /> 
+                Your History
+            </h3>
+            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+                <Table>
+                    <TableHeader className="bg-slate-950/50">
+                        <TableRow className="border-slate-800">
+                            <TableHead className="text-slate-400">Date</TableHead>
+                            <TableHead className="text-right text-slate-400">Qty</TableHead>
+                            <TableHead className="text-right text-slate-400">Buy</TableHead>
+                            <TableHead className="text-right text-slate-400">Sell</TableHead>
+                            <TableHead className="text-right text-slate-400">Profit</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {itemHistory.map((trade) => (
+                            <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/50">
+                                <TableCell className="font-mono text-xs text-slate-400">
+                                    {new Date(trade.timestamp).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-slate-300">
+                                    {trade.quantity.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-slate-400 text-xs">
+                                    {formatGP(trade.buyPrice)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-slate-400 text-xs">
+                                    {formatGP(trade.sellPrice)}
+                                </TableCell>
+                                <TableCell className={`text-right font-bold font-mono ${trade.profit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {trade.profit > 0 ? '+' : ''}{formatGP(trade.profit)}
+                                </TableCell>
+                                <TableCell>
+                                    <Button 
+                                        size="icon" 
+                                        variant="ghost" 
+                                        className="h-6 w-6 text-slate-600 hover:text-rose-500"
+                                        onClick={() => handleDeleteTrade(trade.id)}
+                                    >
+                                        <Trash2 size={12} />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+          </div>
+      )}
     </Layout>
   );
 };

@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import { Item } from '@/services/osrs-api';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
-import { Loader2, ArrowLeft, TrendingUp, ArrowDown, ExternalLink, Plus, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { Loader2, ArrowLeft, TrendingUp, ArrowDown, ExternalLink, Plus, ArrowUp, ArrowUpDown, Check } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,6 +20,9 @@ const Scanner = () => {
   const [filter, setFilter] = useState<AnalysisFilter>(filterParam);
   const [type, setType] = useState<'crash'|'flip'>(typeParam);
   
+  // Tracked Items State
+  const [trackedIds, setTrackedIds] = useState<Set<number>>(new Set());
+
   // Sorting State
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
       key: 'score', 
@@ -33,6 +36,14 @@ const Scanner = () => {
     // Update URL when state changes
     setSearchParams({ type, filter });
   }, [type, filter, setSearchParams]);
+
+  useEffect(() => {
+      const saved = localStorage.getItem('trackedItems');
+      if (saved) {
+          const parsed = JSON.parse(saved);
+          setTrackedIds(new Set(parsed.map((i: Item) => i.id)));
+      }
+  }, []);
 
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, filter);
   const data = type === 'crash' ? dumps : bestFlips;
@@ -93,6 +104,7 @@ const Scanner = () => {
         return;
     }
     localStorage.setItem('trackedItems', JSON.stringify([item, ...tracked]));
+    setTrackedIds(prev => new Set(prev).add(item.id));
     toast.success(`Tracking ${item.name}`);
   }
 
@@ -232,63 +244,72 @@ const Scanner = () => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {displayData.map((row) => (
-                            <TableRow key={row.item.id} className="border-slate-800 hover:bg-slate-800/50">
-                                <TableCell>
-                                    <ItemIcon item={row.item} size="md" />
-                                </TableCell>
-                                <TableCell className="font-medium text-slate-200">
-                                    <div className="flex flex-col">
-                                        <Link to={`/item/${row.item.id}`} className="hover:text-emerald-400 transition-colors">
-                                            {row.item.name}
-                                        </Link>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <span>ID: {row.item.id}</span>
-                                            {row.item.limit && <span className="bg-slate-950 px-1 rounded">Lim: {row.item.limit}</span>}
+                        {displayData.map((row) => {
+                            const isTracked = trackedIds.has(row.item.id);
+                            return (
+                                <TableRow key={row.item.id} className={`border-slate-800 ${isTracked ? 'bg-emerald-950/10 hover:bg-emerald-950/20' : 'hover:bg-slate-800/50'}`}>
+                                    <TableCell>
+                                        <ItemIcon item={row.item} size="md" />
+                                    </TableCell>
+                                    <TableCell className="font-medium text-slate-200">
+                                        <div className="flex flex-col">
+                                            <Link to={`/item/${row.item.id}`} className="hover:text-emerald-400 transition-colors">
+                                                {row.item.name}
+                                            </Link>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <span>ID: {row.item.id}</span>
+                                                {row.item.limit && <span className="bg-slate-950 px-1 rounded">Lim: {row.item.limit}</span>}
+                                            </div>
                                         </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-slate-300">
-                                    {formatGP(row.price.low)}
-                                </TableCell>
-                                <TableCell className={`text-right font-bold ${type === 'crash' ? 'text-rose-500' : 'text-emerald-400'}`}>
-                                    {type === 'crash' 
-                                        ? `-${row.metric.toFixed(1)}%` 
-                                        : `+${formatGP(row.metric)}`
-                                    }
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-slate-400">
-                                    {type === 'crash'
-                                        ? formatGP(row.secondaryMetric)
-                                        : `${row.secondaryMetric.toFixed(2)}%`
-                                    }
-                                </TableCell>
-                                <TableCell className="text-right text-slate-400">
-                                    {formatGP(row.stats.highPriceVolume + row.stats.lowPriceVolume)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-xs text-slate-500">
-                                    {row.score.toFixed(1)}
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex justify-end gap-2">
-                                        <Button 
-                                            size="sm" 
-                                            variant="ghost" 
-                                            className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-400"
-                                            onClick={() => handleTrack(row.item)}
-                                            title="Track Item"
-                                        >
-                                            <Plus size={16} />
-                                        </Button>
-                                        <a href={`https://prices.runescape.wiki/osrs/item/${row.item.id}`} target="_blank" rel="noreferrer">
-                                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-500 hover:text-blue-400">
-                                                <ExternalLink size={14} />
-                                            </Button>
-                                        </a>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-slate-300">
+                                        {formatGP(row.price.low)}
+                                    </TableCell>
+                                    <TableCell className={`text-right font-bold ${type === 'crash' ? 'text-rose-500' : 'text-emerald-400'}`}>
+                                        {type === 'crash' 
+                                            ? `-${row.metric.toFixed(1)}%` 
+                                            : `+${formatGP(row.metric)}`
+                                        }
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-slate-400">
+                                        {type === 'crash'
+                                            ? formatGP(row.secondaryMetric)
+                                            : `${row.secondaryMetric.toFixed(2)}%`
+                                        }
+                                    </TableCell>
+                                    <TableCell className="text-right text-slate-400">
+                                        {formatGP(row.stats.highPriceVolume + row.stats.lowPriceVolume)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-xs text-slate-500">
+                                        {row.score.toFixed(1)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex justify-end gap-2">
+                                            {isTracked ? (
+                                                <div className="h-8 w-8 flex items-center justify-center text-emerald-500" title="Already Tracked">
+                                                    <Check size={16} />
+                                                </div>
+                                            ) : (
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="ghost" 
+                                                    className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-400"
+                                                    onClick={() => handleTrack(row.item)}
+                                                    title="Track Item"
+                                                >
+                                                    <Plus size={16} />
+                                                </Button>
+                                            )}
+                                            <a href={`https://prices.runescape.wiki/osrs/item/${row.item.id}`} target="_blank" rel="noreferrer">
+                                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-500 hover:text-blue-400">
+                                                    <ExternalLink size={14} />
+                                                </Button>
+                                            </a>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
                     </TableBody>
                 </Table>
             )}
