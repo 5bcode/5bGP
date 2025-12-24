@@ -41,6 +41,8 @@ let statsCache: Record<string, Stats24h> | null = null;
 let lastPriceFetch = 0;
 let lastStatsFetch = 0;
 
+export type TimeStep = '5m' | '1h' | '6h' | '24h';
+
 export const osrsApi = {
   async getMapping(): Promise<Item[]> {
     if (mappingCache) return mappingCache;
@@ -106,7 +108,7 @@ export const osrsApi = {
     }
   },
 
-  async getTimeseries(id: number, timestep: '5m' | '1h' = '5m'): Promise<TimeSeriesPoint[]> {
+  async getTimeseries(id: number, timestep: TimeStep = '5m'): Promise<TimeSeriesPoint[]> {
     try {
       const response = await fetch(`${BASE_URL}/timeseries?timestep=${timestep}&id=${id}`, {
          headers: {

@@ -3,6 +3,7 @@ import { Trade } from './TradeLogDialog';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatGP } from "@/lib/osrs-math";
 import { TrendingUp, TrendingDown, Coins, Activity } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 interface AnalyticsProps {
   trades: Trade[];
@@ -24,77 +25,139 @@ const Analytics = ({ trades }: AnalyticsProps) => {
   // Total Volume Traded (Gross revenue)
   const totalVolume = trades.reduce((acc, t) => acc + (t.sellPrice * t.quantity), 0);
 
+  // Prepare data for Cumulative Profit Chart
+  // 1. Sort trades by time
+  const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
+  
+  // 2. Calculate running total
+  let runningTotal = 0;
+  const chartData = sortedTrades.map(trade => {
+      runningTotal += trade.profit;
+      return {
+          id: trade.id,
+          date: new Date(trade.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          profit: runningTotal,
+          tradeProfit: trade.profit,
+          itemName: trade.itemName
+      };
+  });
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      {/* Total Profit */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-400">Total Profit</CardTitle>
-          <Coins className={`h-4 w-4 ${totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
-        </CardHeader>
-        <CardContent>
-          <div className={`text-2xl font-bold font-mono ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {totalProfit >= 0 ? '+' : ''}{formatGP(totalProfit)}
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Net after tax
-          </p>
-        </CardContent>
-      </Card>
+    <div className="space-y-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Profit */}
+        <Card className="bg-slate-900 border-slate-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Total Profit</CardTitle>
+            <Coins className={`h-4 w-4 ${totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
+            </CardHeader>
+            <CardContent>
+            <div className={`text-2xl font-bold font-mono ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {totalProfit >= 0 ? '+' : ''}{formatGP(totalProfit)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+                Net after tax
+            </p>
+            </CardContent>
+        </Card>
 
-      {/* Trade Count & Win Rate */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-400">Performance</CardTitle>
-          <Activity className="h-4 w-4 text-blue-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-slate-200">
-            {tradeCount} <span className="text-sm font-normal text-slate-500">trades</span>
-          </div>
-          <p className={`text-xs mt-1 ${winRate >= 50 ? 'text-emerald-500' : 'text-rose-500'}`}>
-            {winRate.toFixed(1)}% Win Rate
-          </p>
-        </CardContent>
-      </Card>
+        {/* Trade Count & Win Rate */}
+        <Card className="bg-slate-900 border-slate-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Performance</CardTitle>
+            <Activity className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+            <div className="text-2xl font-bold text-slate-200">
+                {tradeCount} <span className="text-sm font-normal text-slate-500">trades</span>
+            </div>
+            <p className={`text-xs mt-1 ${winRate >= 50 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {winRate.toFixed(1)}% Win Rate
+            </p>
+            </CardContent>
+        </Card>
 
-      {/* Best Flip */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-400">Best Flip</CardTitle>
-          <TrendingUp className="h-4 w-4 text-emerald-500" />
-        </CardHeader>
-        <CardContent>
-          {bestTrade ? (
-            <>
-              <div className="text-lg font-bold text-slate-200 truncate" title={bestTrade.itemName}>
-                {bestTrade.itemName}
-              </div>
-              <p className="text-xs text-emerald-400 font-mono mt-1">
-                +{formatGP(bestTrade.profit)}
-              </p>
-            </>
-          ) : (
-            <div className="text-lg font-bold text-slate-600">--</div>
-          )}
-        </CardContent>
-      </Card>
+        {/* Best Flip */}
+        <Card className="bg-slate-900 border-slate-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Best Flip</CardTitle>
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent>
+            {bestTrade ? (
+                <>
+                <div className="text-lg font-bold text-slate-200 truncate" title={bestTrade.itemName}>
+                    {bestTrade.itemName}
+                </div>
+                <p className="text-xs text-emerald-400 font-mono mt-1">
+                    +{formatGP(bestTrade.profit)}
+                </p>
+                </>
+            ) : (
+                <div className="text-lg font-bold text-slate-600">--</div>
+            )}
+            </CardContent>
+        </Card>
 
-      {/* Gross Volume */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-400">Gross Vol</CardTitle>
-          <TrendingDown className="h-4 w-4 text-slate-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-slate-200 font-mono">
-            {formatGP(totalVolume)}
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Total GP moved
-          </p>
-        </CardContent>
-      </Card>
+        {/* Gross Volume */}
+        <Card className="bg-slate-900 border-slate-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Gross Vol</CardTitle>
+            <TrendingDown className="h-4 w-4 text-slate-500" />
+            </CardHeader>
+            <CardContent>
+            <div className="text-2xl font-bold text-slate-200 font-mono">
+                {formatGP(totalVolume)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+                Total GP moved
+            </p>
+            </CardContent>
+        </Card>
+        </div>
+
+        {/* CUMULATIVE PROFIT CHART */}
+        {chartData.length > 1 && (
+            <Card className="bg-slate-900 border-slate-800">
+                <CardHeader>
+                    <CardTitle className="text-sm font-medium text-slate-400">Account Growth</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                            <XAxis 
+                                dataKey="date" 
+                                stroke="#64748b" 
+                                fontSize={10} 
+                                tickMargin={10}
+                            />
+                            <YAxis 
+                                stroke="#64748b" 
+                                fontSize={10}
+                                tickFormatter={(val) => formatGP(val)}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' }}
+                                labelStyle={{ color: '#94a3b8' }}
+                                formatter={(value: number, name, props) => {
+                                    if (name === 'profit') return [formatGP(value), 'Total Profit'];
+                                    return [value, name];
+                                }}
+                            />
+                            <Line 
+                                type="monotone" 
+                                dataKey="profit" 
+                                stroke="#10b981" 
+                                strokeWidth={2} 
+                                dot={{ fill: '#10b981', r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+        )}
     </div>
   );
 };
