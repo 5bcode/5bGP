@@ -76,6 +76,17 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
 
   const currentPrice = latestPrices ? latestPrices[itemId] : null;
 
+  // Calculate the most recent ("last traded") price
+  const lastTraded = useMemo(() => {
+    if (!currentPrice) return null;
+    const isHighMoreRecent = currentPrice.highTime > currentPrice.lowTime;
+    return {
+        value: isHighMoreRecent ? currentPrice.high : currentPrice.low,
+        color: isHighMoreRecent ? '#10b981' : '#3b82f6',
+        label: isHighMoreRecent ? 'Last (Sell)' : 'Last (Buy)'
+    };
+  }, [currentPrice]);
+
   const formattedData = useMemo(() => {
     // Filter valid points
     const validPoints = points.filter(p => p.avgHighPrice || p.avgLowPrice || p.highPriceVolume || p.lowPriceVolume);
@@ -242,24 +253,15 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
                         barSize={4}
                     />
 
-                    {/* Real-time Price Lines */}
-                    {currentPrice && (
-                        <>
-                            <ReferenceLine 
-                                yAxisId="price"
-                                y={currentPrice.high} 
-                                stroke="#10b981" 
-                                strokeDasharray="3 3" 
-                                label={<PriceLabel fill="#10b981" value={formatGP(currentPrice.high)} />}
-                            />
-                            <ReferenceLine 
-                                yAxisId="price"
-                                y={currentPrice.low} 
-                                stroke="#3b82f6" 
-                                strokeDasharray="3 3" 
-                                label={<PriceLabel fill="#3b82f6" value={formatGP(currentPrice.low)} />}
-                            />
-                        </>
+                    {/* Real-time Price Line (Most Recent / Last Traded) */}
+                    {lastTraded && (
+                        <ReferenceLine 
+                            yAxisId="price"
+                            y={lastTraded.value} 
+                            stroke={lastTraded.color} 
+                            strokeDasharray="3 3" 
+                            label={<PriceLabel fill={lastTraded.color} value={formatGP(lastTraded.value)} />}
+                        />
                     )}
 
                     <Area 
