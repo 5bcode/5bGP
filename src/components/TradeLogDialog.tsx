@@ -19,28 +19,52 @@ export interface Trade {
   timestamp: number;
 }
 
+export interface InitialTradeValues {
+    buyPrice?: number;
+    sellPrice?: number;
+    quantity?: number;
+}
+
 interface TradeLogDialogProps {
   item: Item;
   priceData?: PriceData;
+  initialValues?: InitialTradeValues;
   onSave: (trade: Trade) => void;
+  trigger?: React.ReactNode;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const TradeLogDialog = ({ item, priceData, onSave }: TradeLogDialogProps) => {
-  const [open, setOpen] = useState(false);
-  const [buyPrice, setBuyPrice] = useState(priceData?.low?.toString() || '');
-  const [sellPrice, setSellPrice] = useState(priceData?.high?.toString() || '');
+const TradeLogDialog = ({ item, priceData, initialValues, onSave, trigger, isOpen, onOpenChange }: TradeLogDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  // Controlled vs Uncontrolled logic
+  const isControlled = isOpen !== undefined;
+  const open = isControlled ? isOpen : internalOpen;
+  const setOpen = isControlled ? onOpenChange : setInternalOpen;
+
+  const [buyPrice, setBuyPrice] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   
   // Computed values
   const [projectedProfit, setProjectedProfit] = useState(0);
   const [taxPaid, setTaxPaid] = useState(0);
 
+  // Initialize fields when dialog opens
   useEffect(() => {
-    if (priceData && open) {
-        if (!buyPrice) setBuyPrice(priceData.low.toString());
-        if (!sellPrice) setSellPrice(priceData.high.toString());
+    if (open) {
+        if (initialValues) {
+            if (initialValues.buyPrice) setBuyPrice(initialValues.buyPrice.toString());
+            if (initialValues.sellPrice) setSellPrice(initialValues.sellPrice.toString());
+            if (initialValues.quantity) setQuantity(initialValues.quantity.toString());
+        } else if (priceData) {
+            // Fallback to current market data if no specific values passed
+            if (!buyPrice) setBuyPrice(priceData.low.toString());
+            if (!sellPrice) setSellPrice(priceData.high.toString());
+        }
     }
-  }, [priceData, open]);
+  }, [open, priceData, initialValues]);
 
   useEffect(() => {
     const buy = parseInt(buyPrice) || 0;
@@ -77,17 +101,23 @@ const TradeLogDialog = ({ item, priceData, onSave }: TradeLogDialogProps) => {
     };
 
     onSave(trade);
-    setOpen(false);
+    if (setOpen) setOpen(false);
     toast.success("Trade recorded!");
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-emerald-500 transition-colors">
-            <Calculator className="mr-2 h-4 w-4 text-emerald-500" /> Log Flip
-        </Button>
-      </DialogTrigger>
+      {trigger ? (
+        <DialogTrigger asChild>{trigger}</DialogTrigger>
+      ) : (
+        !isControlled && (
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-emerald-500 transition-colors">
+                    <Calculator className="mr-2 h-4 w-4 text-emerald-500" /> Log Flip
+                </Button>
+            </DialogTrigger>
+        )
+      )}
       <DialogContent className="bg-slate-950 border-slate-800 text-slate-100 sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Item, PriceData } from '@/services/osrs-api';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Briefcase, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatGP, calculateTax } from '@/lib/osrs-math';
+import { formatGP } from '@/lib/osrs-math';
 import ItemIcon from './ItemIcon';
 import ItemSearch from './ItemSearch';
 import { toast } from 'sonner';
-import { Trade } from './TradeLogDialog';
+import TradeLogDialog, { Trade, InitialTradeValues } from './TradeLogDialog';
 
 export interface ActiveOffer {
   id: string;
@@ -21,6 +21,7 @@ export interface ActiveOffer {
   quantity: number;
   timestamp: number;
   targetPrice?: number; // For flipping
+  originalBuyPrice?: number; // Store the buy price when converting to sell
 }
 
 interface ActiveOffersProps {
@@ -43,6 +44,11 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
   const [priceInput, setPriceInput] = useState('');
   const [qtyInput, setQtyInput] = useState('');
   const [targetInput, setTargetInput] = useState('');
+
+  // Dialog Control for Completion
+  const [completionItem, setCompletionItem] = useState<Item | null>(null);
+  const [completionValues, setCompletionValues] = useState<InitialTradeValues | undefined>(undefined);
+  const [offerToCompleteId, setOfferToCompleteId] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('activeOffers', JSON.stringify(offers));
@@ -84,11 +90,6 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
   };
 
   const handleCompleteFlip = (offer: ActiveOffer) => {
-    // If it was a BUY offer, we assume we bought it and now want to SELL it? 
-    // Or if it was a SELL offer, we assume it sold?
-    // Let's simplify: You can only complete a 'sell' offer to log profit.
-    // Or convert a 'buy' offer to a 'sell' offer.
-    
     if (offer.type === 'buy') {
         // Convert to Sell
         const updatedOffers = offers.map(o => {
@@ -96,6 +97,7 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                 return {
                     ...o,
                     type: 'sell' as const,
+                    originalBuyPrice: offer.price, // Save what we bought it for
                     price: offer.targetPrice || (prices[offer.item.id]?.high || 0), // Default to target or current high
                     targetPrice: undefined // Clear target
                 };
@@ -105,21 +107,30 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
         setOffers(updatedOffers);
         toast.success("Offer updated to Selling");
     } else {
-        // Log as Trade
-        // We need the original buy price. Since we don't store it in the simple 'ActiveOffer' when it flips state,
-        // we might lose accuracy. For this MVP, we'll prompt.
-        // Actually, let's just delete it and open the log dialog? No, let's automate.
-        // We will assume the user tracks "Bought at X, Selling at Y".
-        // If type is 'sell', 'price' is the listing price.
-        
-        // Let's just remove it for now and say "Done".
-        // Ideally, we'd find the matching Buy price.
-        handleRemove(offer.id);
+        // Prepare Log Dialog
+        setCompletionItem(offer.item);
+        setCompletionValues({
+            quantity: offer.quantity,
+            sellPrice: offer.price,
+            buyPrice: offer.originalBuyPrice || undefined
+        });
+        setOfferToCompleteId(offer.id);
     }
   };
+
+  const finalizeTradeLog = (trade: Trade) => {
+      onLogTrade(trade);
+      if (offerToCompleteId) {
+          handleRemove(offerToCompleteId);
+      }
+      setCompletionItem(null);
+      setOfferToCompleteId(null);
+  };
   
-  // Calculate potential profit for current offers based on live prices
   const slotsUsed = offers.length;
+  
+  // Calculate Portfolio Value
+  const totalValue = offers.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
 
   return (
     <div className="mb-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -127,6 +138,9 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
             <h2 className="text-xl font-semibold text-slate-200 flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-emerald-500" />
                 GE Slots ({slotsUsed}/8)
+                <span className="text-sm font-mono font-normal text-slate-500 ml-2 border-l border-slate-800 pl-2">
+                    Active Value: {formatGP(totalValue)}
+                </span>
             </h2>
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
@@ -218,13 +232,21 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
             </Dialog>
         </div>
 
+        {/* Completion Dialog - Rendered conditionally */}
+        {completionItem && (
+            <TradeLogDialog 
+                isOpen={!!completionItem}
+                onOpenChange={(open) => !open && setCompletionItem(null)}
+                item={completionItem}
+                initialValues={completionValues}
+                onSave={finalizeTradeLog}
+            />
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {offers.map((offer) => {
                 const currentPrice = prices[offer.item.id];
-                const isProfitable = currentPrice && offer.type === 'buy' 
-                    ? currentPrice.high > offer.price 
-                    : true; // hard to judge sells without buy price
-
+                
                 return (
                     <Card key={offer.id} className="bg-slate-900 border-slate-800 relative group overflow-hidden hover:border-slate-700 transition-colors">
                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${offer.type === 'buy' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
@@ -234,9 +256,16 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                                     <ItemIcon item={offer.item} size="sm" />
                                     <div className="min-w-0">
                                         <p className="font-bold text-sm truncate">{offer.item.name}</p>
-                                        <Badge variant="secondary" className="text-[10px] px-1 h-4 bg-slate-800 text-slate-400">
-                                            {offer.type.toUpperCase()}
-                                        </Badge>
+                                        <div className="flex gap-2">
+                                            <Badge variant="secondary" className="text-[10px] px-1 h-4 bg-slate-800 text-slate-400">
+                                                {offer.type.toUpperCase()}
+                                            </Badge>
+                                            {offer.originalBuyPrice && offer.type === 'sell' && (
+                                                <Badge variant="secondary" className="text-[10px] px-1 h-4 bg-blue-900/30 text-blue-400 border-blue-900/50">
+                                                    Bought: {formatGP(offer.originalBuyPrice)}
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <button onClick={() => handleRemove(offer.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
@@ -284,7 +313,7 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                                 {offer.type === 'buy' ? (
                                     <>To Sell <ArrowRight className="ml-1 h-3 w-3" /></>
                                 ) : (
-                                    <>Complete <CheckCircle2 className="ml-1 h-3 w-3" /></>
+                                    <>Log Profit <CheckCircle2 className="ml-1 h-3 w-3" /></>
                                 )}
                             </Button>
                         </CardContent>
