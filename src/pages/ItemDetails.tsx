@@ -14,8 +14,9 @@ import { MetricCards } from '@/components/MetricCards';
 import { DeepAnalysis } from '@/components/DeepAnalysis';
 import { VolumeAnalysis } from '@/components/VolumeAnalysis';
 import { HistoryTable } from '@/components/HistoryTable';
-import { SmartAnalysis } from '@/components/SmartAnalysis'; // NEW
+import { SmartAnalysis } from '@/components/SmartAnalysis';
 import ItemNotes from '@/components/ItemNotes';
+import PricePredictor from '@/components/PricePredictor'; // NEW
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -163,7 +164,7 @@ const ItemDetails = () => {
         volatility={volatility} 
       />
       
-      {/* NEW: Smart Analysis Engine */}
+      {/* Smart Analysis Engine */}
       <SmartAnalysis 
         item={item}
         price={price}
@@ -172,10 +173,13 @@ const ItemDetails = () => {
         volatility={volatility}
       />
 
+      {/* NEW: Price Predictor */}
+      <PricePredictor itemId={item.id} />
+
       <DeepAnalysis 
         item={item} 
         price={price} 
-        stats={stat} // Pass stats for range calc
+        stats={stat} 
         net={net} 
         spreadDifference={spreadDifference} 
         isAlchable={isAlchable} 
