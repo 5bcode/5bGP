@@ -27,6 +27,8 @@ export function useMarketAnalysis(
 
     const dumps: MarketOpportunity[] = [];
     const bestFlips: MarketOpportunity[] = [];
+    const now = Math.floor(Date.now() / 1000);
+    const RECENCY_THRESHOLD = 600; // 10 minutes in seconds
 
     // Tuning Constants
     const MIN_ROI_FLIP = 1; // 1%
@@ -47,11 +49,12 @@ export function useMarketAnalysis(
       if (filter === 'high_ticket' && price.low < 5_000_000) return; 
 
       // --- 1. SMART DUMP / CRASH DETECTION ---
-      // We look for "Panic Wicks" where Low is detached from High or Avg.
-      
+      // Critical Check: The LOW price must be recent (live crash)
+      const isLowFresh = (now - price.lowTime) <= RECENCY_THRESHOLD;
+
       const minVolDump = price.low > 50_000_000 ? 5 : (price.low > 1_000_000 ? 50 : 2000);
 
-      if (dailyVol >= minVolDump) {
+      if (isLowFresh && dailyVol >= minVolDump) {
           const dropFromAvg = calculateDumpScore(price.low, stat.avgLowPrice); 
           
           // Spread % - Is the gap wide?
@@ -102,11 +105,12 @@ export function useMarketAnalysis(
       }
 
       // --- 2. BEST FLIPS (Steady State) ---
-      // Finding consistent margins
+      // Check: At least one side of the trade must be recent to be considered "active"
+      const isActive = (now - Math.max(price.highTime, price.lowTime)) <= RECENCY_THRESHOLD;
       
       const minVolFlip = price.low > 10_000_000 ? 10 : 500;
 
-      if (dailyVol > minVolFlip) {
+      if (isActive && dailyVol > minVolFlip) {
           const { net, roi } = calculateMargin(price.low, price.high);
           const volatility = calculateVolatility(price.high, price.low);
           
