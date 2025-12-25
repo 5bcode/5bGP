@@ -7,10 +7,11 @@ import {
   YAxis, 
   Tooltip, 
   ResponsiveContainer, 
-  CartesianGrid 
+  CartesianGrid,
+  ReferenceLine 
 } from 'recharts';
 import { TimeStep } from '@/services/osrs-api';
-import { useTimeseries } from '@/hooks/use-osrs-query';
+import { useTimeseries, useLatestPrices } from '@/hooks/use-osrs-query';
 import { Loader2 } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -19,13 +20,64 @@ interface PriceChartProps {
   itemId: number;
 }
 
+const PulsingDot = (props: any) => {
+  const { cx, cy, stroke, index, dataLength } = props;
+  
+  // Only render for the last data point
+  if (index !== dataLength - 1) return null;
+
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={3} fill={stroke} />
+      <circle cx={cx} cy={cy} r={8} stroke={stroke} strokeWidth={2} fill="none" opacity={0.5}>
+         <animate attributeName="r" from="3" to="8" dur="1.5s" repeatCount="indefinite" />
+         <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+};
+
+const PriceLabel = (props: any) => {
+    const { viewBox, fill, value } = props;
+    const { y, width } = viewBox;
+    // Position on the right side
+    const x = width; 
+    
+    return (
+        <g>
+            <rect 
+                x={x - 45} 
+                y={y - 10} 
+                width={45} 
+                height={20} 
+                fill={fill} 
+                rx={2} 
+            />
+            <text 
+                x={x - 22.5} 
+                y={y + 4} 
+                textAnchor="middle" 
+                fill="#fff" 
+                fontSize={10} 
+                fontWeight="bold"
+                fontFamily="monospace"
+            >
+                {value}
+            </text>
+        </g>
+    );
+};
+
 const PriceChart = ({ itemId }: PriceChartProps) => {
   const [timeframe, setTimeframe] = useState<TimeStep>('5m');
 
-  const { data: points = [], isLoading } = useTimeseries(itemId, timeframe);
+  const { data: points = [], isLoading: isHistoryLoading } = useTimeseries(itemId, timeframe);
+  const { data: latestPrices, isLoading: isLatestLoading } = useLatestPrices();
+
+  const currentPrice = latestPrices ? latestPrices[itemId] : null;
 
   const formattedData = useMemo(() => {
-    // Filter valid points but be less aggressive to keep volume data if possible
+    // Filter valid points
     const validPoints = points.filter(p => p.avgHighPrice || p.avgLowPrice || p.highPriceVolume || p.lowPriceVolume);
         
     let sliceSize = 100;
@@ -81,6 +133,8 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
     }
     return null;
   };
+
+  const isLoading = isHistoryLoading || isLatestLoading;
 
   return (
     <div className="w-full mt-4 flex flex-col h-full min-h-[350px]">
@@ -188,6 +242,26 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
                         barSize={4}
                     />
 
+                    {/* Real-time Price Lines */}
+                    {currentPrice && (
+                        <>
+                            <ReferenceLine 
+                                yAxisId="price"
+                                y={currentPrice.high} 
+                                stroke="#10b981" 
+                                strokeDasharray="3 3" 
+                                label={<PriceLabel fill="#10b981" value={formatGP(currentPrice.high)} />}
+                            />
+                            <ReferenceLine 
+                                yAxisId="price"
+                                y={currentPrice.low} 
+                                stroke="#3b82f6" 
+                                strokeDasharray="3 3" 
+                                label={<PriceLabel fill="#3b82f6" value={formatGP(currentPrice.low)} />}
+                            />
+                        </>
+                    )}
+
                     <Area 
                         yAxisId="price"
                         type="monotone" 
@@ -198,6 +272,7 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
                         fill="url(#colorHigh)" 
                         strokeWidth={2}
                         connectNulls
+                        dot={<PulsingDot dataLength={formattedData.length} />}
                     />
                     <Area 
                         yAxisId="price"
@@ -209,6 +284,7 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
                         fill="url(#colorLow)" 
                         strokeWidth={2}
                         connectNulls
+                        dot={<PulsingDot dataLength={formattedData.length} />}
                     />
                 </ComposedChart>
             </ResponsiveContainer>
