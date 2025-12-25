@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
 import SettingsDialog, { AppSettings } from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
-import ActiveOffers from '@/components/ActiveOffers';
+import ActiveOffers, { ActiveOffer } from '@/components/ActiveOffers';
+import PortfolioStatus from '@/components/PortfolioStatus';
 import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
@@ -23,18 +24,29 @@ const Dashboard = () => {
       return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60, soundEnabled: true };
   });
 
-  // React Query Hook with dynamic refresh interval
-  // Convert seconds to milliseconds for the hook
-  const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
-  
-  // Market Scanner Filter
-  const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
-  
-  // Load tracked items
+  // Active Offers State (Lifted from ActiveOffers component)
+  const [activeOffers, setActiveOffers] = useState<ActiveOffer[]>(() => {
+    const saved = localStorage.getItem('activeOffers');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Tracked Items
   const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('trackedItems');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Trade History (for Stats)
+  const [tradeHistory, setTradeHistory] = useState<Trade[]>(() => {
+      const saved = localStorage.getItem('tradeHistory');
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  // React Query Hook
+  const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
+  
+  // Market Scanner Filter
+  const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
 
   // Live Alerts
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
@@ -42,6 +54,26 @@ const Dashboard = () => {
   // Persistence
   useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
   useEffect(() => { localStorage.setItem('appSettings', JSON.stringify(settings)); }, [settings]);
+  useEffect(() => { localStorage.setItem('activeOffers', JSON.stringify(activeOffers)); }, [activeOffers]);
+  
+  // Calculate Portfolio Stats
+  const portfolioStats = useMemo(() => {
+      // Active Investment
+      const activeInvest = activeOffers.reduce((sum, offer) => sum + (offer.price * offer.quantity), 0);
+      
+      // Today's Profit
+      const startOfDay = new Date();
+      startOfDay.setHours(0,0,0,0);
+      const todaysTrades = tradeHistory.filter(t => t.timestamp >= startOfDay.getTime());
+      
+      const dailyProfit = todaysTrades.reduce((sum, t) => sum + t.profit, 0);
+
+      return {
+          activeInvest,
+          dailyProfit,
+          dailyCount: todaysTrades.length
+      };
+  }, [activeOffers, tradeHistory]);
   
   // Initialize Default Items if empty and data loaded
   useEffect(() => {
@@ -93,7 +125,9 @@ const Dashboard = () => {
   const handleLogTrade = (trade: Trade) => {
       const saved = localStorage.getItem('tradeHistory');
       const history = saved ? JSON.parse(saved) : [];
-      localStorage.setItem('tradeHistory', JSON.stringify([trade, ...history]));
+      const newHistory = [trade, ...history];
+      localStorage.setItem('tradeHistory', JSON.stringify(newHistory));
+      setTradeHistory(newHistory);
       toast.success("Trade logged to History");
   }
 
@@ -108,8 +142,20 @@ const Dashboard = () => {
       
       {!isLoading && (
         <>
+            <PortfolioStatus 
+                activeInvestment={portfolioStats.activeInvest} 
+                todaysProfit={portfolioStats.dailyProfit}
+                todaysTradeCount={portfolioStats.dailyCount}
+            />
+
             {/* GE SLOTS / ACTIVE OFFERS */}
-            <ActiveOffers items={items} prices={prices} onLogTrade={handleLogTrade} />
+            <ActiveOffers 
+                items={items} 
+                prices={prices} 
+                onLogTrade={handleLogTrade} 
+                offers={activeOffers}
+                setOffers={setActiveOffers}
+            />
 
             {/* MARKET OVERVIEW */}
             <MarketOverview items={items} prices={prices} stats={stats} />

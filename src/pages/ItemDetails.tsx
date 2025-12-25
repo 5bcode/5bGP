@@ -14,6 +14,7 @@ import { MetricCards } from '@/components/MetricCards';
 import { DeepAnalysis } from '@/components/DeepAnalysis';
 import { VolumeAnalysis } from '@/components/VolumeAnalysis';
 import { HistoryTable } from '@/components/HistoryTable';
+import ItemNotes from '@/components/ItemNotes';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -170,13 +171,18 @@ const ItemDetails = () => {
         highAlchProfit={highAlchProfit} 
       />
 
-      {/* CHART & VOLUME */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-lg p-6">
-            <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                <Activity className="text-emerald-500" size={20} /> Price Action
-            </h3>
-            <PriceChart itemId={item.id} />
+        <div className="lg:col-span-2 space-y-6">
+           {/* CHART */}
+           <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
+              <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                  <Activity className="text-emerald-500" size={20} /> Price Action
+              </h3>
+              <PriceChart itemId={item.id} />
+           </div>
+
+           {/* NOTES (New) */}
+           <ItemNotes itemId={item.id} />
         </div>
 
         <VolumeAnalysis 

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Item, PriceData } from '@/services/osrs-api';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Briefcase, ArrowRight, CheckCircle2, Pencil } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatGP } from '@/lib/osrs-math';
@@ -28,14 +28,11 @@ interface ActiveOffersProps {
   items: Item[];
   prices: Record<string, PriceData>;
   onLogTrade: (trade: Trade) => void;
+  offers: ActiveOffer[];
+  setOffers: React.Dispatch<React.SetStateAction<ActiveOffer[]>>;
 }
 
-const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
-  const [offers, setOffers] = useState<ActiveOffer[]>(() => {
-    const saved = localStorage.getItem('activeOffers');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOffersProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -50,10 +47,6 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
   const [completionItem, setCompletionItem] = useState<Item | null>(null);
   const [completionValues, setCompletionValues] = useState<InitialTradeValues | undefined>(undefined);
   const [offerToCompleteId, setOfferToCompleteId] = useState<string | null>(null);
-
-  useEffect(() => {
-    localStorage.setItem('activeOffers', JSON.stringify(offers));
-  }, [offers]);
 
   const handleOpenAdd = () => {
       resetForm();
