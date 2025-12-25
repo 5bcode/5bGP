@@ -14,6 +14,7 @@ import { MetricCards } from '@/components/MetricCards';
 import { DeepAnalysis } from '@/components/DeepAnalysis';
 import { VolumeAnalysis } from '@/components/VolumeAnalysis';
 import { HistoryTable } from '@/components/HistoryTable';
+import { SmartAnalysis } from '@/components/SmartAnalysis'; // NEW
 import ItemNotes from '@/components/ItemNotes';
 
 const ItemDetails = () => {
@@ -161,10 +162,20 @@ const ItemDetails = () => {
         tax={tax} 
         volatility={volatility} 
       />
+      
+      {/* NEW: Smart Analysis Engine */}
+      <SmartAnalysis 
+        item={item}
+        price={price}
+        stats={stat}
+        roi={roi}
+        volatility={volatility}
+      />
 
       <DeepAnalysis 
         item={item} 
         price={price} 
+        stats={stat} // Pass stats for range calc
         net={net} 
         spreadDifference={spreadDifference} 
         isAlchable={isAlchable} 
@@ -181,7 +192,7 @@ const ItemDetails = () => {
               <PriceChart itemId={item.id} />
            </div>
 
-           {/* NOTES (New) */}
+           {/* NOTES */}
            <ItemNotes itemId={item.id} />
         </div>
 
