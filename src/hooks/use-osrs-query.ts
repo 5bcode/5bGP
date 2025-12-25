@@ -19,13 +19,13 @@ export function useItemMapping() {
   });
 }
 
-// 2. Latest Prices (Volatile, cache for 1 minute)
+// 2. Latest Prices (Volatile, cache for 1 minute or dynamic)
 export function useLatestPrices(refreshInterval = 60000) {
   return useQuery({
     queryKey: QUERY_KEYS.prices,
     queryFn: osrsApi.getLatestPrices,
     refetchInterval: refreshInterval,
-    staleTime: 30000, // consider fresh for 30s
+    staleTime: Math.min(30000, refreshInterval / 2), // Keep fresh for half the interval
   });
 }
 
@@ -39,9 +39,10 @@ export function use24hStats() {
 }
 
 // 4. Combined Hook for Dashboard/Analysis (Wait for all)
-export function useMarketData() {
+export function useMarketData(refreshInterval?: number) {
   const mapping = useItemMapping();
-  const prices = useLatestPrices();
+  // Pass refresh interval (default 60s if undefined)
+  const prices = useLatestPrices(refreshInterval);
   const stats = use24hStats();
 
   return {

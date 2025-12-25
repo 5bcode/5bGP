@@ -5,6 +5,7 @@ import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
+import ActiveOffers from '@/components/ActiveOffers';
 import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
@@ -22,8 +23,9 @@ const Dashboard = () => {
       return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60 };
   });
 
-  // React Query Hook
-  const { items, prices, stats, isLoading, refetch } = useMarketData();
+  // React Query Hook with dynamic refresh interval
+  // Convert seconds to milliseconds for the hook
+  const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
   
   // Market Scanner Filter
   const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
@@ -106,6 +108,9 @@ const Dashboard = () => {
       
       {!isLoading && (
         <>
+            {/* GE SLOTS / ACTIVE OFFERS */}
+            <ActiveOffers items={items} prices={prices} onLogTrade={handleLogTrade} />
+
             {/* MARKET OVERVIEW */}
             <MarketOverview items={items} prices={prices} stats={stats} />
 
