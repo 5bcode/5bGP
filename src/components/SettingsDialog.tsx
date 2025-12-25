@@ -3,12 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface AppSettings {
+export interface AppSettings {
   alertThreshold: number; // Percentage, e.g. 10 for 10%
   refreshInterval: number; // Seconds
+  soundEnabled: boolean;
 }
 
 interface SettingsDialogProps {
@@ -20,6 +22,7 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
   const [open, setOpen] = React.useState(false);
   const [threshold, setThreshold] = React.useState(settings.alertThreshold.toString());
   const [interval, setInterval] = React.useState(settings.refreshInterval.toString());
+  const [sound, setSound] = React.useState(settings.soundEnabled ?? true);
 
   const handleSave = () => {
     const newThreshold = parseFloat(threshold);
@@ -37,7 +40,8 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
 
     onSave({
       alertThreshold: newThreshold,
-      refreshInterval: newInterval
+      refreshInterval: newInterval,
+      soundEnabled: sound
     });
     setOpen(false);
     toast.success("Settings saved");
@@ -58,7 +62,7 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4 py-4">
+        <div className="space-y-6 py-4">
           <div className="space-y-2">
             <Label>Panic Wick Threshold (%)</Label>
             <div className="flex items-center gap-4">
@@ -87,6 +91,14 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
                     How often to fetch new prices.
                 </span>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between space-x-2">
+            <div className="space-y-1">
+                <Label htmlFor="sound-mode">Audio Alerts</Label>
+                <p className="text-xs text-slate-500">Play a sound when a panic wick is detected.</p>
+            </div>
+            <Switch id="sound-mode" checked={sound} onCheckedChange={setSound} />
           </div>
         </div>
 

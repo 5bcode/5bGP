@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
-import SettingsDialog from '@/components/SettingsDialog';
+import SettingsDialog, { AppSettings } from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
@@ -18,9 +18,9 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const Dashboard = () => {
   // Settings State
-  const [settings, setSettings] = useState(() => {
+  const [settings, setSettings] = useState<AppSettings>(() => {
       const saved = localStorage.getItem('appSettings');
-      return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60 };
+      return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60, soundEnabled: true };
   });
 
   // React Query Hook with dynamic refresh interval
@@ -59,7 +59,7 @@ const Dashboard = () => {
   }, []);
 
   // Monitor Hooks
-  usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, handleAlert);
+  usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, settings.soundEnabled ?? true, handleAlert);
   
   // Apply filter to analysis
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, scannerFilter);

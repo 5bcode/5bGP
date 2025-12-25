@@ -3,7 +3,7 @@ import { Item, PriceData } from '@/services/osrs-api';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Briefcase, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Plus, X, Briefcase, ArrowRight, CheckCircle2, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,7 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   
   // Form State
   const [offerType, setOfferType] = useState<'buy'|'sell'>('buy');
@@ -54,26 +55,59 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
     localStorage.setItem('activeOffers', JSON.stringify(offers));
   }, [offers]);
 
-  const handleAddOffer = () => {
+  const handleOpenAdd = () => {
+      resetForm();
+      setIsAddOpen(true);
+  };
+
+  const handleOpenEdit = (offer: ActiveOffer) => {
+      setSelectedItem(offer.item);
+      setOfferType(offer.type);
+      setPriceInput(offer.price.toString());
+      setQtyInput(offer.quantity.toString());
+      setTargetInput(offer.targetPrice ? offer.targetPrice.toString() : '');
+      setEditingOfferId(offer.id);
+      setIsAddOpen(true);
+  };
+
+  const handleSaveOffer = () => {
     if (!selectedItem || !priceInput || !qtyInput) {
         toast.error("Please fill in all fields");
         return;
     }
 
-    const newOffer: ActiveOffer = {
-        id: crypto.randomUUID(),
-        item: selectedItem,
-        type: offerType,
-        price: parseInt(priceInput),
-        quantity: parseInt(qtyInput),
-        timestamp: Date.now(),
-        targetPrice: targetInput ? parseInt(targetInput) : undefined
-    };
+    if (editingOfferId) {
+        // Edit Mode
+        setOffers(prev => prev.map(o => {
+            if (o.id === editingOfferId) {
+                return {
+                    ...o,
+                    type: offerType,
+                    price: parseInt(priceInput),
+                    quantity: parseInt(qtyInput),
+                    targetPrice: targetInput ? parseInt(targetInput) : undefined
+                };
+            }
+            return o;
+        }));
+        toast.success("Offer updated");
+    } else {
+        // Create Mode
+        const newOffer: ActiveOffer = {
+            id: crypto.randomUUID(),
+            item: selectedItem,
+            type: offerType,
+            price: parseInt(priceInput),
+            quantity: parseInt(qtyInput),
+            timestamp: Date.now(),
+            targetPrice: targetInput ? parseInt(targetInput) : undefined
+        };
+        setOffers(prev => [...prev, newOffer]);
+        toast.success("Offer added to slot");
+    }
 
-    setOffers(prev => [...prev, newOffer]);
     setIsAddOpen(false);
     resetForm();
-    toast.success("Offer added to slot");
   };
 
   const resetForm = () => {
@@ -82,6 +116,7 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
     setQtyInput('');
     setTargetInput('');
     setOfferType('buy');
+    setEditingOfferId(null);
   };
 
   const handleRemove = (id: string) => {
@@ -128,8 +163,6 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
   };
   
   const slotsUsed = offers.length;
-  
-  // Calculate Portfolio Value
   const totalValue = offers.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
 
   return (
@@ -142,15 +175,17 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                     Active Value: {formatGP(totalValue)}
                 </span>
             </h2>
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogTrigger asChild>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={slotsUsed >= 8}>
-                        <Plus className="mr-2 h-4 w-4" /> Add Offer
-                    </Button>
-                </DialogTrigger>
+            <Button size="sm" onClick={handleOpenAdd} className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={slotsUsed >= 8}>
+                <Plus className="mr-2 h-4 w-4" /> Add Offer
+            </Button>
+            
+            <Dialog open={isAddOpen} onOpenChange={(open) => {
+                setIsAddOpen(open);
+                if(!open) resetForm();
+            }}>
                 <DialogContent className="bg-slate-950 border-slate-800 text-slate-100 sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Add GE Offer</DialogTitle>
+                        <DialogTitle>{editingOfferId ? 'Edit GE Offer' : 'Add GE Offer'}</DialogTitle>
                     </DialogHeader>
                     
                     <div className="space-y-4 py-4">
@@ -165,7 +200,9 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                                     <ItemIcon item={selectedItem} size="md" />
                                     <div>
                                         <p className="font-bold">{selectedItem.name}</p>
-                                        <button onClick={() => setSelectedItem(null)} className="text-xs text-blue-400 hover:underline">Change Item</button>
+                                        {!editingOfferId && (
+                                            <button onClick={() => setSelectedItem(null)} className="text-xs text-blue-400 hover:underline">Change Item</button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -226,7 +263,9 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                     </div>
 
                     <DialogFooter>
-                        <Button onClick={handleAddOffer} disabled={!selectedItem}>Confirm Offer</Button>
+                        <Button onClick={handleSaveOffer} disabled={!selectedItem}>
+                            {editingOfferId ? 'Update Offer' : 'Confirm Offer'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -256,7 +295,7 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                                     <ItemIcon item={offer.item} size="sm" />
                                     <div className="min-w-0">
                                         <p className="font-bold text-sm truncate">{offer.item.name}</p>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-1">
                                             <Badge variant="secondary" className="text-[10px] px-1 h-4 bg-slate-800 text-slate-400">
                                                 {offer.type.toUpperCase()}
                                             </Badge>
@@ -268,9 +307,22 @@ const ActiveOffers = ({ items, prices, onLogTrade }: ActiveOffersProps) => {
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={() => handleRemove(offer.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
-                                    <X size={14} />
-                                </button>
+                                <div className="flex gap-1">
+                                    <button 
+                                        onClick={() => handleOpenEdit(offer)} 
+                                        className="text-slate-600 hover:text-blue-400 transition-colors p-1"
+                                        title="Edit Offer"
+                                    >
+                                        <Pencil size={12} />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleRemove(offer.id)} 
+                                        className="text-slate-600 hover:text-rose-500 transition-colors p-1"
+                                        title="Remove Offer"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 text-xs font-mono mb-3">
