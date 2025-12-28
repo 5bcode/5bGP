@@ -1,29 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Analytics from '@/components/Analytics';
-import { Trade } from '@/components/TradeLogDialog';
+import ProfitHeatmap from '@/components/ProfitHeatmap';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Download, Trash2, ArrowUp, ArrowDown, ArrowUpDown, TrendingUp } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { toast } from 'sonner';
+import { useTradeHistory } from '@/hooks/use-trade-history';
+import { useMarketData } from '@/hooks/use-osrs-query';
+import BulkImportDialog from '@/components/BulkImportDialog';
 
 const History = () => {
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const { trades, deleteTrade, clearHistory, saveTrade } = useTradeHistory();
+  const { items } = useMarketData(); // For import matching
+  
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
       key: 'timestamp', 
       direction: 'desc' 
   });
-
-  useEffect(() => {
-    const saved = localStorage.getItem('tradeHistory');
-    if (saved) {
-      try {
-        setTrades(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse trade history", e);
-      }
-    }
-  }, []);
 
   const sortedTrades = useMemo(() => {
     return [...trades].sort((a, b) => {
@@ -32,7 +26,7 @@ const History = () => {
 
         switch(sortConfig.key) {
             case 'timestamp': 
-                aValue = a.timestamp; // Fix: already number
+                aValue = a.timestamp; 
                 bValue = b.timestamp; 
                 break;
             case 'item': 
@@ -72,49 +66,36 @@ const History = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this trade?")) {
-        const newTrades = trades.filter(t => t.id !== id);
-        setTrades(newTrades);
-        localStorage.setItem('tradeHistory', JSON.stringify(newTrades));
+    if (confirm("Delete this trade?")) {
+        deleteTrade(id);
         toast.success("Trade deleted");
     }
   };
 
   const handleClearAll = () => {
-    if (confirm("Are you sure you want to delete ALL history? This cannot be undone.")) {
-        setTrades([]);
-        localStorage.removeItem('tradeHistory');
+    if (confirm("Delete ALL history? Cannot be undone.")) {
+        clearHistory();
         toast.success("All history cleared");
     }
+  };
+  
+  const handleBulkImport = (newTrades: any[]) => {
+      newTrades.forEach(t => saveTrade(t));
+      toast.success(`Imported ${newTrades.length} trades`);
   };
 
   const exportCSV = () => {
     if (trades.length === 0) return;
-    
     const headers = ["Item ID", "Item Name", "Buy Price", "Sell Price", "Quantity", "Profit", "Timestamp"];
     const rows = trades.map(t => [
-        t.itemId,
-        t.itemName,
-        t.buyPrice,
-        t.sellPrice,
-        t.quantity,
-        t.profit,
-        new Date(t.timestamp).toISOString()
+        t.itemId, t.itemName, t.buyPrice, t.sellPrice, t.quantity, t.profit, new Date(t.timestamp).toISOString()
     ]);
-
-    const csvContent = [
-        headers.join(","),
-        ...rows.map(r => r.join(","))
-    ].join("\n");
-
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `flip_history_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `flip_history_${new Date().toISOString().slice(0,10)}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
   const SortIcon = ({ column }: { column: string }) => {
@@ -132,6 +113,7 @@ const History = () => {
             <p className="text-slate-500">Track your performance and history.</p>
         </div>
         <div className="flex gap-2">
+             <BulkImportDialog items={items} onImport={handleBulkImport} />
              <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900 text-slate-300">
                 <Download className="mr-2 h-4 w-4" /> Export CSV
              </Button>
@@ -140,6 +122,8 @@ const History = () => {
              </Button>
         </div>
       </div>
+
+      {trades.length > 0 && <ProfitHeatmap trades={trades} />}
 
       {trades.length > 0 ? (
         <div className="space-y-8">
@@ -158,42 +142,24 @@ const History = () => {
                             >
                                 <div className="flex items-center gap-1">Date <SortIcon column="timestamp"/></div>
                             </TableHead>
-                            
                             <TableHead 
                                 className="text-slate-400 cursor-pointer hover:text-slate-200 select-none"
                                 onClick={() => handleSort('item')}
                             >
                                 <div className="flex items-center gap-1">Item <SortIcon column="item"/></div>
                             </TableHead>
-                            
-                            <TableHead 
-                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
-                                onClick={() => handleSort('quantity')}
-                            >
+                            <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('quantity')}>
                                 <div className="flex items-center justify-end gap-1">Qty <SortIcon column="quantity"/></div>
                             </TableHead>
-                            
-                            <TableHead 
-                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
-                                onClick={() => handleSort('buy')}
-                            >
+                            <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('buy')}>
                                 <div className="flex items-center justify-end gap-1">Buy <SortIcon column="buy"/></div>
                             </TableHead>
-                            
-                            <TableHead 
-                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
-                                onClick={() => handleSort('sell')}
-                            >
+                            <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('sell')}>
                                 <div className="flex items-center justify-end gap-1">Sell <SortIcon column="sell"/></div>
                             </TableHead>
-                            
-                            <TableHead 
-                                className="text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none"
-                                onClick={() => handleSort('profit')}
-                            >
+                            <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('profit')}>
                                 <div className="flex items-center justify-end gap-1">Profit <SortIcon column="profit"/></div>
                             </TableHead>
-                            
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>

@@ -41,6 +41,15 @@
     @apply border-border;
   }
   body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-slate-950 text-slate-100 transition-colors duration-500;
+  }
+  
+  /* Paper Trading Mode Theme Overrides */
+  body.paper-mode {
+    @apply border-4 border-amber-500/30;
+  }
+  
+  body.paper-mode nav {
+    @apply border-amber-900/50 bg-amber-950/20;
   }
 }

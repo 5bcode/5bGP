@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { MarketOpportunity, AnalysisFilter } from '@/hooks/use-market-analysis';
+import { MarketOpportunity } from '@/hooks/use-market-analysis';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatGP } from "@/lib/osrs-math";
@@ -8,6 +8,9 @@ import { ArrowDown, TrendingUp, Plus, AlertCircle, ArrowRight } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Item } from "@/services/osrs-api";
 import ItemIcon from './ItemIcon';
+
+// Define locally since we removed it from the hook
+export type AnalysisFilter = string;
 
 interface OpportunityBoardProps {
   dumps: MarketOpportunity[];

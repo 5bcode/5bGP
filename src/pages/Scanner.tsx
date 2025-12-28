@@ -1,38 +1,41 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Item } from '@/services/osrs-api';
-import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
+import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
-import { Loader2, ArrowLeft, TrendingUp, ArrowDown } from 'lucide-react';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useStrategies, Strategy } from '@/hooks/use-strategies';
+import { Loader2, ArrowLeft, TrendingUp, ArrowDown, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import ScannerTable from '@/components/ScannerTable';
+import StrategyBuilder from '@/components/StrategyBuilder';
 
 const Scanner = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const typeParam = searchParams.get('type') === 'crash' ? 'crash' : 'flip';
-  const filterParam = (searchParams.get('filter') as AnalysisFilter) || 'all';
-
-  const [filter, setFilter] = useState<AnalysisFilter>(filterParam);
-  const [type, setType] = useState<'crash'|'flip'>(typeParam);
   
-  // Tracked Items State
+  const [type, setType] = useState<'crash'|'flip'>(typeParam);
   const [trackedIds, setTrackedIds] = useState<Set<number>>(new Set());
-
-  // Sorting State
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
       key: 'score', 
       direction: 'desc' 
   });
 
+  // Strategy Management
+  const { strategies, saveStrategy, deleteStrategy } = useStrategies();
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('default_safe');
+
+  const currentStrategy = useMemo(() => {
+    return strategies.find(s => s.id === selectedStrategyId) || DEFAULT_STRATEGY;
+  }, [strategies, selectedStrategyId]);
+
   // React Query
   const { items, prices, stats, isLoading } = useMarketData();
 
   useEffect(() => {
-    // Update URL when state changes
-    setSearchParams({ type, filter });
-  }, [type, filter, setSearchParams]);
+    setSearchParams({ type, strategy: selectedStrategyId });
+  }, [type, selectedStrategyId, setSearchParams]);
 
   useEffect(() => {
       const saved = localStorage.getItem('trackedItems');
@@ -42,7 +45,7 @@ const Scanner = () => {
       }
   }, []);
 
-  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, filter);
+  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, currentStrategy);
   const data = type === 'crash' ? dumps : bestFlips;
   
   const displayData = useMemo(() => {
@@ -61,11 +64,11 @@ const Scanner = () => {
                   aValue = a.price.low; 
                   bValue = b.price.low; 
                   break;
-              case 'metric': // Drop % or Profit
+              case 'metric': 
                   aValue = a.metric; 
                   bValue = b.metric; 
                   break;
-              case 'secondary': // Potential or ROI
+              case 'secondary': 
                   aValue = a.secondaryMetric; 
                   bValue = b.secondaryMetric; 
                   break;
@@ -104,6 +107,15 @@ const Scanner = () => {
     setTrackedIds(prev => new Set(prev).add(item.id));
     toast.success(`Tracking ${item.name}`);
   }
+  
+  const handleDeleteStrategy = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (currentStrategy.id.startsWith('default')) return;
+      if (confirm(`Delete strategy ${currentStrategy.name}?`)) {
+          deleteStrategy(currentStrategy.id);
+          setSelectedStrategyId('default_safe');
+      }
+  }
 
   return (
     <>
@@ -112,21 +124,44 @@ const Scanner = () => {
                 <ArrowLeft size={16} /> Back to Dashboard
             </Link>
             
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
                         {type === 'crash' ? (
                             <><ArrowDown className="text-rose-500" /> Crash Watch</>
                         ) : (
-                            <><TrendingUp className="text-emerald-500" /> Top Opportunities</>
+                            <><TrendingUp className="text-emerald-500" /> Opportunity Scanner</>
                         )}
                     </h1>
                     <p className="text-slate-500 mt-1">
-                        Scanning top 100 items based on your strategy.
+                        Scanned {items.length} items using strategy: <span className="text-emerald-400 font-bold">{currentStrategy.name}</span>
                     </p>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div className="flex gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                         <Select value={selectedStrategyId} onValueChange={setSelectedStrategyId}>
+                            <SelectTrigger className="w-[200px] border-none bg-transparent">
+                                <SelectValue placeholder="Select Strategy" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                                {strategies.map(s => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {!currentStrategy.id.startsWith('default') && (
+                            <Button size="icon" variant="ghost" className="h-10 w-10 text-slate-500 hover:text-rose-500" onClick={handleDeleteStrategy}>
+                                <Trash2 size={16} />
+                            </Button>
+                        )}
+                    </div>
+
+                    <StrategyBuilder onSave={(s) => {
+                        saveStrategy(s);
+                        setSelectedStrategyId(s.id);
+                    }} />
+
                     <div className="bg-slate-900 border border-slate-800 rounded-lg p-1 inline-flex">
                         <Button 
                             variant="ghost" 
@@ -145,26 +180,6 @@ const Scanner = () => {
                             Crashes
                         </Button>
                     </div>
-
-                    <ToggleGroup 
-                        type="single" 
-                        value={filter} 
-                        onValueChange={(v) => v && setFilter(v as AnalysisFilter)}
-                        className="bg-slate-900 border border-slate-800 rounded-lg p-1"
-                    >
-                        <ToggleGroupItem value="all" size="sm" className="text-xs px-3 data-[state=on]:bg-emerald-600/20 data-[state=on]:text-emerald-400">
-                            Balanced
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="high_volume" size="sm" className="text-xs px-3 data-[state=on]:bg-blue-600/20 data-[state=on]:text-blue-400">
-                            High Vol
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="high_ticket" size="sm" className="text-xs px-3 data-[state=on]:bg-amber-600/20 data-[state=on]:text-amber-400">
-                            Big Ticket
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="f2p" size="sm" className="text-xs px-3 data-[state=on]:bg-slate-700 data-[state=on]:text-white">
-                            F2P
-                        </ToggleGroupItem>
-                    </ToggleGroup>
                 </div>
             </div>
         </div>

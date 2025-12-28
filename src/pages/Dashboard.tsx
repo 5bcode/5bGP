@@ -9,26 +9,40 @@ import ActiveOffers, { ActiveOffer } from '@/components/ActiveOffers';
 import PortfolioStatus from '@/components/PortfolioStatus';
 import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
-import { useMarketAnalysis, AnalysisFilter } from '@/hooks/use-market-analysis';
+import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
-import { Loader2, RefreshCw, Trash2, Filter, LayoutDashboard } from 'lucide-react';
+import { useTradeHistory } from '@/hooks/use-trade-history';
+import { useTradeMode } from '@/context/TradeModeContext';
+import { Loader2, RefreshCw, Trash2, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import CapitalAllocator from '@/components/CapitalAllocator';
 
 const Dashboard = () => {
+  // Trade Mode
+  const { isPaper } = useTradeMode();
+
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(() => {
       const saved = localStorage.getItem('appSettings');
       return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60, soundEnabled: true };
   });
 
-  // Active Offers State (Lifted from ActiveOffers component)
-  const [activeOffers, setActiveOffers] = useState<ActiveOffer[]>(() => {
-    const saved = localStorage.getItem('activeOffers');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Active Offers State - Separate for Paper/Live? 
+  // Ideally yes, but for simplicity let's share for now or use a prefix key
+  const OFFERS_KEY = isPaper ? 'paperActiveOffers' : 'activeOffers';
+  const [activeOffers, setActiveOffers] = useState<ActiveOffer[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(OFFERS_KEY);
+    if (saved) setActiveOffers(JSON.parse(saved));
+    else setActiveOffers([]);
+  }, [OFFERS_KEY]);
+
+  useEffect(() => {
+    localStorage.setItem(OFFERS_KEY, JSON.stringify(activeOffers));
+  }, [activeOffers, OFFERS_KEY]);
 
   // Tracked Items
   const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
@@ -36,25 +50,18 @@ const Dashboard = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Trade History (for Stats)
-  const [tradeHistory, setTradeHistory] = useState<Trade[]>(() => {
-      const saved = localStorage.getItem('tradeHistory');
-      return saved ? JSON.parse(saved) : [];
-  });
+  // Trade History from Hook
+  const { trades: tradeHistory, saveTrade } = useTradeHistory();
 
   // React Query Hook
   const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
   
-  // Market Scanner Filter
-  const [scannerFilter, setScannerFilter] = useState<AnalysisFilter>('all');
-
   // Live Alerts
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
 
   // Persistence
   useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
   useEffect(() => { localStorage.setItem('appSettings', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('activeOffers', JSON.stringify(activeOffers)); }, [activeOffers]);
   
   // Calculate Portfolio Stats
   const portfolioStats = useMemo(() => {
@@ -75,7 +82,7 @@ const Dashboard = () => {
       };
   }, [activeOffers, tradeHistory]);
   
-  // Initialize Default Items if empty and data loaded
+  // Initialize Default Items
   useEffect(() => {
     if (!isLoading && items.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
         const defaults = items.filter(i => 
@@ -93,8 +100,8 @@ const Dashboard = () => {
   // Monitor Hooks
   usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, settings.soundEnabled ?? true, handleAlert);
   
-  // Apply filter to analysis
-  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, scannerFilter);
+  // Analysis (Default Strategy for Dashboard)
+  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, DEFAULT_STRATEGY);
 
   const handleRefresh = async () => {
     await refetch();
@@ -110,6 +117,14 @@ const Dashboard = () => {
     toast.success(`Added ${item.name}`);
   };
 
+  const handleAddBatch = (batch: Item[]) => {
+      const newItems = batch.filter(i => !trackedItems.find(t => t.id === i.id));
+      if (newItems.length > 0) {
+          setTrackedItems(prev => [...newItems, ...prev]);
+          toast.success(`Added ${newItems.length} items`);
+      }
+  };
+
   const handleRemoveItem = (id: number) => {
       setTrackedItems(prev => prev.filter(i => i.id !== id));
       toast.info("Item removed");
@@ -123,19 +138,20 @@ const Dashboard = () => {
   }
 
   const handleLogTrade = (trade: Trade) => {
-      const saved = localStorage.getItem('tradeHistory');
-      const history = saved ? JSON.parse(saved) : [];
-      const newHistory = [trade, ...history];
-      localStorage.setItem('tradeHistory', JSON.stringify(newHistory));
-      setTradeHistory(newHistory);
-      toast.success("Trade logged to History");
+      saveTrade(trade);
+      toast.success("Trade logged");
   }
 
   return (
     <>
-      <div className="flex flex-col items-center justify-center mb-8">
+      <div className="flex flex-col items-center justify-center mb-8 relative">
+        {isPaper && (
+            <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-1 rounded">
+                SIMULATION MODE
+            </div>
+        )}
         <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
-          Market Terminal
+          {isPaper ? "Paper Trading Terminal" : "Market Terminal"}
         </h1>
         <ItemSearch items={items} onSelect={handleAddItem} isLoading={isLoading} />
       </div>
@@ -148,53 +164,29 @@ const Dashboard = () => {
                 todaysTradeCount={portfolioStats.dailyCount}
             />
 
-            {/* GE SLOTS / ACTIVE OFFERS */}
-            <ActiveOffers 
-                items={items} 
-                prices={prices} 
-                onLogTrade={handleLogTrade} 
-                offers={activeOffers}
-                setOffers={setActiveOffers}
-            />
-
-            {/* MARKET OVERVIEW */}
-            <MarketOverview items={items} prices={prices} stats={stats} />
-
-            {/* GLOBAL OPPORTUNITIES */}
-            <div className="space-y-4 mb-10">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-slate-500" />
-                        <span className="text-sm font-medium text-slate-400">Scanner Strategy:</span>
-                        <ToggleGroup 
-                            type="single" 
-                            value={scannerFilter} 
-                            onValueChange={(v) => v && setScannerFilter(v as AnalysisFilter)}
-                            className="bg-slate-900 border border-slate-800 rounded-lg p-1"
-                        >
-                            <ToggleGroupItem value="all" size="sm" className="text-xs data-[state=on]:bg-emerald-600/20 data-[state=on]:text-emerald-400">
-                                Balanced
-                            </ToggleGroupItem>
-                            <ToggleGroupItem value="high_volume" size="sm" className="text-xs data-[state=on]:bg-blue-600/20 data-[state=on]:text-blue-400">
-                                High Volume
-                            </ToggleGroupItem>
-                            <ToggleGroupItem value="high_ticket" size="sm" className="text-xs data-[state=on]:bg-amber-600/20 data-[state=on]:text-amber-400">
-                                Big Ticket
-                            </ToggleGroupItem>
-                            <ToggleGroupItem value="f2p" size="sm" className="text-xs data-[state=on]:bg-slate-700 data-[state=on]:text-white">
-                                F2P Only
-                            </ToggleGroupItem>
-                        </ToggleGroup>
-                    </div>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+                <div className="xl:col-span-2">
+                    <ActiveOffers 
+                        items={items} 
+                        prices={prices} 
+                        onLogTrade={handleLogTrade} 
+                        offers={activeOffers}
+                        setOffers={setActiveOffers}
+                    />
                 </div>
-                
-                <OpportunityBoard 
-                    dumps={dumps.slice(0, 8)} 
-                    bestFlips={bestFlips.slice(0, 8)} 
-                    onTrackItem={handleAddItem}
-                    filter={scannerFilter}
-                />
+                <div>
+                     <CapitalAllocator opportunities={bestFlips} onTrackBatch={handleAddBatch} />
+                </div>
             </div>
+
+            <MarketOverview items={items} prices={prices} stats={stats} />
+            
+            <OpportunityBoard 
+                dumps={dumps.slice(0, 8)} 
+                bestFlips={bestFlips.slice(0, 8)} 
+                onTrackItem={handleAddItem}
+                filter='all'
+            />
         </>
       )}
 

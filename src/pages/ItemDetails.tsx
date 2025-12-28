@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import PriceChart from '@/components/PriceChart';
 import { calculateMargin, calculateVolatility } from '@/lib/osrs-math';
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ExternalLink, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMarketData } from '@/hooks/use-osrs-query';
+import { useTradeHistory } from '@/hooks/use-trade-history';
 import { Trade } from '@/components/TradeLogDialog';
 
 // Modular Components
@@ -16,12 +17,12 @@ import { VolumeAnalysis } from '@/components/VolumeAnalysis';
 import { HistoryTable } from '@/components/HistoryTable';
 import { SmartAnalysis } from '@/components/SmartAnalysis';
 import ItemNotes from '@/components/ItemNotes';
-import PricePredictor from '@/components/PricePredictor'; // NEW
+import PricePredictor from '@/components/PricePredictor';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
   const { items, prices, stats, isLoading } = useMarketData();
-  const [itemHistory, setItemHistory] = useState<Trade[]>([]);
+  const { trades, saveTrade, deleteTrade } = useTradeHistory();
 
   const itemData = useMemo(() => {
     if (!id || isLoading || items.length === 0) return null;
@@ -35,74 +36,43 @@ const ItemDetails = () => {
     };
   }, [id, items, prices, stats, isLoading]);
 
-  // Load history for this item
-  useEffect(() => {
-      if (id) {
-        const loadHistory = () => {
-            const saved = localStorage.getItem('tradeHistory');
-            if (saved) {
-                try {
-                    const allTrades: Trade[] = JSON.parse(saved);
-                    const filtered = allTrades
-                        .filter(t => t.itemId.toString() === id)
-                        .sort((a, b) => b.timestamp - a.timestamp);
-                    setItemHistory(filtered);
-                } catch (e) {
-                    console.error(e);
-                }
-            }
-        };
-        loadHistory();
-        window.addEventListener('storage', loadHistory);
-        return () => window.removeEventListener('storage', loadHistory);
-      }
-  }, [id]);
+  const itemHistory = useMemo(() => {
+      if (!id) return [];
+      return trades
+        .filter(t => t.itemId.toString() === id)
+        .sort((a, b) => b.timestamp - a.timestamp);
+  }, [trades, id]);
 
   const handleLogTrade = (trade: Trade) => {
-    const saved = localStorage.getItem('tradeHistory');
-    const history = saved ? JSON.parse(saved) : [];
-    const newHistory = [trade, ...history];
-    localStorage.setItem('tradeHistory', JSON.stringify(newHistory));
-    
-    setItemHistory(prev => [trade, ...prev]);
+    saveTrade(trade);
     toast.success("Trade logged to history");
   };
 
   const handleDeleteTrade = (tradeId: string) => {
       if (confirm("Delete this trade record?")) {
-          const saved = localStorage.getItem('tradeHistory');
-          if (saved) {
-              const allTrades: Trade[] = JSON.parse(saved);
-              const newTrades = allTrades.filter(t => t.id !== tradeId);
-              localStorage.setItem('tradeHistory', JSON.stringify(newTrades));
-              setItemHistory(prev => prev.filter(t => t.id !== tradeId));
-              toast.success("Trade deleted");
-          }
+          deleteTrade(tradeId);
+          toast.success("Trade deleted");
       }
   };
 
   if (isLoading) {
     return (
-      <>
-        <div className="space-y-4 animate-pulse">
-          <div className="h-12 w-1/3 bg-slate-800 rounded" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-             {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-slate-800 rounded" />)}
-          </div>
-          <div className="h-[400px] bg-slate-800 rounded" />
+      <div className="space-y-4 animate-pulse">
+        <div className="h-12 w-1/3 bg-slate-800 rounded" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-slate-800 rounded" />)}
         </div>
-      </>
+        <div className="h-[400px] bg-slate-800 rounded" />
+      </div>
     );
   }
 
   if (!itemData || !itemData.price) {
     return (
-      <>
-        <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
-          <h2 className="text-2xl font-bold mb-2">Item Not Found</h2>
-          <Link to="/" className="text-emerald-500 hover:underline">Return to Dashboard</Link>
-        </div>
-      </>
+      <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
+        <h2 className="text-2xl font-bold mb-2">Item Not Found</h2>
+        <Link to="/" className="text-emerald-500 hover:underline">Return to Dashboard</Link>
+      </div>
     );
   }
 
@@ -122,7 +92,6 @@ const ItemDetails = () => {
   const isAlchable = highAlchProfit > 0;
   const buyPressure = stat ? (stat.highPriceVolume / (volume || 1)) * 100 : 50;
 
-  // Recommendation Logic
   let recommendation = "Neutral";
   if (net > 0 && roi > 2 && volatility < 20) {
       recommendation = "Strong Buy";
@@ -164,7 +133,6 @@ const ItemDetails = () => {
         volatility={volatility} 
       />
       
-      {/* Smart Analysis Engine */}
       <SmartAnalysis 
         item={item}
         price={price}
@@ -173,7 +141,6 @@ const ItemDetails = () => {
         volatility={volatility}
       />
 
-      {/* NEW: Price Predictor */}
       <PricePredictor itemId={item.id} />
 
       <DeepAnalysis 
@@ -188,7 +155,6 @@ const ItemDetails = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2 space-y-6">
-           {/* CHART */}
            <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
               <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
                   <Activity className="text-emerald-500" size={20} /> Price Action
@@ -196,7 +162,6 @@ const ItemDetails = () => {
               <PriceChart itemId={item.id} />
            </div>
 
-           {/* NOTES */}
            <ItemNotes itemId={item.id} />
         </div>
 
