@@ -13,7 +13,7 @@ export function useActiveOffers() {
   const [offers, setOffers] = useState<ActiveOffer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load Offers
+  // Load Offers & Subscribe
   useEffect(() => {
     if (mode === 'paper') {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -31,12 +31,12 @@ export function useActiveOffers() {
         }
 
         const fetchOffers = async () => {
-            setLoading(true);
+            // Don't set loading true on refetches to avoid flickering
             try {
                 const { data, error } = await supabase
                     .from('active_offers')
                     .select('*')
-                    .order('timestamp', { ascending: false });
+                    .order('slot', { ascending: true }); // Order by slot for GE consistency
 
                 if (error) throw error;
 
@@ -45,9 +45,7 @@ export function useActiveOffers() {
                     item: {
                         id: o.item_id,
                         name: o.item_name,
-                        members: true, // We don't store full item data, this is a placeholder. 
-                        // In a real app we might join or refetch, but item_id/name is enough for basic display.
-                        // Ideally we merge with cached item data in the component.
+                        members: true, 
                         examine: '',
                         icon: ''
                     },
@@ -62,24 +60,35 @@ export function useActiveOffers() {
                 setOffers(mapped);
             } catch (err) {
                 console.error("Error fetching offers:", err);
-                toast.error("Failed to sync GE offers");
             } finally {
                 setLoading(false);
             }
         };
 
         fetchOffers();
+
+        // Subscribe to changes
+        const channel = supabase
+            .channel('public:active_offers')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'active_offers',
+                    filter: `user_id=eq.${user.id}`
+                },
+                () => {
+                    fetchOffers();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }
   }, [mode, user]);
-
-  const saveOffer = useCallback(async (offer: ActiveOffer) => {
-      // Logic to either insert or update based on if ID exists in current list?
-      // ActiveOffer always has an ID.
-      // We need to know if it's new or update. 
-      // The Hook consumer usually manages the list.
-      // But for DB sync, we need explicit Create/Update/Delete actions.
-      // Let's expose granular methods.
-  }, []);
 
   const addOffer = useCallback(async (offer: ActiveOffer) => {
     if (mode === 'paper') {
@@ -93,6 +102,11 @@ export function useActiveOffers() {
         setOffers(prev => [...prev, offer]); // Optimistic
 
         try {
+            // Find next available slot if not provided? 
+            // For manual add, we just let DB handle it or assume slot management isn't strict for manual.
+            // But strict GE mapping requires slots. Let's auto-assign a high slot > 7 for manual to avoid conflict?
+            // Or just use random ID. The Edge function handles slots strictly.
+            
             const { error } = await supabase.from('active_offers').insert({
                 id: offer.id,
                 user_id: user.id,
@@ -103,7 +117,8 @@ export function useActiveOffers() {
                 quantity: offer.quantity,
                 timestamp: offer.timestamp,
                 target_price: offer.targetPrice,
-                original_buy_price: offer.originalBuyPrice
+                original_buy_price: offer.originalBuyPrice,
+                slot: 8 // Manual offers go to 'virtual' slots to avoid overwriting RuneLite slots 0-7
             });
             if (error) throw error;
         } catch (err) {

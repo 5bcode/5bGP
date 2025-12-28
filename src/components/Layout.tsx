@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Terminal, BarChart2, TrendingUp, Command, History, Radar, ScrollText, Calculator, LogOut } from 'lucide-react';
+import { Terminal, BarChart2, TrendingUp, Command, History, Radar, ScrollText, Calculator, LogOut, User } from 'lucide-react';
 import MarketTicker from './MarketTicker';
 import CommandMenu from './CommandMenu';
 import { cn } from '@/lib/utils';
@@ -110,9 +110,16 @@ const Layout = () => {
                 </Label>
             </div>
 
-            <Button variant="ghost" size="icon" onClick={handleSignOut} className="ml-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10" title="Sign Out">
-                <LogOut size={16} />
-            </Button>
+            <div className="flex items-center gap-1 border-l border-slate-800 ml-4 pl-4">
+              <Link to="/profile">
+                <Button variant="ghost" size="icon" className={cn("text-slate-500 hover:text-emerald-400", isActive('/profile') && "text-emerald-400 bg-emerald-500/10")} title="Profile">
+                    <User size={16} />
+                </Button>
+              </Link>
+              <Button variant="ghost" size="icon" onClick={handleSignOut} className="text-slate-500 hover:text-rose-500 hover:bg-rose-500/10" title="Sign Out">
+                  <LogOut size={16} />
+              </Button>
+            </div>
           </div>
         </div>
       </nav>

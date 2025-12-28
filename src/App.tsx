@@ -12,6 +12,7 @@ import ItemDetails from "./pages/ItemDetails";
 import Scanner from "./pages/Scanner";
 import History from "./pages/History";
 import Tools from "./pages/Tools";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -40,6 +41,7 @@ const App = () => (
                   <Route path="/scanner" element={<Scanner />} />
                   <Route path="/history" element={<History />} />
                   <Route path="/tools" element={<Tools />} />
+                  <Route path="/profile" element={<Profile />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>
               </Routes>
