@@ -40,6 +40,12 @@ const SettingsDialog = () => {
       return;
     }
 
+    // Security check for Discord Webhook URL to prevent SSRF
+    if (discordUrl && !discordUrl.startsWith('https://discord.com/api/webhooks/') && !discordUrl.startsWith('https://discordapp.com/api/webhooks/')) {
+        toast.error("Invalid Discord Webhook URL. Must start with 'https://discord.com/api/webhooks/'");
+        return;
+    }
+
     updateSettings({
       alertThreshold: newThreshold,
       refreshInterval: newInterval,
@@ -97,6 +103,7 @@ const SettingsDialog = () => {
                  <Label>Discord Integration</Label>
              </div>
              <Input 
+                type="password"
                 value={discordUrl}
                 onChange={(e) => setDiscordUrl(e.target.value)}
                 placeholder="https://discord.com/api/webhooks/..."

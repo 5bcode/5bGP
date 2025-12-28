@@ -8,6 +8,7 @@ import { Item } from '@/services/osrs-api';
 import { Trade } from '@/components/TradeLogDialog';
 import Fuse from 'fuse.js';
 import { formatGP } from '@/lib/osrs-math';
+import { toast } from 'sonner';
 
 interface BulkImportDialogProps {
   items: Item[];
@@ -20,6 +21,12 @@ const BulkImportDialog = ({ items, onImport }: BulkImportDialogProps) => {
   const [parsed, setParsed] = useState<Partial<Trade>[]>([]);
 
   const handleParse = () => {
+    // Prevent ReDoS by limiting input length
+    if (text.length > 20000) {
+      toast.error("Input text is too long. Please limit to 20,000 characters.");
+      return;
+    }
+
     // Basic Regex for typical log format "Bought 500 Abyssal whip for 1,500,000 each"
     // or "Sold 500 Abyssal whip for 1,600,000 each"
     const lines = text.split('\n');
@@ -105,6 +112,7 @@ const BulkImportDialog = ({ items, onImport }: BulkImportDialogProps) => {
                     value={text}
                     onChange={e => setText(e.target.value)}
                     className="min-h-[150px] bg-slate-900 border-slate-800 font-mono text-xs"
+                    maxLength={20000}
                 />
                 <Button onClick={handleParse} className="w-full bg-slate-800 hover:bg-slate-700">Parse Text</Button>
                 

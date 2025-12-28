@@ -49,6 +49,12 @@ export function usePriceMonitor(
   const sendDiscordAlert = useCallback(async (item: Item, dropPercent: number, price: number) => {
       if (!discordWebhookUrl) return;
 
+      // Security Check: Ensure URL is a valid Discord webhook to prevent arbitrary POST requests
+      if (!discordWebhookUrl.startsWith('https://discord.com/api/webhooks/') && !discordWebhookUrl.startsWith('https://discordapp.com/api/webhooks/')) {
+          console.warn("Blocked attempt to send alert to invalid webhook URL");
+          return;
+      }
+
       try {
           await fetch(discordWebhookUrl, {
               method: 'POST',
