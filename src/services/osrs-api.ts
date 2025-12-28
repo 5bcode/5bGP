@@ -1,4 +1,7 @@
 const BASE_URL = 'https://prices.runescape.wiki/api/v1/osrs';
+// Browsers forbid setting the User-Agent header directly.
+// We use X-User-Agent to identify ourselves to the API from the client side.
+const CLIENT_UA = 'FlipTo5B-Client/1.0';
 
 export interface Item {
   id: number;
@@ -40,7 +43,7 @@ export const osrsApi = {
   async getMapping(): Promise<Item[]> {
     const response = await fetch(`${BASE_URL}/mapping`, {
       headers: {
-          'User-Agent': 'FlipTo5B-Client/1.0'
+          'X-User-Agent': CLIENT_UA
       }
     });
     if (!response.ok) throw new Error('Failed to fetch mapping');
@@ -50,7 +53,7 @@ export const osrsApi = {
   async getLatestPrices(): Promise<Record<string, PriceData>> {
     const response = await fetch(`${BASE_URL}/latest`, {
         headers: {
-          'User-Agent': 'FlipTo5B-Client/1.0'
+          'X-User-Agent': CLIENT_UA
       }
     });
     if (!response.ok) throw new Error('Failed to fetch prices');
@@ -61,7 +64,7 @@ export const osrsApi = {
   async get24hStats(): Promise<Record<string, Stats24h>> {
     const response = await fetch(`${BASE_URL}/24h`, {
         headers: {
-          'User-Agent': 'FlipTo5B-Client/1.0'
+          'X-User-Agent': CLIENT_UA
       }
     });
     if (!response.ok) throw new Error('Failed to fetch stats');
@@ -72,7 +75,7 @@ export const osrsApi = {
   async getTimeseries(id: number, timestep: TimeStep = '5m'): Promise<TimeSeriesPoint[]> {
     const response = await fetch(`${BASE_URL}/timeseries?timestep=${timestep}&id=${id}`, {
         headers: {
-          'User-Agent': 'FlipTo5B-Client/1.0'
+          'X-User-Agent': CLIENT_UA
       }
     });
     if (!response.ok) throw new Error('Failed to fetch timeseries');
