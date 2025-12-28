@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { toast } from 'sonner';
 
 export interface AppSettings {
   alertThreshold: number; // Percentage
@@ -29,19 +28,33 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
   const [settings, setSettings] = useState<AppSettings>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('appSettings');
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      // Load public settings from localStorage
+      const localSaved = localStorage.getItem('appSettings');
+      // Load secrets from sessionStorage (cleared on tab close)
+      const sessionSaved = sessionStorage.getItem('appSettings_secrets');
+      
+      const localData = localSaved ? JSON.parse(localSaved) : {};
+      const sessionData = sessionSaved ? JSON.parse(sessionSaved) : {};
+      
+      return { ...DEFAULT_SETTINGS, ...localData, ...sessionData };
     }
     return DEFAULT_SETTINGS;
   });
 
   useEffect(() => {
-    localStorage.setItem('appSettings', JSON.stringify(settings));
+    // Separate sensitive data from public settings
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { discordWebhookUrl, ...publicSettings } = settings;
+    
+    // Store non-sensitive settings persistently
+    localStorage.setItem('appSettings', JSON.stringify(publicSettings));
+    
+    // Store secrets only for the session
+    sessionStorage.setItem('appSettings_secrets', JSON.stringify({ discordWebhookUrl: settings.discordWebhookUrl }));
   }, [settings]);
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
-    // Optional: Toast on significant changes could go here
   };
 
   return (
