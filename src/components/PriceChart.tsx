@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import { 
+  createChart, 
+  ColorType, 
+  IChartApi, 
+  ISeriesApi, 
+  UTCTimestamp,
+  CandlestickSeries,
+  HistogramSeries
+} from 'lightweight-charts';
 import { useTimeseries } from '@/hooks/use-osrs-query';
 import { TimeStep } from '@/services/osrs-api';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -43,7 +51,8 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
       },
     });
 
-    const candlestickSeries = chart.addCandlestickSeries({
+    // v5 API: Use addSeries(SeriesType, options)
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#10b981',
       downColor: '#ef4444',
       borderVisible: false,
@@ -51,7 +60,7 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
       wickDownColor: '#ef4444',
     });
 
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
       priceScaleId: '', // Overlay mode
     });
@@ -85,53 +94,24 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
   useEffect(() => {
     if (!seriesRef.current || !volumeRef.current || !timeseries || timeseries.length === 0) return;
 
-    // Lightweight charts needs sorted data, usually API gives it sorted but let's be safe
-    // Also requires Time in seconds
     const candles = timeseries
-      .filter(t => t.avgHighPrice && t.avgLowPrice) // Filter empties
+      .filter(t => t.avgHighPrice && t.avgLowPrice)
       .map(t => {
-        // Construct basic OHLC from what we have
-        // Wiki gives avgHigh/Low. We don't have true open/close for 5m usually.
-        // Heuristic: Open = Previous Close (or Average), Close = Current Average
-        // But for true candlestick feel using Wiki API:
-        // High = avgHighPrice, Low = avgLowPrice
-        // This creates a "Range" bar rather than true OHLC. 
-        // A better approximation for flipping:
-        // Open = Low, Close = High (Green) or vice versa? 
-        // Actually, let's just use High/Low as the wicks, and maybe use yesterday's close as Open?
-        // Since we don't have true OHLC, let's render bars where High=avgHigh, Low=avgLow. 
-        // And Open/Close are synthesized or we switch to Line/Area if users prefer.
-        // BUT user asked for Candlesticks.
-        // Let's approximate: 
-        // Open = avgHighPrice (Buy Instant)
-        // Close = avgLowPrice (Sell Instant) ? No.
-        
-        // Better Visualization for OSRS:
-        // High Wick = avgHighPrice
-        // Low Wick = avgLowPrice
-        // Body? Maybe we just show the spread range?
-        
-        // Actually wiki timeseries has `highPriceVolume` and `lowPriceVolume`.
-        // Let's treat avgHighPrice as the "Ask" and avgLowPrice as the "Bid".
-        // OSRS candles are weird. Let's just plot High and Low as the body to show the Spread.
-        // Green candle if price went up from previous?
-        
         return {
             time: t.timestamp as UTCTimestamp,
             open: t.avgLowPrice || 0,
-            high: (t.avgHighPrice || t.avgLowPrice || 0) * 1.01, // Synthetic wick for visibility
+            high: (t.avgHighPrice || t.avgLowPrice || 0) * 1.01,
             low: (t.avgLowPrice || 0) * 0.99,
             close: t.avgHighPrice || 0,
         };
       }).sort((a, b) => a.time - b.time);
 
-    // Filter bad data points where high < low (rare but possible in bad API data)
     const cleanCandles = candles.filter(c => c.high >= c.low);
 
     const volumes = timeseries.map(t => ({
         time: t.timestamp as UTCTimestamp,
         value: (t.highPriceVolume || 0) + (t.lowPriceVolume || 0),
-        color: '#334155' // Slate-700
+        color: '#334155'
     })).sort((a, b) => a.time - b.time);
 
     seriesRef.current.setData(cleanCandles);
