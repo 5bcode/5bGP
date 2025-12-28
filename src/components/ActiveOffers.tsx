@@ -155,8 +155,34 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
       setOfferToCompleteId(null);
   };
   
+  // Smart Arrow Key Handler
+  const handlePriceKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    value: string,
+    setValue: (val: string) => void,
+    suggestion?: number
+  ) => {
+    // Only intervene if the input is empty and we have a suggested price
+    if (!value && suggestion !== undefined) {
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setValue((suggestion + 1).toString());
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setValue((suggestion - 1).toString());
+        }
+    }
+  };
+
   const slotsUsed = offers.length;
   const totalValue = offers.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
+
+  // Calculate suggestions for handlers
+  const currentPriceData = selectedItem ? prices[selectedItem.id] : undefined;
+  const suggestedMainPrice = currentPriceData 
+    ? (offerType === 'buy' ? currentPriceData.low : currentPriceData.high) 
+    : undefined;
+  const suggestedTargetPrice = currentPriceData ? currentPriceData.high : undefined;
 
   return (
     <div className="mb-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -221,8 +247,9 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
                                             type="number" 
                                             value={priceInput} 
                                             onChange={e => setPriceInput(e.target.value)}
+                                            onKeyDown={(e) => handlePriceKeyDown(e, priceInput, setPriceInput, suggestedMainPrice)}
                                             className="bg-slate-900 border-slate-800"
-                                            placeholder={prices[selectedItem.id]?.[offerType === 'buy' ? 'low' : 'high']?.toString()}
+                                            placeholder={suggestedMainPrice?.toString()}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -245,8 +272,9 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
                                                 type="number" 
                                                 value={targetInput} 
                                                 onChange={e => setTargetInput(e.target.value)}
+                                                onKeyDown={(e) => handlePriceKeyDown(e, targetInput, setTargetInput, suggestedTargetPrice)}
                                                 className="bg-slate-900 border-slate-800"
-                                                placeholder={prices[selectedItem.id]?.high?.toString()}
+                                                placeholder={suggestedTargetPrice?.toString()}
                                             />
                                         </div>
                                     )}
