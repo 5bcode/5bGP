@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Clipboard, CheckCircle, AlertCircle } from 'lucide-react';
+import { Clipboard, CheckCircle } from 'lucide-react';
 import { Item } from '@/services/osrs-api';
 import { Trade } from '@/components/TradeLogDialog';
 import Fuse from 'fuse.js';
@@ -27,35 +27,38 @@ const BulkImportDialog = ({ items, onImport }: BulkImportDialogProps) => {
       return;
     }
 
-    // Basic Regex for typical log format "Bought 500 Abyssal whip for 1,500,000 each"
-    // or "Sold 500 Abyssal whip for 1,600,000 each"
     const lines = text.split('\n');
     const results: Partial<Trade>[] = [];
     const fuse = new Fuse(items, { keys: ['name'], threshold: 0.3 });
 
+    // Robust Regex for logs:
+    // Matches: "Bought" or "Sold" (Group 1)
+    // Matches: Quantity (Group 2)
+    // Matches: Item Name (Group 3 - Lazy match until 'for')
+    // Matches: Price (Group 4 - numbers with commas allowed)
+    // Example: "Bought 500 Abyssal whip for 1,500,000 each"
+    const logRegex = /(bought|sold)\s+([\d,]+)\s+(.+?)\s+for\s+([\d,]+)/i;
+
     lines.forEach(line => {
         if (!line.trim()) return;
+        const cleanLine = line.trim();
 
-        // Try to match basic structure
-        // Look for Buy/Sell keyword, Quantity, Item Name, Price
-        const isBuy = line.toLowerCase().includes('bought');
-        const isSell = line.toLowerCase().includes('sold');
+        const match = cleanLine.match(logRegex);
         
-        if (!isBuy && !isSell) return;
+        if (!match) return;
 
-        // Extract numbers
-        // Remove commas for parsing
-        const cleanLine = line.replace(/,/g, '');
-        const numbers = cleanLine.match(/\d+/g);
-        
-        if (!numbers || numbers.length < 2) return;
-        
-        const qty = parseInt(numbers[0]);
-        const price = parseInt(numbers[numbers.length - 1]); // Assume price is last number
+        const type = match[1].toLowerCase(); // bought | sold
+        const qtyStr = match[2].replace(/,/g, '');
+        const rawName = match[3].trim();
+        const priceStr = match[4].replace(/,/g, '');
 
-        // Extract name: text between Qty and "for"
-        const nameMatch = line.match(/\d+\s+(.*?)\s+for/i);
-        const rawName = nameMatch ? nameMatch[1] : '';
+        const qty = parseInt(qtyStr);
+        const price = parseInt(priceStr);
+
+        if (isNaN(qty) || isNaN(price)) return;
+
+        const isBuy = type === 'bought';
+        const isSell = type === 'sold';
         
         if (rawName) {
             const search = fuse.search(rawName);
@@ -65,7 +68,7 @@ const BulkImportDialog = ({ items, onImport }: BulkImportDialogProps) => {
                     itemId: item.id,
                     itemName: item.name,
                     quantity: qty,
-                    buyPrice: isBuy ? price : 0, // Incomplete trade, but valid for logging half
+                    buyPrice: isBuy ? price : 0, 
                     sellPrice: isSell ? price : 0,
                     timestamp: Date.now()
                 });
@@ -74,10 +77,14 @@ const BulkImportDialog = ({ items, onImport }: BulkImportDialogProps) => {
     });
 
     setParsed(results);
+    if (results.length === 0) {
+        toast.info("No trades found. Ensure format is: 'Bought [Qty] [Name] for [Price]'");
+    } else {
+        toast.success(`Parsed ${results.length} trades`);
+    }
   };
 
   const handleConfirm = () => {
-    // Convert partials to full trades (mocking the missing side as 0 for now, or user edits later)
     const validTrades: Trade[] = parsed.map(p => ({
         id: crypto.randomUUID(),
         itemId: p.itemId!,
@@ -107,8 +114,13 @@ const BulkImportDialog = ({ items, onImport }: BulkImportDialogProps) => {
                 <DialogTitle>Import Trades</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
+                <div className="bg-slate-900 p-3 rounded text-xs text-slate-400 border border-slate-800">
+                    <p className="font-bold mb-1">Supported Format:</p>
+                    <p className="font-mono">Bought 1,000 Zulrah's scales for 150 each</p>
+                    <p className="font-mono">Sold 1 Twisted bow for 1,400,000,000 each</p>
+                </div>
                 <Textarea 
-                    placeholder="Paste trade logs here (e.g. 'Bought 100 Shark for 500 each')"
+                    placeholder="Paste trade logs here..."
                     value={text}
                     onChange={e => setText(e.target.value)}
                     className="min-h-[150px] bg-slate-900 border-slate-800 font-mono text-xs"

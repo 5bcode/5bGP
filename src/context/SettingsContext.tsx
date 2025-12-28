@@ -28,15 +28,12 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
   const [settings, setSettings] = useState<AppSettings>(() => {
     if (typeof window !== 'undefined') {
-      // Load public settings from localStorage
+      // Only load non-sensitive settings from localStorage
       const localSaved = localStorage.getItem('appSettings');
-      // Load secrets from sessionStorage (cleared on tab close)
-      const sessionSaved = sessionStorage.getItem('appSettings_secrets');
-      
       const localData = localSaved ? JSON.parse(localSaved) : {};
-      const sessionData = sessionSaved ? JSON.parse(sessionSaved) : {};
       
-      return { ...DEFAULT_SETTINGS, ...localData, ...sessionData };
+      // We explicitly do NOT load secrets from storage anymore
+      return { ...DEFAULT_SETTINGS, ...localData, discordWebhookUrl: '' };
     }
     return DEFAULT_SETTINGS;
   });
@@ -49,8 +46,8 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     // Store non-sensitive settings persistently
     localStorage.setItem('appSettings', JSON.stringify(publicSettings));
     
-    // Store secrets only for the session
-    sessionStorage.setItem('appSettings_secrets', JSON.stringify({ discordWebhookUrl: settings.discordWebhookUrl }));
+    // Security Fix: Do NOT store sensitive data in sessionStorage/localStorage
+    // secrets are now memory-only.
   }, [settings]);
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {

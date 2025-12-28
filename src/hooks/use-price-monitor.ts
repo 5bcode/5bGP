@@ -25,7 +25,10 @@ export function usePriceMonitor(
   const playAlertSound = useCallback(() => {
     if (!soundEnabled) return;
     try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+
+        const ctx = new AudioContextClass();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
@@ -41,6 +44,14 @@ export function usePriceMonitor(
 
         osc.start();
         osc.stop(ctx.currentTime + 0.5);
+
+        // Security/Resource Fix: Close context to prevent exhaustion limit (usually ~32 max)
+        setTimeout(() => {
+            if (ctx.state !== 'closed') {
+                ctx.close().catch(console.error);
+            }
+        }, 600);
+
     } catch (e) {
         console.error("Audio play failed", e);
     }
