@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,14 +16,17 @@ interface ApiKey {
 }
 
 const ApiKeyManager = () => {
+  const { user } = useAuth();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [newLabel, setNewLabel] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    fetchKeys();
-  }, []);
+    if (user) {
+      fetchKeys();
+    }
+  }, [user]);
 
   const fetchKeys = async () => {
     try {
@@ -35,20 +39,23 @@ const ApiKeyManager = () => {
       setKeys(data || []);
     } catch (error) {
       console.error('Error fetching keys:', error);
+      // Don't toast on fetch error to avoid spamming if RLS is strict
     } finally {
       setLoading(false);
     }
   };
 
   const createKey = async () => {
+    if (!user) return;
+    
     setCreating(true);
     try {
-      // Use RPC or direct insert if RLS allows.
-      // We will simply insert. The backend should handle generation if key_value is default, 
-      // but here we rely on the database default gen_random_uuid() for the key_value.
       const { data, error } = await supabase
         .from('api_keys')
-        .insert([{ label: newLabel || 'RuneLite Plugin' }])
+        .insert([{ 
+            label: newLabel || 'RuneLite Plugin',
+            user_id: user.id 
+        }])
         .select()
         .single();
 
@@ -57,9 +64,9 @@ const ApiKeyManager = () => {
       setKeys([data, ...keys]);
       setNewLabel('');
       toast.success('API Key created');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating key:', error);
-      toast.error('Failed to create API key');
+      toast.error('Failed to create API key: ' + (error.message || 'Unknown error'));
     } finally {
       setCreating(false);
     }
@@ -105,7 +112,7 @@ const ApiKeyManager = () => {
             onChange={(e) => setNewLabel(e.target.value)}
             className="bg-slate-950 border-slate-800"
           />
-          <Button onClick={createKey} disabled={creating} className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]">
+          <Button onClick={createKey} disabled={creating || !user} className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]">
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-2" /> Create</>}
           </Button>
         </div>
