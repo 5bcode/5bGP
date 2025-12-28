@@ -5,13 +5,14 @@ import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
-import ActiveOffers, { ActiveOffer } from '@/components/ActiveOffers';
+import ActiveOffers from '@/components/ActiveOffers';
 import PortfolioStatus from '@/components/PortfolioStatus';
 import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { useTradeHistory } from '@/hooks/use-trade-history';
+import { useActiveOffers } from '@/hooks/use-active-offers';
 import { useTradeMode } from '@/context/TradeModeContext';
 import { useSettings } from '@/context/SettingsContext';
 import { Loader2, RefreshCw, Trash2, LayoutDashboard } from 'lucide-react';
@@ -24,32 +25,21 @@ const Dashboard = () => {
   const { isPaper } = useTradeMode();
   const { settings } = useSettings();
 
-  const OFFERS_KEY = isPaper ? 'paperActiveOffers' : 'activeOffers';
-  const [activeOffers, setActiveOffers] = useState<ActiveOffer[]>([]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(OFFERS_KEY);
-    if (saved) setActiveOffers(JSON.parse(saved));
-    else setActiveOffers([]);
-  }, [OFFERS_KEY]);
-
-  useEffect(() => {
-    localStorage.setItem(OFFERS_KEY, JSON.stringify(activeOffers));
-  }, [activeOffers, OFFERS_KEY]);
+  // Data Hooks
+  const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
+  const { trades: tradeHistory, saveTrade } = useTradeHistory();
+  const { offers: activeOffers, addOffer, updateOffer, removeOffer } = useActiveOffers();
 
   const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('trackedItems');
     return saved ? JSON.parse(saved) : [];
   });
-
-  const { trades: tradeHistory, saveTrade } = useTradeHistory();
-
-  const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
   
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
 
   useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
   
+  // Calculate Portfolio Stats
   const portfolioStats = useMemo(() => {
       const activeInvest = activeOffers.reduce((sum, offer) => sum + (offer.price * offer.quantity), 0);
       const startOfDay = new Date();
@@ -64,6 +54,7 @@ const Dashboard = () => {
       };
   }, [activeOffers, tradeHistory]);
   
+  // Initialize Default Watchlist
   useEffect(() => {
     if (!isLoading && items.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
         const defaults = items.filter(i => 
@@ -149,7 +140,9 @@ const Dashboard = () => {
                         prices={prices} 
                         onLogTrade={handleLogTrade} 
                         offers={activeOffers}
-                        setOffers={setActiveOffers}
+                        onAdd={addOffer}
+                        onUpdate={updateOffer}
+                        onRemove={removeOffer}
                     />
                 </div>
                 <div>

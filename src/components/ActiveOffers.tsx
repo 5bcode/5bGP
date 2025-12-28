@@ -20,8 +20,8 @@ export interface ActiveOffer {
   price: number;
   quantity: number;
   timestamp: number;
-  targetPrice?: number; // For flipping
-  originalBuyPrice?: number; // Store the buy price when converting to sell
+  targetPrice?: number;
+  originalBuyPrice?: number;
 }
 
 interface ActiveOffersProps {
@@ -29,10 +29,14 @@ interface ActiveOffersProps {
   prices: Record<string, PriceData>;
   onLogTrade: (trade: Trade) => void;
   offers: ActiveOffer[];
-  setOffers: React.Dispatch<React.SetStateAction<ActiveOffer[]>>;
+  onAdd: (offer: ActiveOffer) => void;
+  onUpdate: (offer: ActiveOffer) => void;
+  onRemove: (id: string) => void;
+  // Fallback for setOffers if needed, but we prefer specific actions
+  setOffers?: React.Dispatch<React.SetStateAction<ActiveOffer[]>>; 
 }
 
-const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOffersProps) => {
+const ActiveOffers = ({ items, prices, onLogTrade, offers, onAdd, onUpdate, onRemove }: ActiveOffersProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -71,19 +75,18 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
 
     if (editingOfferId) {
         // Edit Mode
-        setOffers(prev => prev.map(o => {
-            if (o.id === editingOfferId) {
-                return {
-                    ...o,
-                    type: offerType,
-                    price: parseInt(priceInput),
-                    quantity: parseInt(qtyInput),
-                    targetPrice: targetInput ? parseInt(targetInput) : undefined
-                };
-            }
-            return o;
-        }));
-        toast.success("Offer updated");
+        const existing = offers.find(o => o.id === editingOfferId);
+        if (existing) {
+            onUpdate({
+                ...existing,
+                item: selectedItem, // Should theoretically match unless we allow changing item
+                type: offerType,
+                price: parseInt(priceInput),
+                quantity: parseInt(qtyInput),
+                targetPrice: targetInput ? parseInt(targetInput) : undefined
+            });
+            toast.success("Offer updated");
+        }
     } else {
         // Create Mode
         const newOffer: ActiveOffer = {
@@ -95,7 +98,7 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
             timestamp: Date.now(),
             targetPrice: targetInput ? parseInt(targetInput) : undefined
         };
-        setOffers(prev => [...prev, newOffer]);
+        onAdd(newOffer);
         toast.success("Offer added to slot");
     }
 
@@ -112,27 +115,16 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
     setEditingOfferId(null);
   };
 
-  const handleRemove = (id: string) => {
-    setOffers(prev => prev.filter(o => o.id !== id));
-    toast.info("Slot cleared");
-  };
-
   const handleCompleteFlip = (offer: ActiveOffer) => {
     if (offer.type === 'buy') {
         // Convert to Sell
-        const updatedOffers = offers.map(o => {
-            if (o.id === offer.id) {
-                return {
-                    ...o,
-                    type: 'sell' as const,
-                    originalBuyPrice: offer.price, // Save what we bought it for
-                    price: offer.targetPrice || (prices[offer.item.id]?.high || 0), // Default to target or current high
-                    targetPrice: undefined // Clear target
-                };
-            }
-            return o;
+        onUpdate({
+            ...offer,
+            type: 'sell',
+            originalBuyPrice: offer.price,
+            price: offer.targetPrice || (prices[offer.item.id]?.high || 0),
+            targetPrice: undefined
         });
-        setOffers(updatedOffers);
         toast.success("Offer updated to Selling");
     } else {
         // Prepare Log Dialog
@@ -149,20 +141,18 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
   const finalizeTradeLog = (trade: Trade) => {
       onLogTrade(trade);
       if (offerToCompleteId) {
-          handleRemove(offerToCompleteId);
+          onRemove(offerToCompleteId);
       }
       setCompletionItem(null);
       setOfferToCompleteId(null);
   };
   
-  // Smart Arrow Key Handler
   const handlePriceKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
     value: string,
     setValue: (val: string) => void,
     suggestion?: number
   ) => {
-    // Only intervene if the input is empty and we have a suggested price
     if (!value && suggestion !== undefined) {
         if (e.key === 'ArrowUp') {
             e.preventDefault();
@@ -177,7 +167,6 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
   const slotsUsed = offers.length;
   const totalValue = offers.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
 
-  // Calculate suggestions for handlers
   const currentPriceData = selectedItem ? prices[selectedItem.id] : undefined;
   const suggestedMainPrice = currentPriceData 
     ? (offerType === 'buy' ? currentPriceData.low : currentPriceData.high) 
@@ -292,7 +281,7 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
             </Dialog>
         </div>
 
-        {/* Completion Dialog - Rendered conditionally */}
+        {/* Completion Dialog */}
         {completionItem && (
             <TradeLogDialog 
                 isOpen={!!completionItem}
@@ -337,7 +326,7 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, setOffers }: ActiveOf
                                         <Pencil size={12} />
                                     </button>
                                     <button 
-                                        onClick={() => handleRemove(offer.id)} 
+                                        onClick={() => onRemove(offer.id)} 
                                         className="text-slate-600 hover:text-rose-500 transition-colors p-1"
                                         title="Remove Offer"
                                     >
