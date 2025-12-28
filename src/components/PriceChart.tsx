@@ -51,7 +51,7 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
       },
     });
 
-    // v5 API: Use addSeries(SeriesType, options)
+    // v5 API: Use addSeries(SeriesClass, options)
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#10b981',
       downColor: '#ef4444',
@@ -95,7 +95,7 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
     if (!seriesRef.current || !volumeRef.current || !timeseries || timeseries.length === 0) return;
 
     const candles = timeseries
-      .filter(t => t.avgHighPrice && t.avgLowPrice)
+      .filter(t => t.avgHighPrice && t.avgLowPrice) 
       .map(t => {
         return {
             time: t.timestamp as UTCTimestamp,
