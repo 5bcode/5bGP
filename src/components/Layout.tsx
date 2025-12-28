@@ -1,6 +1,6 @@
-import React from 'react';
-import { Link, useLocation, Outlet } from 'react-router-dom';
-import { Terminal, BarChart2, TrendingUp, Command, History, Radar, ScrollText } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import { Terminal, BarChart2, TrendingUp, Command, History, Radar, ScrollText, Calculator } from 'lucide-react';
 import MarketTicker from './MarketTicker';
 import CommandMenu from './CommandMenu';
 import { cn } from '@/lib/utils';
@@ -10,9 +10,39 @@ import { Label } from '@/components/ui/label';
 
 const Layout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isPaper, toggleMode } = useTradeMode();
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Global Hotkeys
+  useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+          // Alt+S for Scanner
+          if (e.altKey && e.code === 'KeyS') {
+              e.preventDefault();
+              navigate('/scanner');
+          }
+          // Alt+D for Dashboard
+          if (e.altKey && e.code === 'KeyD') {
+              e.preventDefault();
+              navigate('/');
+          }
+          // Alt+H for History
+          if (e.altKey && e.code === 'KeyH') {
+              e.preventDefault();
+              navigate('/history');
+          }
+          // Alt+T for Tools
+          if (e.altKey && e.code === 'KeyT') {
+              e.preventDefault();
+              navigate('/tools');
+          }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30 flex flex-col">
@@ -54,6 +84,13 @@ const Layout = () => {
               <History size={16} /> History
             </Link>
 
+             <Link 
+                to="/tools" 
+                className={cn("hover:text-emerald-400 transition-colors flex items-center gap-2", isActive('/tools') && (isPaper ? "text-amber-400" : "text-emerald-400"))}
+            >
+              <Calculator size={16} /> Tools
+            </Link>
+
             <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-800">
                 <Switch 
                     checked={isPaper} 
@@ -75,6 +112,7 @@ const Layout = () => {
       <footer className="border-t border-slate-900 py-6 mt-auto bg-slate-950">
         <div className="container mx-auto px-4 text-center text-slate-600 text-xs">
             <p>OSRS FlipTo5B Terminal • Data provided by OSRS Wiki</p>
+            <p className="mt-1 opacity-50">Alt+D (Dashboard) • Alt+S (Scanner) • Alt+H (History) • Alt+T (Tools)</p>
         </div>
       </footer>
     </div>

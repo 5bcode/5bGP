@@ -13,6 +13,78 @@ export function calculateSMA(data: number[], period: number): number[] {
 }
 
 /**
+ * Calculates Exponential Moving Average (EMA)
+ */
+export function calculateEMA(data: number[], period: number): number[] {
+  const k = 2 / (period + 1);
+  const emaArray: number[] = [];
+  
+  if (data.length < period) return emaArray;
+
+  // Start with SMA
+  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  emaArray.push(ema);
+
+  for (let i = period; i < data.length; i++) {
+    ema = (data[i] * k) + (ema * (1 - k));
+    emaArray.push(ema);
+  }
+  return emaArray;
+}
+
+/**
+ * Calculates MACD (Moving Average Convergence Divergence)
+ * Standard: 12 EMA, 26 EMA, 9 Signal
+ */
+export function calculateMACD(data: number[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+  if (data.length < slowPeriod) return null;
+
+  const fastEMA = calculateEMA(data, fastPeriod);
+  const slowEMA = calculateEMA(data, slowPeriod);
+  
+  // Fast EMA array will be longer than Slow EMA array because it starts calculating earlier.
+  // We need to align them. The Slow EMA starts at index `slowPeriod - 1` relative to data.
+  // The Fast EMA starts at index `fastPeriod - 1`.
+  
+  // MACD Line: (12-day EMA - 26-day EMA)
+  const macdLine: number[] = [];
+  
+  // Align logic:
+  // Data Index: 0 1 ... 11 (Fast Start) ... 25 (Slow Start)
+  // We can only calculate MACD starting from where Slow EMA exists.
+  
+  // Offset for fast array to match slow array start
+  const offset = slowPeriod - fastPeriod; 
+  
+  for (let i = 0; i < slowEMA.length; i++) {
+      // The i-th element of slowEMA corresponds to data index (slowPeriod - 1 + i)
+      // The corresponding fastEMA element is at (offset + i)
+      const val = fastEMA[i + offset] - slowEMA[i];
+      macdLine.push(val);
+  }
+
+  // Signal Line: 9-day EMA of MACD Line
+  const signalLine = calculateEMA(macdLine, signalPeriod);
+  
+  // Histogram: MACD Line - Signal Line
+  // We align again. Signal line starts later.
+  const histogram: number[] = [];
+  const signalOffset = signalPeriod - 1;
+
+  for (let i = 0; i < signalLine.length; i++) {
+      const macdVal = macdLine[i + signalOffset];
+      histogram.push(macdVal - signalLine[i]);
+  }
+  
+  // Return the latest values
+  return {
+      macd: macdLine[macdLine.length - 1],
+      signal: signalLine[signalLine.length - 1],
+      histogram: histogram[histogram.length - 1]
+  };
+}
+
+/**
  * Calculates Standard Deviation for a dataset
  */
 export function calculateStdDev(data: number[]): number {
@@ -30,7 +102,6 @@ export function calculateStdDev(data: number[]): number {
 export function calculateBollingerBands(data: number[], period: number = 20, multiplier: number = 2) {
   if (data.length < period) return null;
   
-  // We only need the latest band for prediction usually, but let's calc for the window
   const slice = data.slice(-period);
   const sma = slice.reduce((a, b) => a + b, 0) / period;
   const stdDev = calculateStdDev(slice);
@@ -53,7 +124,6 @@ export function calculateRSI(data: number[], period: number = 14): number {
   let gains = 0;
   let losses = 0;
 
-  // Calculate initial average gain/loss
   for (let i = 1; i <= period; i++) {
     const change = data[i] - data[i - 1];
     if (change > 0) gains += change;
@@ -63,8 +133,6 @@ export function calculateRSI(data: number[], period: number = 14): number {
   let avgGain = gains / period;
   let avgLoss = losses / period;
 
-  // Smooth averages for the rest of the data
-  // RSI step: ((Previous Avg Gain * 13) + Current Gain) / 14
   for (let i = period + 1; i < data.length; i++) {
     const change = data[i] - data[i - 1];
     const currentGain = change > 0 ? change : 0;

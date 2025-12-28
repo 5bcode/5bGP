@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
-import SettingsDialog, { AppSettings } from '@/components/SettingsDialog';
+import SettingsDialog from '@/components/SettingsDialog';
 import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
@@ -13,6 +13,7 @@ import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useTradeMode } from '@/context/TradeModeContext';
+import { useSettings } from '@/context/SettingsContext';
 import { Loader2, RefreshCw, Trash2, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -20,17 +21,9 @@ import { Trade } from '@/components/TradeLogDialog';
 import CapitalAllocator from '@/components/CapitalAllocator';
 
 const Dashboard = () => {
-  // Trade Mode
   const { isPaper } = useTradeMode();
+  const { settings } = useSettings();
 
-  // Settings State
-  const [settings, setSettings] = useState<AppSettings>(() => {
-      const saved = localStorage.getItem('appSettings');
-      return saved ? JSON.parse(saved) : { alertThreshold: 10, refreshInterval: 60, soundEnabled: true };
-  });
-
-  // Active Offers State - Separate for Paper/Live? 
-  // Ideally yes, but for simplicity let's share for now or use a prefix key
   const OFFERS_KEY = isPaper ? 'paperActiveOffers' : 'activeOffers';
   const [activeOffers, setActiveOffers] = useState<ActiveOffer[]>([]);
 
@@ -44,35 +37,24 @@ const Dashboard = () => {
     localStorage.setItem(OFFERS_KEY, JSON.stringify(activeOffers));
   }, [activeOffers, OFFERS_KEY]);
 
-  // Tracked Items
   const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('trackedItems');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Trade History from Hook
   const { trades: tradeHistory, saveTrade } = useTradeHistory();
 
-  // React Query Hook
   const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
   
-  // Live Alerts
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
 
-  // Persistence
   useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
-  useEffect(() => { localStorage.setItem('appSettings', JSON.stringify(settings)); }, [settings]);
   
-  // Calculate Portfolio Stats
   const portfolioStats = useMemo(() => {
-      // Active Investment
       const activeInvest = activeOffers.reduce((sum, offer) => sum + (offer.price * offer.quantity), 0);
-      
-      // Today's Profit
       const startOfDay = new Date();
       startOfDay.setHours(0,0,0,0);
       const todaysTrades = tradeHistory.filter(t => t.timestamp >= startOfDay.getTime());
-      
       const dailyProfit = todaysTrades.reduce((sum, t) => sum + t.profit, 0);
 
       return {
@@ -82,7 +64,6 @@ const Dashboard = () => {
       };
   }, [activeOffers, tradeHistory]);
   
-  // Initialize Default Items
   useEffect(() => {
     if (!isLoading && items.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
         const defaults = items.filter(i => 
@@ -92,15 +73,12 @@ const Dashboard = () => {
     }
   }, [isLoading, items, trackedItems.length]);
 
-  // Alert Handler
   const handleAlert = useCallback((alert: MarketAlert) => {
       setAlerts(prev => [alert, ...prev].slice(0, 50)); 
   }, []);
 
-  // Monitor Hooks
-  usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, settings.soundEnabled ?? true, handleAlert);
+  usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, settings.soundEnabled, settings.discordWebhookUrl, handleAlert);
   
-  // Analysis (Default Strategy for Dashboard)
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, DEFAULT_STRATEGY);
 
   const handleRefresh = async () => {
@@ -198,7 +176,7 @@ const Dashboard = () => {
                 Active Watchlist 
                 <span className="ml-2 text-sm text-slate-500 font-normal">({trackedItems.length} items)</span>
             </h2>
-            <SettingsDialog settings={settings} onSave={setSettings} />
+            <SettingsDialog />
         </div>
         
         <div className="flex gap-2">

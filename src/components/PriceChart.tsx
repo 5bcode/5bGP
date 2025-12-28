@@ -1,297 +1,177 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  ComposedChart, 
-  Area, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer, 
-  CartesianGrid,
-  ReferenceLine 
-} from 'recharts';
+import React, { useEffect, useRef, useState } from 'react';
+import { createChart, ColorType, IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import { useTimeseries } from '@/hooks/use-osrs-query';
 import { TimeStep } from '@/services/osrs-api';
-import { useTimeseries, useLatestPrices } from '@/hooks/use-osrs-query';
-import { Loader2 } from 'lucide-react';
-import { formatGP } from '@/lib/osrs-math';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Loader2 } from 'lucide-react';
 
 interface PriceChartProps {
   itemId: number;
 }
 
-const PulsingDot = (props: any) => {
-  const { cx, cy, stroke, index, dataLength } = props;
-  
-  // Only render for the last data point
-  if (index !== dataLength - 1) return null;
-
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r={3} fill={stroke} />
-      <circle cx={cx} cy={cy} r={8} stroke={stroke} strokeWidth={2} fill="none" opacity={0.5}>
-         <animate attributeName="r" from="3" to="8" dur="1.5s" repeatCount="indefinite" />
-         <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
-      </circle>
-    </g>
-  );
-};
-
-const PriceLabel = (props: any) => {
-    const { viewBox, fill, value } = props;
-    const { y, width } = viewBox;
-    // Position on the right side
-    const x = width; 
-    
-    return (
-        <g>
-            <rect 
-                x={x - 45} 
-                y={y - 10} 
-                width={45} 
-                height={20} 
-                fill={fill} 
-                rx={2} 
-            />
-            <text 
-                x={x - 22.5} 
-                y={y + 4} 
-                textAnchor="middle" 
-                fill="#fff" 
-                fontSize={10} 
-                fontWeight="bold"
-                fontFamily="monospace"
-            >
-                {value}
-            </text>
-        </g>
-    );
-};
-
 const PriceChart = ({ itemId }: PriceChartProps) => {
   const [timeframe, setTimeframe] = useState<TimeStep>('5m');
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
 
-  const { data: points = [], isLoading: isHistoryLoading } = useTimeseries(itemId, timeframe);
-  const { data: latestPrices, isLoading: isLatestLoading } = useLatestPrices();
+  const { data: timeseries, isLoading } = useTimeseries(itemId, timeframe);
 
-  const currentPrice = latestPrices ? latestPrices[itemId] : null;
+  // Initialize Chart
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
 
-  // Calculate the most recent ("last traded") price
-  const lastTraded = useMemo(() => {
-    if (!currentPrice) return null;
-    const isHighMoreRecent = currentPrice.highTime > currentPrice.lowTime;
-    return {
-        value: isHighMoreRecent ? currentPrice.high : currentPrice.low,
-        color: isHighMoreRecent ? '#10b981' : '#3b82f6',
-        label: isHighMoreRecent ? 'Last (Sell)' : 'Last (Buy)'
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#94a3b8',
+      },
+      grid: {
+        vertLines: { color: '#1e293b' },
+        horzLines: { color: '#1e293b' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 300,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: '#334155',
+      },
+      rightPriceScale: {
+        borderColor: '#334155',
+      },
+    });
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#10b981',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#10b981',
+      wickDownColor: '#ef4444',
+    });
+
+    const volumeSeries = chart.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: '', // Overlay mode
+    });
+
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8, 
+        bottom: 0,
+      },
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = candlestickSeries;
+    volumeRef.current = volumeSeries;
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
     };
-  }, [currentPrice]);
 
-  const formattedData = useMemo(() => {
-    // Filter valid points
-    const validPoints = points.filter(p => p.avgHighPrice || p.avgLowPrice || p.highPriceVolume || p.lowPriceVolume);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, []);
+
+  // Update Data
+  useEffect(() => {
+    if (!seriesRef.current || !volumeRef.current || !timeseries || timeseries.length === 0) return;
+
+    // Lightweight charts needs sorted data, usually API gives it sorted but let's be safe
+    // Also requires Time in seconds
+    const candles = timeseries
+      .filter(t => t.avgHighPrice && t.avgLowPrice) // Filter empties
+      .map(t => {
+        // Construct basic OHLC from what we have
+        // Wiki gives avgHigh/Low. We don't have true open/close for 5m usually.
+        // Heuristic: Open = Previous Close (or Average), Close = Current Average
+        // But for true candlestick feel using Wiki API:
+        // High = avgHighPrice, Low = avgLowPrice
+        // This creates a "Range" bar rather than true OHLC. 
+        // A better approximation for flipping:
+        // Open = Low, Close = High (Green) or vice versa? 
+        // Actually, let's just use High/Low as the wicks, and maybe use yesterday's close as Open?
+        // Since we don't have true OHLC, let's render bars where High=avgHigh, Low=avgLow. 
+        // And Open/Close are synthesized or we switch to Line/Area if users prefer.
+        // BUT user asked for Candlesticks.
+        // Let's approximate: 
+        // Open = avgHighPrice (Buy Instant)
+        // Close = avgLowPrice (Sell Instant) ? No.
         
-    let sliceSize = 100;
-    if (timeframe === '1h') sliceSize = 168; // 1 week
-    if (timeframe === '6h') sliceSize = 120; // 1 month
-    if (timeframe === '24h') sliceSize = 365; // 1 year
+        // Better Visualization for OSRS:
+        // High Wick = avgHighPrice
+        // Low Wick = avgLowPrice
+        // Body? Maybe we just show the spread range?
+        
+        // Actually wiki timeseries has `highPriceVolume` and `lowPriceVolume`.
+        // Let's treat avgHighPrice as the "Ask" and avgLowPrice as the "Bid".
+        // OSRS candles are weird. Let's just plot High and Low as the body to show the Spread.
+        // Green candle if price went up from previous?
+        
+        return {
+            time: t.timestamp as UTCTimestamp,
+            open: t.avgLowPrice || 0,
+            high: (t.avgHighPrice || t.avgLowPrice || 0) * 1.01, // Synthetic wick for visibility
+            low: (t.avgLowPrice || 0) * 0.99,
+            close: t.avgHighPrice || 0,
+        };
+      }).sort((a, b) => a.time - b.time);
 
-    const sliced = validPoints.slice(-sliceSize);
+    // Filter bad data points where high < low (rare but possible in bad API data)
+    const cleanCandles = candles.filter(c => c.high >= c.low);
 
-    return sliced.map(point => ({
-        ...point,
-        time: point.timestamp * 1000,
-        high: point.avgHighPrice,
-        low: point.avgLowPrice,
-        volume: (point.highPriceVolume || 0) + (point.lowPriceVolume || 0)
-    }));
-  }, [points, timeframe]);
+    const volumes = timeseries.map(t => ({
+        time: t.timestamp as UTCTimestamp,
+        value: (t.highPriceVolume || 0) + (t.lowPriceVolume || 0),
+        color: '#334155' // Slate-700
+    })).sort((a, b) => a.time - b.time);
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const dateStr = new Date(label).toLocaleString(undefined, {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-      });
-      return (
-        <div className="bg-slate-950 border border-slate-800 p-3 rounded-lg shadow-xl text-xs z-50">
-          <p className="text-slate-400 font-mono mb-2 border-b border-slate-800 pb-1">{dateStr}</p>
-          <div className="space-y-1">
-            {payload.map((entry: any, index: number) => {
-                if (entry.dataKey === 'volume') {
-                    return (
-                        <div key={index} className="flex items-center justify-between gap-4 text-slate-500">
-                             <span className="flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-slate-600"></span> Volume
-                             </span>
-                             <span className="font-mono font-bold text-slate-300">{formatGP(entry.value)}</span>
-                        </div>
-                    )
-                }
-                const isHigh = entry.dataKey === 'high';
-                return (
-                    <div key={index} className="flex items-center justify-between gap-4">
-                        <span className={`flex items-center gap-1 ${isHigh ? 'text-emerald-400' : 'text-blue-400'}`}>
-                            <span className={`w-2 h-2 rounded-full ${isHigh ? 'bg-emerald-500' : 'bg-blue-500'}`}></span>
-                            {entry.name}
-                        </span>
-                        <span className="font-mono font-bold text-slate-200">{formatGP(entry.value)}</span>
-                    </div>
-                );
-            })}
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+    seriesRef.current.setData(cleanCandles);
+    volumeRef.current.setData(volumes);
+    
+    if (chartRef.current) chartRef.current.timeScale().fitContent();
 
-  const isLoading = isHistoryLoading || isLatestLoading;
+  }, [timeseries]);
 
   return (
     <div className="w-full mt-4 flex flex-col h-full min-h-[350px]">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-4 text-xs font-mono">
-            <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                <span className="text-slate-400">Sell Price</span>
-            </div>
-            <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-slate-400">Buy Price</span>
-            </div>
-             <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-slate-700/50 rounded-sm"></div>
-                <span className="text-slate-500">Volume</span>
-            </div>
+            <span className="text-slate-500">Candles: Spread Range (Low to High)</span>
         </div>
 
         <ToggleGroup type="single" value={timeframe} onValueChange={(v) => v && setTimeframe(v as TimeStep)}>
             <ToggleGroupItem value="5m" className="h-7 px-3 text-xs data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-400 hover:bg-slate-800">
-                8H
+                Live (5m)
             </ToggleGroupItem>
             <ToggleGroupItem value="1h" className="h-7 px-3 text-xs data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-400 hover:bg-slate-800">
-                1W
+                1W (1h)
             </ToggleGroupItem>
             <ToggleGroupItem value="6h" className="h-7 px-3 text-xs data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-400 hover:bg-slate-800">
-                1M
+                1M (6h)
             </ToggleGroupItem>
-            <ToggleGroupItem value="24h" className="h-7 px-3 text-xs data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-400 hover:bg-slate-800">
-                1Y
+             <ToggleGroupItem value="24h" className="h-7 px-3 text-xs data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-400 hover:bg-slate-800">
+                1Y (24h)
             </ToggleGroupItem>
         </ToggleGroup>
       </div>
 
-      {isLoading ? (
-        <div className="h-[300px] w-full flex items-center justify-center bg-slate-950/30 rounded-lg border border-slate-800/50">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        </div>
-      ) : formattedData.length === 0 ? (
-        <div className="h-[300px] w-full flex items-center justify-center text-slate-500 bg-slate-950/20 rounded-lg border border-dashed border-slate-800">
-            No chart data available for this timeframe
-        </div>
-      ) : (
-        <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={formattedData}>
-                    <defs>
-                        <linearGradient id="colorHigh" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorLow" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                    </defs>
-                    
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    
-                    <XAxis 
-                        dataKey="time" 
-                        stroke="#475569" 
-                        fontSize={10} 
-                        tickMargin={10}
-                        minTickGap={50}
-                        tickFormatter={(time) => {
-                            const date = new Date(time);
-                            if (timeframe === '24h') return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                            if (timeframe === '6h') return date.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
-                            return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-                        }}
-                    />
-                    
-                    {/* Price Axis */}
-                    <YAxis 
-                        yAxisId="price"
-                        stroke="#475569" 
-                        fontSize={10}
-                        domain={['auto', 'auto']}
-                        tickFormatter={(value) => {
-                            if (value >= 1000000000) return `${(value/1000000000).toFixed(2)}B`;
-                            if (value >= 1000000) return `${(value/1000000).toFixed(1)}M`;
-                            if (value >= 1000) return `${(value/1000).toFixed(0)}k`;
-                            return value;
-                        }}
-                        width={45}
-                    />
-
-                    {/* Volume Axis (Hidden mostly, pushes bars down) */}
-                    <YAxis 
-                        yAxisId="volume"
-                        orientation="right"
-                        domain={[0, 'dataMax * 4']} 
-                        hide={true} 
-                    />
-
-                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#334155', strokeWidth: 1 }} />
-                    
-                    <Bar 
-                        yAxisId="volume"
-                        dataKey="volume" 
-                        fill="#334155" 
-                        opacity={0.3} 
-                        barSize={4}
-                    />
-
-                    {/* Real-time Price Line (Most Recent / Last Traded) */}
-                    {lastTraded && (
-                        <ReferenceLine 
-                            yAxisId="price"
-                            y={lastTraded.value} 
-                            stroke={lastTraded.color} 
-                            strokeDasharray="3 3" 
-                            label={<PriceLabel fill={lastTraded.color} value={formatGP(lastTraded.value)} />}
-                        />
-                    )}
-
-                    <Area 
-                        yAxisId="price"
-                        type="monotone" 
-                        dataKey="high" 
-                        name="Avg Sell"
-                        stroke="#10b981" 
-                        fillOpacity={1} 
-                        fill="url(#colorHigh)" 
-                        strokeWidth={2}
-                        connectNulls
-                        dot={<PulsingDot dataLength={formattedData.length} />}
-                    />
-                    <Area 
-                        yAxisId="price"
-                        type="monotone" 
-                        dataKey="low" 
-                        name="Avg Buy"
-                        stroke="#3b82f6" 
-                        fillOpacity={1} 
-                        fill="url(#colorLow)" 
-                        strokeWidth={2}
-                        connectNulls
-                        dot={<PulsingDot dataLength={formattedData.length} />}
-                    />
-                </ComposedChart>
-            </ResponsiveContainer>
-        </div>
-      )}
+      <div className="relative h-[300px] w-full border border-slate-800 rounded-lg overflow-hidden bg-slate-950/50">
+         {isLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
+                <Loader2 className="animate-spin text-emerald-500 h-8 w-8" />
+            </div>
+         )}
+         <div ref={chartContainerRef} className="w-full h-full" />
+      </div>
     </div>
   );
 };

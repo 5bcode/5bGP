@@ -1,48 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Settings } from 'lucide-react';
+import { Settings, MessageSquare, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSettings } from '@/context/SettingsContext';
 
-export interface AppSettings {
-  alertThreshold: number; // Percentage, e.g. 10 for 10%
-  refreshInterval: number; // Seconds
-  soundEnabled: boolean;
-}
+const SettingsDialog = () => {
+  const { settings, updateSettings } = useSettings();
+  const [open, setOpen] = useState(false);
+  
+  // Local state for editing
+  const [threshold, setThreshold] = useState(settings.alertThreshold.toString());
+  const [interval, setInterval] = useState(settings.refreshInterval.toString());
+  const [discordUrl, setDiscordUrl] = useState(settings.discordWebhookUrl);
 
-interface SettingsDialogProps {
-  settings: AppSettings;
-  onSave: (settings: AppSettings) => void;
-}
-
-const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
-  const [open, setOpen] = React.useState(false);
-  const [threshold, setThreshold] = React.useState(settings.alertThreshold.toString());
-  const [interval, setInterval] = React.useState(settings.refreshInterval.toString());
-  const [sound, setSound] = React.useState(settings.soundEnabled ?? true);
+  // Sync when settings change externally or on open
+  useEffect(() => {
+    if (open) {
+      setThreshold(settings.alertThreshold.toString());
+      setInterval(settings.refreshInterval.toString());
+      setDiscordUrl(settings.discordWebhookUrl);
+    }
+  }, [open, settings]);
 
   const handleSave = () => {
     const newThreshold = parseFloat(threshold);
     const newInterval = parseInt(interval);
 
     if (isNaN(newThreshold) || newThreshold <= 0 || newThreshold > 100) {
-      toast.error("Invalid threshold. Must be between 0 and 100.");
+      toast.error("Invalid threshold.");
       return;
     }
 
     if (isNaN(newInterval) || newInterval < 10) {
-      toast.error("Interval must be at least 10 seconds.");
+      toast.error("Interval must be at least 10s.");
       return;
     }
 
-    onSave({
+    updateSettings({
       alertThreshold: newThreshold,
       refreshInterval: newInterval,
-      soundEnabled: sound
+      discordWebhookUrl: discordUrl
     });
+    
     setOpen(false);
     toast.success("Settings saved");
   };
@@ -54,11 +57,11 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
           <Settings className="h-5 w-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+      <DialogContent className="bg-slate-950 border-slate-800 text-slate-100 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Terminal Settings</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Configure the market scanner parameters.
+            Configure alerts, integrations, and display preferences.
           </DialogDescription>
         </DialogHeader>
         
@@ -70,12 +73,10 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
                     type="number" 
                     value={threshold} 
                     onChange={(e) => setThreshold(e.target.value)}
-                    className="bg-slate-950 border-slate-800"
+                    className="bg-slate-900 border-slate-800"
                 />
-                <span className="text-xs text-slate-500 w-32">
-                    Drop from 24h avg to trigger alert.
-                </span>
             </div>
+            <p className="text-[10px] text-slate-500">Drop from 24h avg to trigger alert.</p>
           </div>
           
           <div className="space-y-2">
@@ -85,20 +86,48 @@ const SettingsDialog = ({ settings, onSave }: SettingsDialogProps) => {
                     type="number" 
                     value={interval} 
                     onChange={(e) => setInterval(e.target.value)}
-                    className="bg-slate-950 border-slate-800"
+                    className="bg-slate-900 border-slate-800"
                 />
-                <span className="text-xs text-slate-500 w-32">
-                    How often to fetch new prices.
-                </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between space-x-2">
-            <div className="space-y-1">
-                <Label htmlFor="sound-mode">Audio Alerts</Label>
-                <p className="text-xs text-slate-500">Play a sound when a panic wick is detected.</p>
-            </div>
-            <Switch id="sound-mode" checked={sound} onCheckedChange={setSound} />
+          <div className="space-y-2 pt-4 border-t border-slate-800">
+             <div className="flex items-center gap-2 mb-2">
+                 <MessageSquare className="h-4 w-4 text-[#5865F2]" />
+                 <Label>Discord Integration</Label>
+             </div>
+             <Input 
+                value={discordUrl}
+                onChange={(e) => setDiscordUrl(e.target.value)}
+                placeholder="https://discord.com/api/webhooks/..."
+                className="bg-slate-900 border-slate-800 font-mono text-xs"
+             />
+             <p className="text-[10px] text-slate-500">
+                Paste a webhook URL to receive "Panic Wick" alerts in your Discord server.
+             </p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-800 grid grid-cols-2 gap-4">
+              <div className="flex items-center justify-between space-x-2">
+                <Label htmlFor="sound-mode" className="text-sm">Audio Alerts</Label>
+                <Switch 
+                    id="sound-mode" 
+                    checked={settings.soundEnabled} 
+                    onCheckedChange={(c) => updateSettings({ soundEnabled: c })} 
+                />
+              </div>
+
+              <div className="flex items-center justify-between space-x-2">
+                <div className="flex items-center gap-2">
+                    {settings.compactMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                    <Label htmlFor="compact-mode" className="text-sm">Compact Mode</Label>
+                </div>
+                <Switch 
+                    id="compact-mode" 
+                    checked={settings.compactMode} 
+                    onCheckedChange={(c) => updateSettings({ compactMode: c })} 
+                />
+              </div>
           </div>
         </div>
 
