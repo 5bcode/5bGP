@@ -60,13 +60,29 @@ export function useTradeHistory() {
                 setTrades(mapped);
             } catch (err) {
                 console.error("Error loading trades:", err);
-                toast.error("Failed to load trade history");
+                // toast.error("Failed to load trade history"); // Silent fail on load often better
             } finally {
                 setLoading(false);
             }
         };
 
         fetchTrades();
+
+        // Realtime Subscription
+        const channel = supabase
+            .channel('public:trades')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'trades', filter: `user_id=eq.${user.id}` }, 
+                (payload) => {
+                    // On any change, just re-fetch to keep it simple and consistent
+                    fetchTrades();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }
   }, [mode, user]);
 
@@ -105,7 +121,7 @@ export function useTradeHistory() {
         } catch (err: any) {
             console.error("Error saving trade:", err);
             toast.error("Failed to save trade to cloud");
-            // Rollback
+            // Rollback on error
             setTrades(prev => prev.filter(t => t.id !== trade.id));
         }
     }
@@ -136,7 +152,7 @@ export function useTradeHistory() {
         } catch (err) {
             console.error("Error deleting trade:", err);
             toast.error("Failed to delete trade");
-            // Could re-fetch to fix state
+            // Could re-fetch to fix state if needed
         }
     }
   }, [mode, user]);

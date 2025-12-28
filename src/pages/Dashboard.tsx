@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
@@ -15,6 +15,7 @@ import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useActiveOffers } from '@/hooks/use-active-offers';
 import { useTradeMode } from '@/context/TradeModeContext';
 import { useSettings } from '@/context/SettingsContext';
+import { useWatchlist } from '@/hooks/use-watchlist';
 import { Loader2, RefreshCw, Trash2, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -29,15 +30,11 @@ const Dashboard = () => {
   const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
   const { trades: tradeHistory, saveTrade } = useTradeHistory();
   const { offers: activeOffers, addOffer, updateOffer, removeOffer } = useActiveOffers();
-
-  const [trackedItems, setTrackedItems] = useState<Item[]>(() => {
-    const saved = localStorage.getItem('trackedItems');
-    return saved ? JSON.parse(saved) : [];
-  });
   
-  const [alerts, setAlerts] = useState<MarketAlert[]>([]);
+  // New Watchlist Hook
+  const { watchlist, addToWatchlist, removeFromWatchlist, clearWatchlist, loading: watchlistLoading } = useWatchlist(items);
 
-  useEffect(() => { localStorage.setItem('trackedItems', JSON.stringify(trackedItems)); }, [trackedItems]);
+  const [alerts, setAlerts] = useState<MarketAlert[]>([]);
   
   // Calculate Portfolio Stats
   const portfolioStats = useMemo(() => {
@@ -53,22 +50,13 @@ const Dashboard = () => {
           dailyCount: todaysTrades.length
       };
   }, [activeOffers, tradeHistory]);
-  
-  // Initialize Default Watchlist
-  useEffect(() => {
-    if (!isLoading && items.length > 0 && trackedItems.length === 0 && !localStorage.getItem('trackedItems')) {
-        const defaults = items.filter(i => 
-            [12934, 13190, 554, 560, 4151].includes(i.id)
-        );
-        setTrackedItems(defaults);
-    }
-  }, [isLoading, items, trackedItems.length]);
 
   const handleAlert = useCallback((alert: MarketAlert) => {
       setAlerts(prev => [alert, ...prev].slice(0, 50)); 
   }, []);
 
-  usePriceMonitor(prices, stats, trackedItems, settings.alertThreshold, settings.soundEnabled, settings.discordWebhookUrl, handleAlert);
+  // Monitor prices for items in watchlist
+  usePriceMonitor(prices, stats, watchlist, settings.alertThreshold, settings.soundEnabled, settings.discordWebhookUrl, handleAlert);
   
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, DEFAULT_STRATEGY);
 
@@ -78,31 +66,21 @@ const Dashboard = () => {
   };
 
   const handleAddItem = (item: Item) => {
-    if (trackedItems.find(i => i.id === item.id)) {
-      toast.info("Item already tracked");
-      return;
-    }
-    setTrackedItems(prev => [item, ...prev]);
-    toast.success(`Added ${item.name}`);
+    addToWatchlist(item);
   };
 
   const handleAddBatch = (batch: Item[]) => {
-      const newItems = batch.filter(i => !trackedItems.find(t => t.id === i.id));
-      if (newItems.length > 0) {
-          setTrackedItems(prev => [...newItems, ...prev]);
-          toast.success(`Added ${newItems.length} items`);
-      }
+      // Add one by one for now (hook could be optimized for batch later)
+      batch.forEach(item => addToWatchlist(item));
   };
 
   const handleRemoveItem = (id: number) => {
-      setTrackedItems(prev => prev.filter(i => i.id !== id));
-      toast.info("Item removed");
+      removeFromWatchlist(id);
   }
 
   const handleClearAll = () => {
       if (confirm("Clear watchlist?")) {
-          setTrackedItems([]);
-          toast.success("Watchlist cleared");
+          clearWatchlist();
       }
   }
 
@@ -115,7 +93,7 @@ const Dashboard = () => {
     <>
       <div className="flex flex-col items-center justify-center mb-8 relative">
         {isPaper && (
-            <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-1 rounded">
+            <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-1 rounded shadow-lg shadow-amber-500/20 animate-pulse">
                 SIMULATION MODE
             </div>
         )}
@@ -167,13 +145,15 @@ const Dashboard = () => {
              <h2 className="text-xl font-semibold text-slate-200 flex items-center gap-2">
                 <LayoutDashboard className="h-5 w-5 text-emerald-500" />
                 Active Watchlist 
-                <span className="ml-2 text-sm text-slate-500 font-normal">({trackedItems.length} items)</span>
+                <span className="ml-2 text-sm text-slate-500 font-normal">
+                    ({watchlist.length} items) {watchlistLoading && <Loader2 className="inline h-3 w-3 animate-spin"/>}
+                </span>
             </h2>
             <SettingsDialog />
         </div>
         
         <div className="flex gap-2">
-            {trackedItems.length > 0 && (
+            {watchlist.length > 0 && (
                 <Button
                     variant="ghost"
                     size="sm"
@@ -201,7 +181,7 @@ const Dashboard = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
-          {trackedItems.map(item => (
+          {watchlist.map(item => (
             <div key={item.id} className="relative group h-full">
                 <MarginCard 
                     item={item} 
@@ -219,7 +199,7 @@ const Dashboard = () => {
             </div>
           ))}
           
-          {trackedItems.length === 0 && (
+          {!watchlistLoading && watchlist.length === 0 && (
              <div className="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20">
                  <p className="text-slate-500">Your watchlist is empty.</p>
                  <p className="text-sm text-slate-600 mt-2">Search for items above to start tracking prices and margins.</p>
