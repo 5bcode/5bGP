@@ -1,19 +1,27 @@
 import React, { useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Terminal, BarChart2, TrendingUp, Command, History, Radar, ScrollText, Calculator } from 'lucide-react';
+import { Terminal, BarChart2, TrendingUp, Command, History, Radar, ScrollText, Calculator, LogOut } from 'lucide-react';
 import MarketTicker from './MarketTicker';
 import CommandMenu from './CommandMenu';
 import { cn } from '@/lib/utils';
 import { useTradeMode } from '@/context/TradeModeContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isPaper, toggleMode } = useTradeMode();
+  const { signOut } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   // Global Hotkeys
   useEffect(() => {
@@ -98,9 +106,13 @@ const Layout = () => {
                     className="data-[state=checked]:bg-amber-500"
                 />
                 <Label className={cn("text-xs font-mono", isPaper ? "text-amber-400 font-bold" : "text-slate-500")}>
-                    {isPaper ? "PAPER TRADING" : "LIVE"}
+                    {isPaper ? "PAPER" : "LIVE"}
                 </Label>
             </div>
+
+            <Button variant="ghost" size="icon" onClick={handleSignOut} className="ml-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10" title="Sign Out">
+                <LogOut size={16} />
+            </Button>
           </div>
         </div>
       </nav>
