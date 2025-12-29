@@ -126,8 +126,6 @@ const ItemDetails = () => {
         onLogTrade={handleLogTrade} 
       />
 
-      <PersonalItemStats trades={itemHistory} />
-
       <MetricCards 
         price={price} 
         net={net} 
@@ -136,26 +134,6 @@ const ItemDetails = () => {
         volatility={volatility} 
       />
       
-      <SmartAnalysis 
-        item={item}
-        price={price}
-        stats={stat}
-        roi={roi}
-        volatility={volatility}
-      />
-
-      <PricePredictor itemId={item.id} />
-
-      <DeepAnalysis 
-        item={item} 
-        price={price} 
-        stats={stat} 
-        net={net} 
-        spreadDifference={spreadDifference} 
-        isAlchable={isAlchable} 
-        highAlchProfit={highAlchProfit} 
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2 space-y-6">
            <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
@@ -164,8 +142,6 @@ const ItemDetails = () => {
               </h3>
               <PriceChart itemId={item.id} />
            </div>
-
-           <ItemNotes itemId={item.id} />
         </div>
 
         <VolumeAnalysis 
@@ -177,8 +153,42 @@ const ItemDetails = () => {
             net={net}
         />
       </div>
+      
+      <div className="space-y-6 mb-8">
+        <SmartAnalysis 
+          item={item}
+          price={price}
+          stats={stat}
+          roi={roi}
+          volatility={volatility}
+        />
 
-      <HistoryTable history={itemHistory} onDelete={handleDeleteTrade} />
+        <PricePredictor itemId={item.id} />
+      </div>
+
+      <DeepAnalysis 
+        item={item} 
+        price={price} 
+        stats={stat} 
+        net={net} 
+        spreadDifference={spreadDifference} 
+        isAlchable={isAlchable} 
+        highAlchProfit={highAlchProfit} 
+      />
+
+      <div className="my-8 border-t border-slate-800 pt-8">
+        <h2 className="text-xl font-bold text-slate-200 mb-6">Your Performance</h2>
+        
+        <PersonalItemStats trades={itemHistory} />
+        
+        <div className="mt-8">
+            <ItemNotes itemId={item.id} />
+        </div>
+
+        <div className="mt-8">
+            <HistoryTable history={itemHistory} onDelete={handleDeleteTrade} />
+        </div>
+      </div>
     </>
   );
 };

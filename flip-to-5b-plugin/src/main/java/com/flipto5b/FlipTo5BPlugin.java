@@ -76,6 +76,7 @@ public class FlipTo5BPlugin extends Plugin {
 
 		// Sidebar Panel
 		panel = new FlipTo5BPanel(this, itemManager);
+		@SuppressWarnings("deprecation")
 		final BufferedImage icon = itemManager.getImage(ItemID.COINS_995);
 		navButton = NavigationButton.builder()
 				.tooltip("FlipTo5B Sync")
@@ -120,7 +121,10 @@ public class FlipTo5BPlugin extends Plugin {
 				}
 
 				try {
-					String responseBody = response.body().string();
+					ResponseBody body = response.body();
+					if (body == null)
+						return;
+					String responseBody = body.string();
 					JsonObject json = gson.fromJson(responseBody, JsonObject.class);
 					JsonObject data = json.getAsJsonObject("data");
 
@@ -299,12 +303,14 @@ public class FlipTo5BPlugin extends Plugin {
 	}
 
 	// Helper Classes for JSON serialization
+	@SuppressWarnings("unused")
 	private static class Payload {
 		String apiKey;
 		String type; // update_slot, log_trade
 		OfferData data;
 	}
 
+	@SuppressWarnings("unused")
 	private static class OfferData {
 		int slot;
 		String state; // EMPTY, ACTIVE

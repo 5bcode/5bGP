@@ -16,7 +16,9 @@ import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.game.ItemManager;
 
 public class FlipTo5BPanel extends PluginPanel {
+    @SuppressWarnings("unused")
     private final FlipTo5BPlugin plugin;
+    @SuppressWarnings("unused")
     private final ItemManager itemManager;
 
     private final JPanel activeOffersContainer = new JPanel();

@@ -5,7 +5,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.Shape;
+
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
@@ -26,7 +26,6 @@ public class FlipTo5BOverlay extends Overlay {
 	private final TooltipManager tooltipManager;
 	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FlipTo5BOverlay.class);
 
-	private static final int GE_SLOT_WIDTH = 0; // Not used for widget bounds check usually
 	private static final Color COLOR_BETTER = new Color(16, 185, 129); // Emerald-500
 	private static final Color COLOR_WITHIN = new Color(59, 130, 246); // Blue-500
 	private static final Color COLOR_WORSE = new Color(244, 63, 94); // Rose-500
@@ -41,6 +40,7 @@ public class FlipTo5BOverlay extends Overlay {
 	}
 
 	@Override
+	@SuppressWarnings("deprecation")
 	public Dimension render(Graphics2D graphics) {
 		Widget geContainer = client.getWidget(WidgetInfo.GRAND_EXCHANGE_OFFER_CONTAINER);
 		if (geContainer == null || geContainer.isHidden()) {
@@ -54,15 +54,8 @@ public class FlipTo5BOverlay extends Overlay {
 		// DIAGNOSTIC LOGGING (Every ~6 seconds)
 		if (client.getTickCount() % 300 == 0) {
 			log.info("Overlay Debug: Checking GE Overlay...");
-			if (geContainer == null)
-				log.info(" - GE Container is NULL");
-			else if (geContainer.isHidden())
-				log.info(" - GE Container is HIDDEN");
-			else
-				log.info(" - GE Container is VISIBLE");
-
-			if (offers == null)
-				log.info(" - Offers array is NULL");
+			// geContainer checks are redundant here due to earlier return
+			log.info(" - GE Container is VISIBLE");
 		}
 
 		for (int i = 0; i < offers.length; i++) {
@@ -182,7 +175,7 @@ public class FlipTo5BOverlay extends Overlay {
 			sb.append(ColorUtil.wrapWithColorTag("FlipTo5B Analysis", Color.WHITE)).append("</br>");
 			sb.append("Status: ").append(ColorUtil.wrapWithColorTag(statusMsg, color)).append("</br>");
 			sb.append("Your Price: ").append(QuantityFormatter.formatNumber(price)).append(" gp</br>");
-			sb.append("Your Price: ").append(QuantityFormatter.formatNumber(price)).append(" gp</br>");
+
 			sb.append("</br>");
 
 			if (priceData != null) {
@@ -195,7 +188,7 @@ public class FlipTo5BOverlay extends Overlay {
 			}
 
 			// Suggestion logic
-			if (color == COLOR_WORSE) {
+			if (color == COLOR_WORSE && priceData != null) {
 				sb.append("</br>");
 				sb.append(ColorUtil.wrapWithColorTag("Suggestion:", Color.ORANGE)).append("</br>");
 				if (isBuy) {

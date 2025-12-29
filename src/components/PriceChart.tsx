@@ -56,33 +56,84 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
   const chartData = useMemo(() => {
     if (!timeseries || timeseries.length === 0) return null;
 
-    // Filter out invalid data where no trading happened
-    const validData = timeseries
-      .filter(t => (t.avgHighPrice && t.avgHighPrice > 0) || (t.avgLowPrice && t.avgLowPrice > 0))
-      .sort((a, b) => a.timestamp - b.timestamp);
+    // Sort by timestamp
+    const sortedData = [...timeseries].sort((a, b) => a.timestamp - b.timestamp);
 
-    if (validData.length === 0) return null;
-
-    // Base price array for indicators (using avgHigh as "Close" price)
-    const prices = validData.map(t => t.avgHighPrice || t.avgLowPrice || 0);
+    // Generate Candle Data with better OSRS logic
+    const candles: { time: UTCTimestamp; open: number; high: number; low: number; close: number }[] = [];
+    const prices: number[] = []; // For indicators
     
+    let prevClose = 0;
+
+    sortedData.forEach((t, i) => {
+        // If no data at all for this bucket, skip (leaves a gap on chart)
+        if (!t.avgHighPrice && !t.avgLowPrice) return;
+
+        // Calculate Representative Price (VWAP) for "Close"
+        const highVol = t.highPriceVolume || 0;
+        const lowVol = t.lowPriceVolume || 0;
+        const totalVol = highVol + lowVol;
+        
+        let close = 0;
+        if (totalVol > 0 && t.avgHighPrice && t.avgLowPrice) {
+            close = ((t.avgHighPrice * highVol) + (t.avgLowPrice * lowVol)) / totalVol;
+        } else {
+            // Fallback if missing one side or volume
+            close = (t.avgHighPrice || t.avgLowPrice || 0);
+        }
+
+        // Initialize prevClose on first valid candle
+        if (prevClose === 0) prevClose = close;
+
+        // Open is previous close
+        const open = prevClose;
+        
+        // High/Low should encompass the trade range AND the movement
+        // OSRS API gives avgHigh (Sold) and avgLow (Bought).
+        const tradeHigh = t.avgHighPrice || t.avgLowPrice || highVol; // Fallback
+        const tradeLow = t.avgLowPrice || t.avgHighPrice || lowVol;   // Fallback
+
+        // The candle wick must reach the highest trade average
+        // But also must contain the Open/Close body
+        const high = Math.max(tradeHigh, open, close);
+        const low = Math.min(tradeLow, open, close);
+
+        candles.push({
+            time: t.timestamp as UTCTimestamp,
+            open,
+            high,
+            low,
+            close
+        });
+
+        // Add to price array for indicators
+        prices.push(close);
+        
+        // Update for next
+        prevClose = close;
+    });
+
+    if (candles.length === 0) return null;
+
     // Indicators
     const smaData = showSMA ? calculateSMA(prices, 20) : [];
     const emaData = showEMA ? calculateEMA(prices, 12) : [];
     const macdData = showMACD ? calculateMACD(prices) : null;
 
     // Align indicators with timestamps
-    // Indicators return shorter arrays, so we match them to the END of the data array
+    // available timestamps map to 'candles' array
     const alignData = (indicatorData: number[]) => {
-        const offset = validData.length - indicatorData.length;
+        const offset = candles.length - indicatorData.length;
+        if (offset < 0) return []; // Should not happen
         return indicatorData.map((val, i) => ({
-            time: validData[offset + i].timestamp as UTCTimestamp,
+            time: candles[offset + i].time,
             value: val
         }));
     };
 
     return {
-        raw: validData,
+        candles, // Pre-calculated candles
+        raw: sortedData, // Still keep raw for spread/volume views if needed
         sma: alignData(smaData),
         ema: alignData(emaData),
         macd: macdData ? {
@@ -137,26 +188,7 @@ const PriceChart = ({ itemId }: PriceChartProps) => {
             borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444',
         });
         
-        // Construct Trend Candles: Open = Prev Close, Close = Curr Close
-        const candles = [];
-        for (let i = 1; i < chartData.raw.length; i++) {
-            const prev = chartData.raw[i-1];
-            const curr = chartData.raw[i];
-            const open = prev.avgHighPrice || prev.avgLowPrice || 0;
-            const close = curr.avgHighPrice || curr.avgLowPrice || 0;
-            
-            // Synthetic High/Low for visualization if not strictly available
-            // We use the variance between buy/sell to estimate volatility if needed,
-            // but for simple trend candles, we just stick to the movement.
-            const high = Math.max(open, close);
-            const low = Math.min(open, close);
-
-            candles.push({
-                time: curr.timestamp as UTCTimestamp,
-                open, high, low, close
-            });
-        }
-        series.setData(candles);
+        series.setData(chartData.candles);
         mainSeriesRef.current = series;
 
     } else if (view === 'spread') {
