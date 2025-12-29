@@ -3,15 +3,17 @@ import { Item, PriceData } from '@/services/osrs-api';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Briefcase, ArrowRight, CheckCircle2, Pencil } from 'lucide-react';
+import { Plus, X, Briefcase, ArrowRight, CheckCircle2, Pencil, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatGP } from '@/lib/osrs-math';
 import ItemIcon from './ItemIcon';
 import ItemSearch from './ItemSearch';
 import { toast } from 'sonner';
 import TradeLogDialog, { Trade, InitialTradeValues } from './TradeLogDialog';
+import { cn } from '@/lib/utils';
 
 export interface ActiveOffer {
   id: string;
@@ -32,7 +34,6 @@ interface ActiveOffersProps {
   onAdd: (offer: ActiveOffer) => void;
   onUpdate: (offer: ActiveOffer) => void;
   onRemove: (id: string) => void;
-  // Fallback for setOffers if needed, but we prefer specific actions
   setOffers?: React.Dispatch<React.SetStateAction<ActiveOffer[]>>; 
 }
 
@@ -79,7 +80,7 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, onAdd, onUpdate, onRe
         if (existing) {
             onUpdate({
                 ...existing,
-                item: selectedItem, // Should theoretically match unless we allow changing item
+                item: selectedItem,
                 type: offerType,
                 price: parseInt(priceInput),
                 quantity: parseInt(qtyInput),
@@ -164,6 +165,38 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, onAdd, onUpdate, onRe
     }
   };
 
+  const getSlotStatus = (offer: ActiveOffer, priceData?: PriceData) => {
+    if (!priceData) return { status: 'neutral', color: 'border-slate-800' };
+    
+    // Wiki High = Insta Buy Price (Active Sell Offers)
+    // Wiki Low = Insta Sell Price (Active Buy Offers)
+    const { high, low } = priceData;
+    
+    if (offer.type === 'buy') {
+        // Green: >= High (Insta Buy)
+        // Blue: >= Low (Competitive Top Bid)
+        // Red: < Low (Buried)
+        if (offer.price >= high) return { status: 'better', color: 'border-emerald-500/50 bg-emerald-950/10' };
+        if (offer.price >= low) return { status: 'within', color: 'border-blue-500/50 bg-blue-950/10' };
+        return { status: 'worse', color: 'border-rose-500/50 bg-rose-950/10' };
+    } else {
+        // Green: <= Low (Insta Sell)
+        // Blue: <= High (Competitive Top Ask)
+        // Red: > High (Overpriced)
+        if (offer.price <= low) return { status: 'better', color: 'border-emerald-500/50 bg-emerald-950/10' };
+        if (offer.price <= high) return { status: 'within', color: 'border-blue-500/50 bg-blue-950/10' };
+        return { status: 'worse', color: 'border-rose-500/50 bg-rose-950/10' };
+    }
+  };
+
+  const formatAge = (timestamp: number) => {
+      const seconds = Math.floor((Date.now() / 1000) - timestamp);
+      if (seconds < 60) return `00:00:${seconds.toString().padStart(2, '0')}`;
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `00:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
   const slotsUsed = offers.length;
   const totalValue = offers.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
 
@@ -179,7 +212,7 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, onAdd, onUpdate, onRe
             <h2 className="text-xl font-semibold text-slate-200 flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-emerald-500" />
                 GE Slots ({slotsUsed}/8)
-                <span className="text-sm font-mono font-normal text-slate-500 ml-2 border-l border-slate-800 pl-2">
+                <span className="text-sm font-mono font-normal text-slate-500 ml-2 border-l border-slate-800 pl-2 hidden sm:inline">
                     Active Value: {formatGP(totalValue)}
                 </span>
             </h2>
@@ -295,85 +328,122 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, onAdd, onUpdate, onRe
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {offers.map((offer) => {
                 const currentPrice = prices[offer.item.id];
+                const { status, color } = getSlotStatus(offer, currentPrice);
                 
                 return (
-                    <Card key={offer.id} className="bg-slate-900 border-slate-800 relative group overflow-hidden hover:border-slate-700 transition-colors">
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${offer.type === 'buy' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                        <CardContent className="p-4">
+                    <Card key={offer.id} className={cn("bg-slate-900 border-2 relative group overflow-hidden transition-all", color)}>
+                        <CardContent className="p-3">
+                            {/* Header Row */}
                             <div className="flex justify-between items-start mb-2">
-                                <div className="flex items-center gap-2">
-                                    <ItemIcon item={offer.item} size="sm" />
-                                    <div className="min-w-0">
-                                        <p className="font-bold text-sm truncate">{offer.item.name}</p>
-                                        <div className="flex gap-1">
-                                            <Badge variant="secondary" className="text-[10px] px-1 h-4 bg-slate-800 text-slate-400">
-                                                {offer.type.toUpperCase()}
-                                            </Badge>
-                                            {offer.originalBuyPrice && offer.type === 'sell' && (
-                                                <Badge variant="secondary" className="text-[10px] px-1 h-4 bg-blue-900/30 text-blue-400 border-blue-900/50">
-                                                    Bought: {formatGP(offer.originalBuyPrice)}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
+                                <div className="flex gap-1 items-center">
+                                     <span className={cn("font-bold text-sm uppercase", offer.type === 'buy' ? "text-blue-400" : "text-emerald-400")}>
+                                        {offer.type}
+                                     </span>
+                                     <span className="font-mono text-xs text-slate-400 ml-1">{formatAge(offer.timestamp)}</span>
                                 </div>
-                                <div className="flex gap-1">
-                                    <button 
-                                        onClick={() => handleOpenEdit(offer)} 
-                                        className="text-slate-600 hover:text-blue-400 transition-colors p-1"
-                                        title="Edit Offer"
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
-                                    <button 
-                                        onClick={() => onRemove(offer.id)} 
-                                        className="text-slate-600 hover:text-rose-500 transition-colors p-1"
-                                        title="Remove Offer"
-                                    >
-                                        <X size={14} />
-                                    </button>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleOpenEdit(offer)} className="text-slate-600 hover:text-blue-400 p-0.5"><Pencil size={12} /></button>
+                                    <button onClick={() => onRemove(offer.id)} className="text-slate-600 hover:text-rose-500 p-0.5"><X size={14} /></button>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 text-xs font-mono mb-3">
-                                <div>
-                                    <p className="text-slate-500">Price</p>
-                                    <p className="text-slate-200">{formatGP(offer.price)}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-slate-500">Total</p>
-                                    <p className="text-slate-200">{formatGP(offer.price * offer.quantity)}</p>
+                            {/* Item Info */}
+                            <div className="flex items-center gap-3 mb-3">
+                                <ItemIcon item={offer.item} size="md" className="shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-sm text-slate-200 truncate">{offer.item.name}</div>
+                                    <div className="flex justify-between items-end">
+                                        <div className="text-xs text-slate-500 font-mono">{offer.quantity.toLocaleString()}</div>
+                                        
+                                        {/* HOVER TOOLTIP */}
+                                        <HoverCard>
+                                            <HoverCardTrigger>
+                                                <Search size={14} className="text-slate-600 hover:text-emerald-400 cursor-help" />
+                                            </HoverCardTrigger>
+                                            <HoverCardContent className="w-80 bg-slate-950 border-slate-800 p-4 shadow-2xl">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-sm font-bold text-slate-200">Quick Look</span>
+                                                </div>
+                                                
+                                                {currentPrice ? (
+                                                    <div className="space-y-3">
+                                                        <div className="grid grid-cols-2 text-xs gap-y-1">
+                                                            <span className="text-slate-400">Wiki Insta Buy (High)</span>
+                                                            <span className="text-right font-mono text-emerald-400">{formatGP(currentPrice.high)}</span>
+                                                            
+                                                            <span className="text-slate-400">Wiki Insta Sell (Low)</span>
+                                                            <span className="text-right font-mono text-blue-400">{formatGP(currentPrice.low)}</span>
+
+                                                            <span className="text-slate-500">Wiki High Age</span>
+                                                            <span className="text-right font-mono text-slate-500">{formatAge(currentPrice.highTime)}</span>
+                                                            
+                                                            <span className="text-slate-500">Wiki Low Age</span>
+                                                            <span className="text-right font-mono text-slate-500">{formatAge(currentPrice.lowTime)}</span>
+                                                        </div>
+                                                        
+                                                        <div className="pt-2 border-t border-slate-800 text-center text-xs">
+                                                            {status === 'worse' && (
+                                                                <>
+                                                                    <div className="font-bold text-rose-500 mb-1">
+                                                                        {offer.type} offer is not competitive
+                                                                    </div>
+                                                                    <div className="text-slate-400">
+                                                                        {offer.type === 'buy' 
+                                                                            ? <span>{formatGP(offer.price)} &lt; {formatGP(currentPrice.low)}</span>
+                                                                            : <span>{formatGP(offer.price)} &gt; {formatGP(currentPrice.high)}</span>
+                                                                        }
+                                                                    </div>
+                                                                    <div className="text-slate-300 mt-1">
+                                                                         Set price to {offer.type === 'buy' ? '>=' : '<='} <span className="text-emerald-400 font-mono font-bold">
+                                                                             {formatGP(offer.type === 'buy' ? currentPrice.low : currentPrice.high)}
+                                                                         </span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {status === 'within' && (
+                                                                <div className="text-blue-400 font-bold">Offer is competitive (Market Rate)</div>
+                                                            )}
+                                                            {status === 'better' && (
+                                                                <div className="text-emerald-500 font-bold">Offer is aggressive (Instant Fill)</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-slate-500 text-xs">No market data available</div>
+                                                )}
+                                            </HoverCardContent>
+                                        </HoverCard>
+                                    </div>
                                 </div>
                             </div>
-
-                            {/* Live Tracking */}
-                            {currentPrice && (
-                                <div className="bg-slate-950 rounded p-2 text-xs mb-3 border border-slate-800/50">
-                                    <div className="flex justify-between mb-1">
-                                        <span className="text-slate-500">Current Market</span>
-                                        <span className={offer.type === 'buy' ? 'text-blue-400' : 'text-emerald-400'}>
-                                            {formatGP(offer.type === 'buy' ? currentPrice.low : currentPrice.high)}
-                                        </span>
-                                    </div>
-                                    {offer.type === 'buy' && (
-                                        <div className="flex justify-between border-t border-slate-800 pt-1 mt-1">
-                                            <span className="text-slate-500">Margin</span>
-                                            <span className={currentPrice.high - offer.price > 0 ? 'text-emerald-500' : 'text-rose-500'}>
-                                                {formatGP(currentPrice.high - offer.price)}
-                                            </span>
-                                        </div>
-                                    )}
+                            
+                            {/* Price Bar */}
+                            <div className="bg-slate-950/50 rounded p-1.5 mb-2 border border-slate-800/50">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-slate-500 uppercase">Price</span>
+                                    <span className="font-mono text-sm font-bold text-slate-200">{formatGP(offer.price)}</span>
                                 </div>
-                            )}
+                                <div className="w-full bg-slate-800 h-1 mt-1 rounded-full overflow-hidden">
+                                    <div className={cn("h-full w-full", 
+                                        status === 'better' ? "bg-emerald-500" : 
+                                        status === 'within' ? "bg-blue-500" : "bg-rose-500"
+                                    )} />
+                                </div>
+                            </div>
+                            
+                            <div className="text-center">
+                                 <span className="text-[10px] text-slate-500">{formatGP(offer.price * offer.quantity)} total</span>
+                            </div>
 
+                            {/* Action Button */}
                             <Button 
-                                variant="outline" 
+                                variant="ghost" 
                                 size="sm" 
-                                className="w-full h-7 text-xs border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500"
+                                className="w-full h-6 mt-2 text-[10px] hover:bg-emerald-500/10 hover:text-emerald-400 text-slate-600"
                                 onClick={() => handleCompleteFlip(offer)}
                             >
                                 {offer.type === 'buy' ? (
-                                    <>To Sell <ArrowRight className="ml-1 h-3 w-3" /></>
+                                    <>Flip to Sell <ArrowRight className="ml-1 h-3 w-3" /></>
                                 ) : (
                                     <>Log Profit <CheckCircle2 className="ml-1 h-3 w-3" /></>
                                 )}
@@ -385,8 +455,9 @@ const ActiveOffers = ({ items, prices, onLogTrade, offers, onAdd, onUpdate, onRe
             
             {/* Empty Slots */}
             {Array.from({ length: 8 - offers.length }).map((_, i) => (
-                <div key={i} className="border-2 border-dashed border-slate-800/50 rounded-lg h-[180px] flex items-center justify-center">
-                    <span className="text-slate-700 text-xs font-medium uppercase tracking-wider">Empty Slot</span>
+                <div key={i} className="border-2 border-dashed border-slate-800/50 rounded-lg h-[200px] flex flex-col items-center justify-center gap-2 group hover:border-slate-700 transition-colors cursor-pointer" onClick={handleOpenAdd}>
+                    <span className="text-slate-700 font-bold text-lg group-hover:text-slate-500">Empty</span>
+                    <Plus className="text-slate-800 group-hover:text-slate-600" />
                 </div>
             ))}
         </div>
