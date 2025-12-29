@@ -57,45 +57,45 @@ public class FlipTo5BPlugin extends Plugin
 		Payload payload = new Payload();
 		payload.apiKey = config.apiKey();
 		
+		// CASE A: Slot is Empty or Cancelled -> Clear it from Dashboard
 		if (state == GrandExchangeOfferState.EMPTY || state == GrandExchangeOfferState.CANCELLED_BUY || state == GrandExchangeOfferState.CANCELLED_SELL) {
-			// Clear slot
 			payload.type = "update_slot";
 			payload.data = new OfferData();
 			payload.data.slot = slot;
 			payload.data.state = "EMPTY";
 			sendData(payload);
 		} 
-		else if (state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.SELLING) {
-			// Update slot
+		// CASE B: Slot has an item (Buying, Selling, Bought, or Sold) -> Show on Dashboard
+		else if (state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.SELLING || state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
+			
 			payload.type = "update_slot";
 			payload.data = new OfferData();
 			payload.data.slot = slot;
 			payload.data.state = "ACTIVE";
 			payload.data.itemId = offer.getItemId();
 			payload.data.itemName = itemManager.getItemComposition(offer.getItemId()).getName();
-			payload.data.offerType = (state == GrandExchangeOfferState.BUYING) ? "buy" : "sell";
+			
+			// Determine Offer Type
+			if (state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.BOUGHT) {
+				payload.data.offerType = "buy";
+			} else {
+				payload.data.offerType = "sell";
+			}
+			
 			payload.data.price = offer.getPrice();
-			payload.data.quantity = offer.getTotalQuantity() - offer.getQuantitySold(); // Remaining qty
+			
+			// Determine Quantity to Display
+			if (state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
+				payload.data.quantity = offer.getQuantitySold();
+			} else {
+				payload.data.quantity = offer.getTotalQuantity() - offer.getQuantitySold();
+			}
+
 			sendData(payload);
 		}
 		
-		// 2. Handle Completed Trades (History)
-		// Note: This logic is simplified. Real GE logic needs to track state transitions to avoid dupes.
+		// 2. Handle Completed Trades (Log to History)
 		if (state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
-			// Remove from Active
-			Payload clearPayload = new Payload();
-			clearPayload.apiKey = config.apiKey();
-			clearPayload.type = "update_slot";
-			clearPayload.data = new OfferData();
-			clearPayload.data.slot = slot;
-			clearPayload.data.state = "EMPTY";
-			sendData(clearPayload);
-
-			// Log History
-			// NOTE: Calculating profit automatically is hard without knowing original buy price for sells.
-			// This basic version just logs the raw transaction. The web app can calculate profit if you match buy/sells.
-			// For now, we will log it with 0 profit and let user edit, or you store local history to match.
-			
 			Payload logPayload = new Payload();
 			logPayload.apiKey = config.apiKey();
 			logPayload.type = "log_trade";
@@ -106,11 +106,13 @@ public class FlipTo5BPlugin extends Plugin
 			logPayload.data.profit = 0; // Placeholder
 			
 			if (state == GrandExchangeOfferState.BOUGHT) {
-				logPayload.data.buyPrice = offer.getSpent() / offer.getQuantitySold();
+				int qty = offer.getQuantitySold() > 0 ? offer.getQuantitySold() : 1;
+				logPayload.data.buyPrice = offer.getSpent() / qty;
 				logPayload.data.sellPrice = 0;
 			} else {
+				int qty = offer.getQuantitySold() > 0 ? offer.getQuantitySold() : 1;
 				logPayload.data.buyPrice = 0;
-				logPayload.data.sellPrice = offer.getSpent() / offer.getQuantitySold();
+				logPayload.data.sellPrice = offer.getSpent() / qty;
 			}
 			
 			sendData(logPayload);
