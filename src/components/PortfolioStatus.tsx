@@ -3,17 +3,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGP } from '@/lib/osrs-math';
-import { Wallet, PiggyBank, TrendingUp, Lock, Edit2, Check } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Lock, Edit2, Check, Calendar } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
 import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+export type Period = 'session' | 'day' | 'week' | 'month' | 'all';
 
 interface PortfolioStatusProps {
   activeInvestment: number;
-  todaysProfit: number;
-  todaysTradeCount: number;
+  profit: number;
+  tradeCount: number;
+  period: Period;
+  onPeriodChange: (p: Period) => void;
 }
 
-const PortfolioStatus = ({ activeInvestment, todaysProfit, todaysTradeCount }: PortfolioStatusProps) => {
+const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPeriodChange }: PortfolioStatusProps) => {
   const [totalCash, setTotalCash] = useState<number>(() => {
     const saved = localStorage.getItem('totalBankroll');
     return saved ? parseInt(saved) : 10000000; // Default 10M
@@ -38,7 +48,15 @@ const PortfolioStatus = ({ activeInvestment, todaysProfit, todaysTradeCount }: P
 
   const liquidCash = totalCash - activeInvestment;
   const utilization = Math.min(100, (activeInvestment / totalCash) * 100);
-  const roi = totalCash > 0 ? (todaysProfit / totalCash) * 100 : 0;
+  const roi = totalCash > 0 ? (profit / totalCash) * 100 : 0;
+
+  const periodLabels: Record<Period, string> = {
+      session: 'Session',
+      day: 'Today',
+      week: 'Week',
+      month: 'Month',
+      all: 'All Time'
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -114,23 +132,38 @@ const PortfolioStatus = ({ activeInvestment, todaysProfit, todaysTradeCount }: P
         </CardContent>
       </Card>
 
-      {/* SESSION P&L */}
+      {/* DYNAMIC P&L */}
       <Card className="bg-slate-900 border-slate-800 md:col-span-1">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider flex items-center gap-2">
-             <TrendingUp size={14} className={todaysProfit >= 0 ? "text-emerald-500" : "text-rose-500"} /> Today's P&L
+             <TrendingUp size={14} className={profit >= 0 ? "text-emerald-500" : "text-rose-500"} /> 
+             <span>{periodLabels[period]} P&L</span>
           </CardTitle>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-slate-200">
+                    <Calendar size={12} />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-slate-950 border-slate-800 text-slate-200">
+                <DropdownMenuItem onClick={() => onPeriodChange('session')}>Session</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onPeriodChange('day')}>Today</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onPeriodChange('week')}>This Week</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onPeriodChange('month')}>This Month</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onPeriodChange('all')}>All Time</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardHeader>
         <CardContent>
-           <div className={`text-2xl font-bold font-mono ${todaysProfit >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-              {todaysProfit > 0 ? '+' : ''}{formatGP(todaysProfit)}
+           <div className={`text-2xl font-bold font-mono ${profit >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+              {profit > 0 ? '+' : ''}{formatGP(profit)}
            </div>
            <div className="flex justify-between items-center mt-1">
               <span className={`text-xs font-bold ${roi > 0 ? 'text-emerald-500' : roi < 0 ? 'text-rose-500' : 'text-slate-500'}`}>
                 {roi.toFixed(2)}% ROI
               </span>
               <span className="text-xs text-slate-500">
-                {todaysTradeCount} trades
+                {tradeCount} trades
               </span>
            </div>
         </CardContent>

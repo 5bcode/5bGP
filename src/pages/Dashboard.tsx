@@ -6,7 +6,7 @@ import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
 import ActiveOffers from '@/components/ActiveOffers';
-import PortfolioStatus from '@/components/PortfolioStatus';
+import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
 import { Item } from '@/services/osrs-api';
 import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
@@ -22,6 +22,9 @@ import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
 import CapitalAllocator from '@/components/CapitalAllocator';
 
+// Defined at module scope to persist across navigation but reset on reload
+const SESSION_START = Date.now();
+
 const Dashboard = () => {
   const { isPaper } = useTradeMode();
   const { settings } = useSettings();
@@ -35,21 +38,39 @@ const Dashboard = () => {
   const { watchlist, addToWatchlist, removeFromWatchlist, clearWatchlist, loading: watchlistLoading } = useWatchlist(items);
 
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
+  const [period, setPeriod] = useState<Period>('day');
   
-  // Calculate Portfolio Stats
+  // Calculate Portfolio Stats with Dynamic Period
   const portfolioStats = useMemo(() => {
       const activeInvest = activeOffers.reduce((sum, offer) => sum + (offer.price * offer.quantity), 0);
-      const startOfDay = new Date();
-      startOfDay.setHours(0,0,0,0);
-      const todaysTrades = tradeHistory.filter(t => t.timestamp >= startOfDay.getTime());
-      const dailyProfit = todaysTrades.reduce((sum, t) => sum + t.profit, 0);
+      const now = Date.now();
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      const filteredTrades = tradeHistory.filter(t => {
+          switch (period) {
+              case "session":
+                  return t.timestamp >= SESSION_START;
+              case "day":
+                  return t.timestamp >= today.getTime();
+              case "week":
+                  return t.timestamp >= (now - 7 * 24 * 60 * 60 * 1000);
+              case "month":
+                  return t.timestamp >= (now - 30 * 24 * 60 * 60 * 1000);
+              case "all":
+              default:
+                  return true;
+          }
+      });
+
+      const profit = filteredTrades.reduce((sum, t) => sum + t.profit, 0);
 
       return {
           activeInvest,
-          dailyProfit,
-          dailyCount: todaysTrades.length
+          profit,
+          tradeCount: filteredTrades.length
       };
-  }, [activeOffers, tradeHistory]);
+  }, [activeOffers, tradeHistory, period]);
 
   const handleAlert = useCallback((alert: MarketAlert) => {
       setAlerts(prev => [alert, ...prev].slice(0, 50)); 
@@ -70,7 +91,6 @@ const Dashboard = () => {
   };
 
   const handleAddBatch = (batch: Item[]) => {
-      // Add one by one for now (hook could be optimized for batch later)
       batch.forEach(item => addToWatchlist(item));
   };
 
@@ -107,8 +127,10 @@ const Dashboard = () => {
         <>
             <PortfolioStatus 
                 activeInvestment={portfolioStats.activeInvest} 
-                todaysProfit={portfolioStats.dailyProfit}
-                todaysTradeCount={portfolioStats.dailyCount}
+                profit={portfolioStats.profit}
+                tradeCount={portfolioStats.tradeCount}
+                period={period}
+                onPeriodChange={setPeriod}
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
