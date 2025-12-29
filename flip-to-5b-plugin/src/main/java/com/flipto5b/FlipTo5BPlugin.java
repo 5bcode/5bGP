@@ -1,6 +1,9 @@
 package com.flipto5b;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -11,12 +14,20 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.ui.overlay.OverlayManager;
 import okhttp3.*;
 import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @PluginDescriptor(
-	name = "FlipTo5B Sync"
+	name = "FlipTo5B Sync",
+	description = "Syncs GE trades to FlipTo5B and shows margin overlays",
+	tags = {"grand", "exchange", "trading", "flipping", "overlay"}
 )
 public class FlipTo5BPlugin extends Plugin
 {
@@ -35,12 +46,92 @@ public class FlipTo5BPlugin extends Plugin
 	@Inject
 	private Gson gson;
 
+	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private FlipTo5BOverlay overlay;
+
+	@Inject
+	private ScheduledExecutorService executor;
+
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+	private static final String WIKI_API_URL = "https://prices.runescape.wiki/api/v1/osrs/latest";
+	private static final String USER_AGENT = "FlipTo5B-Client/1.0";
+
+	// Cache prices: ItemID -> PriceData
+	private Map<Integer, WikiPrice> priceCache = new HashMap<>();
 
 	@Override
 	protected void startUp() throws Exception
 	{
 		log.info("FlipTo5B Sync started!");
+		overlayManager.add(overlay);
+		
+		// Fetch prices immediately and then every minute
+		executor.scheduleAtFixedRate(this::fetchPrices, 0, 1, TimeUnit.MINUTES);
+	}
+
+	@Override
+	protected void shutDown() throws Exception
+	{
+		overlayManager.remove(overlay);
+		priceCache.clear();
+	}
+
+	public WikiPrice getWikiPrice(int itemId)
+	{
+		return priceCache.get(itemId);
+	}
+
+	private void fetchPrices()
+	{
+		Request request = new Request.Builder()
+			.url(WIKI_API_URL)
+			.header("User-Agent", USER_AGENT)
+			.build();
+
+		okHttpClient.newCall(request).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				log.warn("Error fetching Wiki prices", e);
+			}
+
+			@Override
+			public void onResponse(Call call, Response response) throws IOException
+			{
+				if (!response.isSuccessful())
+				{
+					response.close();
+					return;
+				}
+
+				try
+				{
+					String responseBody = response.body().string();
+					JsonObject json = gson.fromJson(responseBody, JsonObject.class);
+					JsonObject data = json.getAsJsonObject("data");
+					
+					Type type = new TypeToken<Map<Integer, WikiPrice>>(){}.getType();
+					Map<Integer, WikiPrice> parsed = gson.fromJson(data, type);
+					
+					if (parsed != null)
+					{
+						priceCache = parsed;
+					}
+				}
+				catch (Exception e)
+				{
+					log.error("Error parsing price data", e);
+				}
+				finally
+				{
+					response.close();
+				}
+			}
+		});
 	}
 
 	@Subscribe
@@ -85,8 +176,6 @@ public class FlipTo5BPlugin extends Plugin
 			payload.data.price = offer.getPrice();
 			
 			// Determine Quantity to Display
-			// If completed (BOUGHT/SOLD), show the amount sitting in the slot (QuantitySold).
-			// If active (BUYING/SELLING), show the remaining amount to be filled.
 			if (state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
 				payload.data.quantity = offer.getQuantitySold();
 			} else {
@@ -97,7 +186,6 @@ public class FlipTo5BPlugin extends Plugin
 		}
 		
 		// 2. Handle Completed Trades (Log to History)
-		// We log this separately so it goes to your "History" tab, but we NO LONGER clear the slot here.
 		if (state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
 			Payload logPayload = new Payload();
 			logPayload.apiKey = config.apiKey();
@@ -109,7 +197,6 @@ public class FlipTo5BPlugin extends Plugin
 			logPayload.data.profit = 0; // Placeholder
 			
 			if (state == GrandExchangeOfferState.BOUGHT) {
-				// Avoid division by zero if quantity sold is 0 (unlikely in BOUGHT state but safe)
 				int qty = offer.getQuantitySold() > 0 ? offer.getQuantitySold() : 1;
 				logPayload.data.buyPrice = offer.getSpent() / qty;
 				logPayload.data.sellPrice = 0;
@@ -171,5 +258,12 @@ public class FlipTo5BPlugin extends Plugin
 		int buyPrice;
 		int sellPrice;
 		int profit;
+	}
+	
+	public static class WikiPrice {
+		int high;
+		int highTime;
+		int low;
+		int lowTime;
 	}
 }
