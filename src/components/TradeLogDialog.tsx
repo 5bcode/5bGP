@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Item, PriceData } from '@/services/osrs-api';
 import { Calculator, Save, AlertCircle } from 'lucide-react';
-import { formatGP } from '@/lib/osrs-math';
+import { formatGP, calculateTax } from '@/lib/osrs-math';
 import { toast } from 'sonner';
 
 export interface Trade {
@@ -72,11 +72,14 @@ const TradeLogDialog = ({ item, priceData, initialValues, onSave, trigger, isOpe
     const qty = parseInt(quantity) || 0;
 
     const totalRevenue = sell * qty;
-    const tax = Math.floor(totalRevenue * 0.01); // 1% tax
     const totalCost = buy * qty;
     
-    setTaxPaid(tax);
-    setProjectedProfit(totalRevenue - totalCost - tax);
+    // Calculate tax per item, then multiply by qty to respect the 5m cap per item
+    const taxPerItem = calculateTax(sell);
+    const totalTax = taxPerItem * qty;
+    
+    setTaxPaid(totalTax);
+    setProjectedProfit(totalRevenue - totalCost - totalTax);
   }, [buyPrice, sellPrice, quantity]);
 
   const handleSave = () => {
@@ -148,7 +151,7 @@ const TradeLogDialog = ({ item, priceData, initialValues, onSave, trigger, isOpe
                         id="sell" 
                         value={sellPrice} 
                         onChange={(e) => setSellPrice(e.target.value)}
-                        className="bg-slate-900 border-slate-800 focus:border-emerald-500 text-right pr-8 font-mono"
+                        className="bg-slate-950 border-slate-800 focus:border-emerald-500 text-right pr-8 font-mono"
                         placeholder="0"
                     />
                     <span className="absolute right-3 top-2.5 text-xs text-slate-600">gp</span>
@@ -170,7 +173,7 @@ const TradeLogDialog = ({ item, priceData, initialValues, onSave, trigger, isOpe
           {/* Real-time Calc */}
           <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800 space-y-2">
             <div className="flex justify-between text-xs text-slate-500">
-                <span>Est. Tax (1%)</span>
+                <span>Est. Tax (1% capped)</span>
                 <span>-{formatGP(taxPaid)}</span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-slate-800">

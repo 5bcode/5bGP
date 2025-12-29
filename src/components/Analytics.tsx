@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Trade } from './TradeLogDialog';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatGP } from '@/lib/osrs-math';
+import { formatGP, calculateTax } from '@/lib/osrs-math';
 import { Coins, TrendingUp, Percent, Activity } from 'lucide-react';
 import { 
     ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid 
@@ -67,8 +67,8 @@ const Analytics = ({ trades }: AnalyticsProps) => {
     filteredTrades.forEach(t => {
         totalProfit += t.profit;
         totalRevenue += t.sellPrice * t.quantity;
-        // Estimate tax paid (1% of revenue) for display
-        totalTax += Math.floor(t.sellPrice * t.quantity * 0.01);
+        // Accurate tax calculation
+        totalTax += calculateTax(t.sellPrice) * t.quantity;
         
         if (t.profit > 0) wins++;
 
@@ -76,9 +76,7 @@ const Analytics = ({ trades }: AnalyticsProps) => {
     });
 
     const winRate = (wins / filteredTrades.length) * 100;
-    // ROI Calculation: Profit / (Revenue - Profit - Tax) -> Profit / Cost
-    // Note: t.profit = Revenue - Cost - Tax
-    // So Cost = Revenue - Tax - Profit
+    // ROI Calculation: Profit / Cost
     const totalCost = totalRevenue - totalTax - totalProfit;
     const roi = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
 

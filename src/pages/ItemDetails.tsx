@@ -18,6 +18,7 @@ import { HistoryTable } from '@/components/HistoryTable';
 import { SmartAnalysis } from '@/components/SmartAnalysis';
 import ItemNotes from '@/components/ItemNotes';
 import PricePredictor from '@/components/PricePredictor';
+import PersonalItemStats from '@/components/PersonalItemStats';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -124,6 +125,8 @@ const ItemDetails = () => {
         recommendation={recommendation} 
         onLogTrade={handleLogTrade} 
       />
+
+      <PersonalItemStats trades={itemHistory} />
 
       <MetricCards 
         price={price} 
