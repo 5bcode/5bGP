@@ -22,10 +22,10 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <SettingsProvider>
-      <TradeModeProvider>
-        <TooltipProvider>
-          <AuthProvider>
+    <AuthProvider>
+      <SettingsProvider>
+        <TradeModeProvider>
+          <TooltipProvider>
             <PriceMonitorProvider>
               <Toaster />
               <Sonner />
@@ -49,10 +49,10 @@ const App = () => (
                 </Routes>
               </BrowserRouter>
             </PriceMonitorProvider>
-          </AuthProvider>
-        </TooltipProvider>
-      </TradeModeProvider>
-    </SettingsProvider>
+          </TooltipProvider>
+        </TradeModeProvider>
+      </SettingsProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
