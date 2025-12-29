@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGP } from '@/lib/osrs-math';
-import { Wallet, PiggyBank, TrendingUp, Lock, Edit2, Check, Calendar } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Lock, Edit2, Check, Calendar, Cloud } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
 import { toast } from 'sonner';
 import {
@@ -12,6 +12,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTradeMode } from '@/context/TradeModeContext';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 export type Period = 'session' | 'day' | 'week' | 'month' | 'all';
 
@@ -24,26 +27,66 @@ interface PortfolioStatusProps {
 }
 
 const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPeriodChange }: PortfolioStatusProps) => {
-  const [totalCash, setTotalCash] = useState<number>(() => {
-    const saved = localStorage.getItem('totalBankroll');
-    return saved ? parseInt(saved) : 10000000; // Default 10M
-  });
+  const { mode } = useTradeMode();
+  const { user } = useAuth();
+  
+  const [totalCash, setTotalCash] = useState<number>(10000000); // Default 10M
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(totalCash.toString());
+  const [editValue, setEditValue] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  // Load Bankroll
   useEffect(() => {
-    localStorage.setItem('totalBankroll', totalCash.toString());
-  }, [totalCash]);
+    if (mode === 'paper') {
+        const saved = localStorage.getItem('totalBankroll');
+        setTotalCash(saved ? parseInt(saved) : 10000000);
+    } else {
+        if (!user) return;
+        const fetchProfile = async () => {
+            setLoading(true);
+            const { data } = await supabase
+                .from('profiles')
+                .select('bankroll')
+                .eq('id', user.id)
+                .single();
+            
+            if (data && data.bankroll) {
+                setTotalCash(Number(data.bankroll));
+            }
+            setLoading(false);
+        };
+        fetchProfile();
+    }
+  }, [mode, user]);
 
-  const handleSaveCash = () => {
+  const handleSaveCash = async () => {
     const val = parseInt(editValue);
     if (isNaN(val) || val < 0) {
       toast.error("Invalid cash amount");
       return;
     }
+    
     setTotalCash(val);
     setIsEditing(false);
-    toast.success("Bankroll updated");
+
+    if (mode === 'paper') {
+        localStorage.setItem('totalBankroll', val.toString());
+        toast.success("Bankroll updated (Local)");
+    } else {
+        if (!user) return;
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ bankroll: val })
+                .eq('id', user.id);
+            
+            if (error) throw error;
+            toast.success("Bankroll synced to profile");
+        } catch (err) {
+            console.error("Error saving bankroll", err);
+            toast.error("Failed to sync bankroll");
+        }
+    }
   };
 
   const liquidCash = totalCash - activeInvestment;
@@ -74,20 +117,23 @@ const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPerio
                 type="number" 
                 value={editValue} 
                 onChange={(e) => setEditValue(e.target.value)}
-                className="h-8 bg-slate-950 border-slate-700"
+                className="h-8 bg-slate-950 border-slate-700 font-mono"
+                placeholder={totalCash.toString()}
                 autoFocus
               />
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-500" onClick={handleSaveCash}>
+              <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:bg-emerald-950" onClick={handleSaveCash}>
                 <Check size={16} />
               </Button>
             </div>
           ) : (
             <div className="flex items-center justify-between group">
-              <div className="text-2xl font-bold font-mono text-slate-100">{formatGP(totalCash)}</div>
+              <div className={`text-2xl font-bold font-mono text-slate-100 ${loading ? 'opacity-50' : ''}`}>
+                  {formatGP(totalCash)}
+              </div>
               <Button 
                 size="icon" 
                 variant="ghost" 
-                className="h-6 w-6 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-6 w-6 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white"
                 onClick={() => {
                   setEditValue(totalCash.toString());
                   setIsEditing(true);
@@ -97,8 +143,9 @@ const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPerio
               </Button>
             </div>
           )}
-          <div className="text-xs text-slate-500 mt-1">
-             Start of day balance + history
+          <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+             <span>Start of day balance</span>
+             {mode === 'live' && <Cloud size={10} className="text-slate-600" />}
           </div>
         </CardContent>
       </Card>
@@ -113,7 +160,9 @@ const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPerio
         <CardContent>
            <div className="flex justify-between items-end mb-2">
               <div>
-                  <div className="text-2xl font-bold font-mono text-slate-100">{formatGP(liquidCash)}</div>
+                  <div className={`text-2xl font-bold font-mono ${liquidCash < 0 ? 'text-rose-500' : 'text-slate-100'}`}>
+                      {formatGP(liquidCash)}
+                  </div>
                   <div className="text-xs text-emerald-500 flex items-center gap-1">
                      Available to trade
                   </div>
