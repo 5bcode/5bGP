@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TradeModeProvider } from "@/context/TradeModeContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { PriceMonitorProvider } from "@/context/PriceMonitorContext";
 import Layout from "@/components/Layout";
 import Dashboard from "./pages/Dashboard";
 import ItemDetails from "./pages/ItemDetails";
@@ -25,27 +26,29 @@ const App = () => (
       <TradeModeProvider>
         <TooltipProvider>
           <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                
-                <Route element={
-                  <ProtectedRoute>
-                    <Layout />
-                  </ProtectedRoute>
-                }>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/item/:id" element={<ItemDetails />} />
-                  <Route path="/scanner" element={<Scanner />} />
-                  <Route path="/history" element={<History />} />
-                  <Route path="/tools" element={<Tools />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
-            </BrowserRouter>
+            <PriceMonitorProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  
+                  <Route element={
+                    <ProtectedRoute>
+                      <Layout />
+                    </ProtectedRoute>
+                  }>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/item/:id" element={<ItemDetails />} />
+                    <Route path="/scanner" element={<Scanner />} />
+                    <Route path="/history" element={<History />} />
+                    <Route path="/tools" element={<Tools />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
+                </Routes>
+              </BrowserRouter>
+            </PriceMonitorProvider>
           </AuthProvider>
         </TooltipProvider>
       </TradeModeProvider>

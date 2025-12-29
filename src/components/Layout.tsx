@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import NotificationCenter from '@/components/NotificationCenter';
+import { usePriceMonitorContext } from '@/context/PriceMonitorContext';
 
 const Layout = () => {
   const location = useLocation();
@@ -17,6 +19,9 @@ const Layout = () => {
   const { isPaper, toggleMode } = useTradeMode();
   const { signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Get Global Alerts
+  const { alerts, clearAlerts, removeAlert } = usePriceMonitorContext();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -179,6 +184,13 @@ const Layout = () => {
                     {isPaper ? "PAPER" : "LIVE"}
                 </Label>
             </div>
+
+            {/* Notification Center */}
+            <NotificationCenter 
+                alerts={alerts}
+                onClear={clearAlerts}
+                onRemove={removeAlert}
+            />
 
             <div className="flex items-center gap-1 border-l border-slate-800 ml-4 pl-4">
               <Link to="/profile">

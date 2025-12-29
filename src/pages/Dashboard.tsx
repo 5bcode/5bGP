@@ -1,14 +1,13 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import ItemSearch from '@/components/ItemSearch';
 import MarginCard from '@/components/MarginCard';
 import SettingsDialog from '@/components/SettingsDialog';
-import LiveFeed, { MarketAlert } from '@/components/LiveFeed';
+import LiveFeed from '@/components/LiveFeed';
 import OpportunityBoard from '@/components/OpportunityBoard';
 import MarketOverview from '@/components/MarketOverview';
 import ActiveOffers from '@/components/ActiveOffers';
 import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
 import { Item } from '@/services/osrs-api';
-import { usePriceMonitor } from '@/hooks/use-price-monitor';
 import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { useTradeHistory } from '@/hooks/use-trade-history';
@@ -21,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Trade } from '@/components/TradeLogDialog';
 import CapitalAllocator from '@/components/CapitalAllocator';
+import { usePriceMonitorContext } from '@/context/PriceMonitorContext';
 
 // Defined at module scope to persist across navigation but reset on reload
 const SESSION_START = Date.now();
@@ -37,7 +37,9 @@ const Dashboard = () => {
   // New Watchlist Hook
   const { watchlist, addToWatchlist, removeFromWatchlist, clearWatchlist, loading: watchlistLoading } = useWatchlist(items);
 
-  const [alerts, setAlerts] = useState<MarketAlert[]>([]);
+  // Global Alerts (PriceMonitor is now in Layout via Context)
+  const { alerts, clearAlerts, removeAlert } = usePriceMonitorContext();
+
   const [period, setPeriod] = useState<Period>('day');
   
   // Calculate Portfolio Stats with Dynamic Period
@@ -72,13 +74,6 @@ const Dashboard = () => {
       };
   }, [activeOffers, tradeHistory, period]);
 
-  const handleAlert = useCallback((alert: MarketAlert) => {
-      setAlerts(prev => [alert, ...prev].slice(0, 50)); 
-  }, []);
-
-  // Monitor prices for items in watchlist
-  usePriceMonitor(prices, stats, watchlist, settings.alertThreshold, settings.soundEnabled, settings.discordWebhookUrl, handleAlert);
-  
   const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, DEFAULT_STRATEGY);
 
   const handleRefresh = async () => {
@@ -232,8 +227,8 @@ const Dashboard = () => {
 
       <LiveFeed 
         alerts={alerts} 
-        onClear={() => setAlerts([])} 
-        onRemove={(id) => setAlerts(prev => prev.filter(a => a.id !== id))} 
+        onClear={clearAlerts} 
+        onRemove={removeAlert} 
       />
     </>
   );

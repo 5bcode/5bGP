@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export interface AppSettings {
   alertThreshold: number; // Percentage
@@ -26,32 +29,68 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  
   const [settings, setSettings] = useState<AppSettings>(() => {
     if (typeof window !== 'undefined') {
-      // Only load non-sensitive settings from localStorage
+      // Load non-sensitive settings from localStorage
       const localSaved = localStorage.getItem('appSettings');
       const localData = localSaved ? JSON.parse(localSaved) : {};
       
-      // We explicitly do NOT load secrets from storage anymore
+      // Initialize with defaults + local storage
       return { ...DEFAULT_SETTINGS, ...localData, discordWebhookUrl: '' };
     }
     return DEFAULT_SETTINGS;
   });
 
+  // Load sensitive settings (Webhook) from DB when user logs in
   useEffect(() => {
-    // Separate sensitive data from public settings
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { discordWebhookUrl, ...publicSettings } = settings;
-    
-    // Store non-sensitive settings persistently
-    localStorage.setItem('appSettings', JSON.stringify(publicSettings));
-    
-    // Security Fix: Do NOT store sensitive data in sessionStorage/localStorage
-    // secrets are now memory-only.
-  }, [settings]);
+    if (!user) {
+        setSettings(prev => ({ ...prev, discordWebhookUrl: '' }));
+        return;
+    }
 
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    const loadProfileSettings = async () => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('discord_webhook')
+            .eq('id', user.id)
+            .single();
+        
+        if (!error && data) {
+            setSettings(prev => ({ 
+                ...prev, 
+                discordWebhookUrl: data.discord_webhook || '' 
+            }));
+        }
+    };
+
+    loadProfileSettings();
+  }, [user]);
+
+  const updateSettings = async (newSettings: Partial<AppSettings>) => {
+    // 1. Update State immediately for responsiveness
     setSettings(prev => ({ ...prev, ...newSettings }));
+
+    // 2. Separate persistence logic
+    // LocalStorage for UI preferences
+    const { discordWebhookUrl, ...publicSettings } = { ...settings, ...newSettings };
+    localStorage.setItem('appSettings', JSON.stringify(publicSettings));
+
+    // Database for sensitive/cloud settings (only if changed and user exists)
+    if (newSettings.discordWebhookUrl !== undefined && user) {
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ discord_webhook: newSettings.discordWebhookUrl })
+                .eq('id', user.id);
+            
+            if (error) throw error;
+        } catch (err) {
+            console.error("Failed to sync webhook to profile", err);
+            toast.error("Failed to save webhook to cloud profile");
+        }
+    }
   };
 
   return (
