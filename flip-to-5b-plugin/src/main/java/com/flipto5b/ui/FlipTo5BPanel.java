@@ -50,8 +50,8 @@ public class FlipTo5BPanel extends PluginPanel {
         JLabel title = new JLabel("Session Profit:");
         title.setForeground(Color.WHITE);
 
-        sessionProfitLabel.setText("0 gp");
-        sessionProfitLabel.setForeground(ColorScheme.GRAND_EXCHANGE_PRICE); // Yellowish/Orange
+        sessionProfitLabel.setText("DEBUG ACTIVE");
+        sessionProfitLabel.setForeground(Color.CYAN);
 
         profitPanel.add(title, BorderLayout.WEST);
         profitPanel.add(sessionProfitLabel, BorderLayout.EAST);
@@ -103,12 +103,11 @@ public class FlipTo5BPanel extends PluginPanel {
         });
     }
 
-    public void addActiveOffer(String name, int qty, int price, String status, Color color) {
+    public void addActiveOffer(String name, int qty, int price, String status, Color color,
+            net.runelite.client.util.AsyncBufferedImage icon) {
         SwingUtilities.invokeLater(() -> {
             OfferPanel panel = new OfferPanel();
-            // Note: For a real app we'd want to load the image asynchronously via
-            // ItemManager
-            panel.update(name, price, qty, status, color, null);
+            panel.update(name, price, qty, status, color, icon);
             activeOffersContainer.add(panel, 0); // Add to top
             activeOffersContainer.revalidate();
             activeOffersContainer.repaint();

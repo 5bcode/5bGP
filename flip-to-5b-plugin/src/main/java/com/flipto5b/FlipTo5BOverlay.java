@@ -5,7 +5,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
@@ -14,13 +13,16 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.components.LineComponent;
+import net.runelite.client.ui.overlay.components.TitleComponent;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.QuantityFormatter;
 
-public class FlipTo5BOverlay extends Overlay {
+public class FlipTo5BOverlay extends OverlayPanel {
 	private final Client client;
 	private final FlipTo5BPlugin plugin;
 	private final TooltipManager tooltipManager;
@@ -31,74 +33,106 @@ public class FlipTo5BOverlay extends Overlay {
 	private static final Color COLOR_WORSE = new Color(244, 63, 94); // Rose-500
 
 	@Inject
-	private FlipTo5BOverlay(Client client, FlipTo5BPlugin plugin, TooltipManager tooltipManager) {
+	public FlipTo5BOverlay(Client client, FlipTo5BPlugin plugin, TooltipManager tooltipManager) {
+		super(plugin);
+		log.info("FlipTo5BOverlay: Constructor called!");
 		this.client = client;
 		this.plugin = plugin;
 		this.tooltipManager = tooltipManager;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
+		setPriority(Overlay.PRIORITY_HIGH);
 	}
 
 	@Override
-	@SuppressWarnings("deprecation")
 	public Dimension render(Graphics2D graphics) {
-		Widget geContainer = client.getWidget(WidgetInfo.GRAND_EXCHANGE_OFFER_CONTAINER);
-		if (geContainer == null || geContainer.isHidden()) {
-			return null;
+		panelComponent.getChildren().clear();
+		panelComponent.getChildren().add(TitleComponent.builder()
+				.text("FlipTo5B Debug")
+				.color(Color.GREEN)
+				.build());
+		panelComponent.getChildren().add(LineComponent.builder()
+				.left("Tick:")
+				.right(String.valueOf(client.getTickCount()))
+				.build());
+
+		Widget geWindow = client.getWidget(465, 0); // Main GE Window
+		if (geWindow == null || geWindow.isHidden()) {
+			return super.render(graphics);
 		}
 
+		// Draw Border around GE window
+		graphics.setColor(Color.CYAN);
+		graphics.setStroke(new BasicStroke(2));
+		Rectangle b = geWindow.getBounds();
+		graphics.drawRect(b.x, b.y, b.width, b.height);
+
+		// Render active offer slots (1-8)
 		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
-		if (offers == null)
-			return null;
-
-		// DIAGNOSTIC LOGGING (Every ~6 seconds)
-		if (client.getTickCount() % 300 == 0) {
-			log.info("Overlay Debug: Checking GE Overlay...");
-			// geContainer checks are redundant here due to earlier return
-			log.info(" - GE Container is VISIBLE");
+		if (offers != null) {
+			for (int i = 0; i < offers.length; i++) {
+				GrandExchangeOffer offer = offers[i];
+				if (offer.getState() == GrandExchangeOfferState.BUYING
+						|| offer.getState() == GrandExchangeOfferState.SELLING) {
+					Widget slotWidget = getOfferWidget(i);
+					if (slotWidget != null && !slotWidget.isHidden()) {
+						renderSlotOverlay(graphics, slotWidget, offer, plugin.getWikiPrice(offer.getItemId()));
+					}
+				}
+			}
 		}
 
-		for (int i = 0; i < offers.length; i++) {
-			GrandExchangeOffer offer = offers[i];
-			GrandExchangeOfferState state = offer.getState();
+		renderOfferSetupOverlay(graphics);
 
-			// Only render for active offers (Buying/Selling)
-			if (state != GrandExchangeOfferState.BUYING && state != GrandExchangeOfferState.SELLING) {
-				continue;
-			}
+		return super.render(graphics);
+	}
 
-			// Map slot index to widget info
-			// GE Slots are usually children of the container, or specific WidgetInfos
-			// WidgetInfo.GRAND_EXCHANGE_OFFER_BOX_1 starts at index 0
-			Widget slotWidget = getOfferWidget(i);
-
-			if (slotWidget == null) {
-				if (client.getTickCount() % 300 == 0)
-					log.info(" - Slot " + i + ": Widget is NULL");
-				continue;
-			}
-			if (slotWidget.isHidden()) {
-				if (client.getTickCount() % 300 == 0)
-					log.info(" - Slot " + i + ": Widget is HIDDEN");
-				continue;
-			}
-
-			if (client.getTickCount() % 300 == 0)
-				log.info(" - Slot " + i + ": Ready to render. State=" + state);
-
-			FlipTo5BPlugin.WikiPrice priceData = plugin.getWikiPrice(offer.getItemId());
-
-			// DEBUG: Log if we are skipping
-			if (priceData == null) {
-				// render with null data to verify widget placement
-				renderSlotOverlay(graphics, slotWidget, offer, null);
-				continue;
-			}
-
-			renderSlotOverlay(graphics, slotWidget, offer, priceData);
+	private void renderOfferSetupOverlay(Graphics2D graphics) {
+		Widget setupContainer = client.getWidget(465, 23); // Better ID for setup window
+		if (setupContainer == null || setupContainer.isHidden()) {
+			return;
 		}
 
-		return null;
+		Widget itemIcon = client.getWidget(465, 21); // Item icon widget usually holds the ID
+		if (itemIcon == null) {
+			return;
+		}
+
+		int itemId = itemIcon.getItemId();
+		if (itemId <= 0) {
+			return;
+		}
+
+		FlipTo5BPlugin.WikiPrice priceData = plugin.getWikiPrice(itemId);
+
+		// Add to debug panel for visibility
+		panelComponent.getChildren().add(LineComponent.builder()
+				.left("Setup Item:")
+				.right(String.valueOf(itemId))
+				.build());
+
+		if (priceData == null) {
+			return;
+		}
+
+		Widget priceInput = client.getWidget(465, 52); // Price per item input
+		if (priceInput == null || priceInput.isHidden()) {
+			return;
+		}
+
+		Rectangle bounds = priceInput.getBounds();
+		int x = bounds.x + bounds.width + 10;
+		int y = bounds.y + 15;
+
+		graphics.setFont(client.getCanvas().getFont());
+
+		// Render High
+		graphics.setColor(COLOR_BETTER);
+		graphics.drawString("Target High: " + QuantityFormatter.formatNumber(priceData.high), x, y);
+
+		// Render Low
+		graphics.setColor(COLOR_WITHIN);
+		graphics.drawString("Target Low:  " + QuantityFormatter.formatNumber(priceData.low), x, y + 15);
 	}
 
 	private Widget getOfferWidget(int slot) {
@@ -130,9 +164,8 @@ public class FlipTo5BOverlay extends Overlay {
 		int price = offer.getPrice();
 
 		Color color = COLOR_WORSE;
-		String statusMsg = "";
+		String statusMsg = "Too Low/High";
 
-		// Logic matching the web app
 		if (priceData != null) {
 			if (isBuy) {
 				if (price >= priceData.high) {
@@ -141,9 +174,6 @@ public class FlipTo5BOverlay extends Overlay {
 				} else if (price >= priceData.low) {
 					color = COLOR_WITHIN;
 					statusMsg = "Competitive";
-				} else {
-					color = COLOR_WORSE;
-					statusMsg = "Too Low";
 				}
 			} else {
 				if (price <= priceData.low) {
@@ -152,52 +182,27 @@ public class FlipTo5BOverlay extends Overlay {
 				} else if (price <= priceData.high) {
 					color = COLOR_WITHIN;
 					statusMsg = "Competitive";
-				} else {
-					color = COLOR_WORSE;
-					statusMsg = "Too High";
 				}
 			}
 		} else {
-			// Fallback for missing data - visual debug
 			color = Color.GRAY;
 			statusMsg = "No Wiki Data";
 		}
 
-		// Draw Border
 		Rectangle bounds = widget.getBounds();
 		graphics.setColor(color);
-		graphics.setStroke(new BasicStroke(2));
+		graphics.setStroke(new BasicStroke(3));
 		graphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-		// Handle Hover
 		if (bounds.contains(client.getMouseCanvasPosition().getX(), client.getMouseCanvasPosition().getY())) {
 			StringBuilder sb = new StringBuilder();
 			sb.append(ColorUtil.wrapWithColorTag("FlipTo5B Analysis", Color.WHITE)).append("</br>");
 			sb.append("Status: ").append(ColorUtil.wrapWithColorTag(statusMsg, color)).append("</br>");
 			sb.append("Your Price: ").append(QuantityFormatter.formatNumber(price)).append(" gp</br>");
-
-			sb.append("</br>");
-
 			if (priceData != null) {
-				sb.append("Wiki High (InstaBuy): ").append(
-						ColorUtil.wrapWithColorTag(QuantityFormatter.formatNumber(priceData.high), COLOR_BETTER))
-						.append("</br>");
-				sb.append("Wiki Low (InstaSell): ")
-						.append(ColorUtil.wrapWithColorTag(QuantityFormatter.formatNumber(priceData.low), COLOR_WITHIN))
-						.append("</br>");
+				sb.append("Wiki High: ").append(QuantityFormatter.formatNumber(priceData.high)).append("</br>");
+				sb.append("Wiki Low: ").append(QuantityFormatter.formatNumber(priceData.low)).append("</br>");
 			}
-
-			// Suggestion logic
-			if (color == COLOR_WORSE && priceData != null) {
-				sb.append("</br>");
-				sb.append(ColorUtil.wrapWithColorTag("Suggestion:", Color.ORANGE)).append("</br>");
-				if (isBuy) {
-					sb.append("Set >= ").append(QuantityFormatter.formatNumber(priceData.low));
-				} else {
-					sb.append("Set <= ").append(QuantityFormatter.formatNumber(priceData.high));
-				}
-			}
-
 			tooltipManager.add(new Tooltip(sb.toString()));
 		}
 	}

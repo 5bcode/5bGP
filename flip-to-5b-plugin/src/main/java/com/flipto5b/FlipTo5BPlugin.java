@@ -8,6 +8,7 @@ import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GrandExchangeOfferChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -50,11 +51,14 @@ public class FlipTo5BPlugin extends Plugin {
 	@Inject
 	private OverlayManager overlayManager;
 
-	@Inject
+	// @Inject // Removed inject to handle manual instantiation
 	private FlipTo5BOverlay overlay;
 
 	@Inject
 	private ClientToolbar clientToolbar;
+
+	@Inject
+	private net.runelite.client.ui.overlay.tooltip.TooltipManager tooltipManager;
 
 	private FlipTo5BPanel panel;
 	private NavigationButton navButton;
@@ -71,8 +75,10 @@ public class FlipTo5BPlugin extends Plugin {
 
 	@Override
 	protected void startUp() throws Exception {
-		log.info("FlipTo5B Sync started!");
+		log.info("!!! FLIPTO5B SYNC INITIALIZED !!!");
+		overlay = new FlipTo5BOverlay(client, this, tooltipManager);
 		overlayManager.add(overlay);
+		log.info("FlipTo5B Overlay MANUALLY instances and added.");
 
 		// Sidebar Panel
 		panel = new FlipTo5BPanel(this, itemManager);
@@ -145,11 +151,16 @@ public class FlipTo5BPlugin extends Plugin {
 	}
 
 	@Subscribe
+	public void onGameStateChanged(GameStateChanged event) {
+		if (event.getGameState() == GameState.LOGGED_IN) {
+			updatePanel();
+		}
+	}
+
+	@Subscribe
 	public void onGrandExchangeOfferChanged(GrandExchangeOfferChanged event) {
 		GrandExchangeOffer offer = event.getOffer();
 		int slot = event.getSlot();
-
-		updatePanel();
 
 		if (offer.getState() == GrandExchangeOfferState.BOUGHT || offer.getState() == GrandExchangeOfferState.SOLD) {
 			String name = itemManager.getItemComposition(offer.getItemId()).getName();
@@ -157,6 +168,8 @@ public class FlipTo5BPlugin extends Plugin {
 			int price = offer.getSpent() / (qty > 0 ? qty : 1);
 			panel.addHistoryEntry(name, qty, price, offer.getState() == GrandExchangeOfferState.BOUGHT);
 		}
+
+		updatePanel();
 
 		if (config.apiKey().isEmpty())
 			return;
@@ -240,15 +253,17 @@ public class FlipTo5BPlugin extends Plugin {
 		if (offers == null)
 			return;
 
+		int slotIndex = 0;
 		for (GrandExchangeOffer o : offers) {
 			if (o.getState() == GrandExchangeOfferState.BUYING || o.getState() == GrandExchangeOfferState.SELLING) {
 				String name = itemManager.getItemComposition(o.getItemId()).getName();
 				int qty = o.getTotalQuantity() - o.getQuantitySold();
 				int price = o.getPrice();
 				String status = o.getState() == GrandExchangeOfferState.BUYING ? "Buying" : "Selling";
-				Color color = o.getState() == GrandExchangeOfferState.BUYING ? Color.ORANGE : Color.YELLOW; // Simple
-																											// colors
-																											// for now
+				Color color = o.getState() == GrandExchangeOfferState.BUYING ? Color.ORANGE : Color.YELLOW;
+
+				// Load image
+				net.runelite.client.util.AsyncBufferedImage icon = itemManager.getImage(o.getItemId());
 
 				// Enhance with check against wiki price if available
 				WikiPrice wp = getWikiPrice(o.getItemId());
@@ -272,7 +287,7 @@ public class FlipTo5BPlugin extends Plugin {
 					}
 				}
 
-				panel.addActiveOffer(name, qty, price, status, color);
+				panel.addActiveOffer(name, qty, price, status, color, icon);
 			}
 		}
 	}
