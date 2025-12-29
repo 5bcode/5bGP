@@ -35,6 +35,7 @@ export function calculateEMA(data: number[], period: number): number[] {
 /**
  * Calculates MACD (Moving Average Convergence Divergence)
  * Standard: 12 EMA, 26 EMA, 9 Signal
+ * Returns arrays for plotting.
  */
 export function calculateMACD(data: number[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
   if (data.length < slowPeriod) return null;
@@ -76,11 +77,10 @@ export function calculateMACD(data: number[], fastPeriod = 12, slowPeriod = 26, 
       histogram.push(macdVal - signalLine[i]);
   }
   
-  // Return the latest values
   return {
-      macd: macdLine[macdLine.length - 1],
-      signal: signalLine[signalLine.length - 1],
-      histogram: histogram[histogram.length - 1]
+      macd: macdLine,
+      signal: signalLine,
+      histogram: histogram
   };
 }
 
