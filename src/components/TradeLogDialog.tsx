@@ -173,7 +173,7 @@ const TradeLogDialog = ({ item, priceData, initialValues, onSave, trigger, isOpe
           {/* Real-time Calc */}
           <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-800 space-y-2">
             <div className="flex justify-between text-xs text-slate-500">
-                <span>Est. Tax (1% capped)</span>
+                <span>Est. Tax (2% capped)</span>
                 <span>-{formatGP(taxPaid)}</span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-slate-800">

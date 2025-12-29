@@ -1,9 +1,11 @@
-export const TAX_RATE = 0.01; // 1% tax (Note: Plan said 2% in text but OSRS is 1%, wait plan says '2% tax on total sell price'. I will stick to the plan: 2%, capped at 5m)
-// Actually, real OSRS tax is 1%. But the spec explicitly says "2% tax on total sell price". I will follow the spec.
+export const TAX_RATE = 0.02; // 2% tax as of May 2025 update
 
 export function calculateTax(sellPrice: number): number {
+  // Items sold for below 50 coins have no tax obligation (2% of 49 is 0.98, floor is 0)
   if (sellPrice < 50) return 0;
-  const tax = Math.floor(sellPrice * 0.02); // Spec says 2%
+  
+  const tax = Math.floor(sellPrice * TAX_RATE);
+  // Cap at 5 million coins
   return tax > 5_000_000 ? 5_000_000 : tax;
 }
 

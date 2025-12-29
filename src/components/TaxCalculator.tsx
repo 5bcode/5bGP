@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Calculator } from "lucide-react";
 import { calculateTax, formatGP } from "@/lib/osrs-math";
 
@@ -21,12 +20,13 @@ const TaxCalculator = ({ isOpen, onClose, initialSellPrice }: TaxCalculatorProps
   
   const tax = calculateTax(sell);
   const net = sell - buy - tax;
-  const breakEven = Math.ceil((buy) / 0.99); // Rough estimate for break even if tax was flat 1%, but since it's capped, it's harder.
-  // Accurate break even: Price where Price - Tax(Price) = BuyPrice.
-  // If BuyPrice > 500m (capped tax range), BreakEven = BuyPrice + 5m.
-  // If BuyPrice is normal, BreakEven = BuyPrice / 0.99.
+
+  // Break Even Calculation for 2% Tax
+  // If SellPrice <= 250m, Tax = 0.02 * SellPrice. BreakEven: Sell * 0.98 = Buy => Sell = Buy / 0.98
+  // If SellPrice > 250m, Tax = 5m. BreakEven: Sell - 5m = Buy => Sell = Buy + 5m
+  // The transition happens when Buy / 0.98 = 250m => Buy = 245m
   
-  const accurateBreakEven = buy > 500_000_000 ? buy + 5_000_000 : Math.ceil(buy / 0.99);
+  const accurateBreakEven = buy > 245_000_000 ? buy + 5_000_000 : Math.ceil(buy / 0.98);
 
   useEffect(() => {
     if (initialSellPrice) setSellPrice(initialSellPrice.toString());
@@ -66,7 +66,7 @@ const TaxCalculator = ({ isOpen, onClose, initialSellPrice }: TaxCalculatorProps
 
           <div className="pt-4 border-t border-slate-800 space-y-3">
              <div className="flex justify-between items-center text-sm">
-                 <span className="text-slate-400">Tax (1% capped)</span>
+                 <span className="text-slate-400">Tax (2% capped)</span>
                  <span className="font-mono text-rose-400">-{formatGP(tax)}</span>
              </div>
              
