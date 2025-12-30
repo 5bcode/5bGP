@@ -49,7 +49,7 @@ const MarketCard = ({ title, icon, items, type = 'neutral' }: MarketCardProps) =
                                     <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
                                             <img
-                                                src={`https://secure.runescape.com/m=itemdb_oldschool/1/obj_sprite.gif?id=${item.id}`}
+                                                src={`https://static.runelite.net/cache/item/icon/${item.id}.png`}
                                                 alt={item.name}
                                                 className="w-full h-full object-contain p-0.5"
                                                 onError={(e) => {

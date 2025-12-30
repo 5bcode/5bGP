@@ -23,7 +23,7 @@ const ItemHeader = ({ item, price, netProfit, volatility }: ItemHeaderProps) => 
             <div className="flex justify-between items-start">
                 <div className="flex gap-4">
                     <div className="w-16 h-16 bg-slate-800/50 rounded-xl flex items-center justify-center border border-slate-700">
-                        <img src={`https://secure.runescape.com/m=itemdb_oldschool/1/obj_sprite.gif?id=${item.id}`} alt={item.name} className="w-10 h-10 object-contain" />
+                        <img src={`https://static.runelite.net/cache/item/icon/${item.id}.png`} alt={item.name} className="w-10 h-10 object-contain" />
                     </div>
                     <div>
                         <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
