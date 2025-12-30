@@ -1,237 +1,154 @@
-import React, { useState, useMemo } from 'react';
-import ItemSearch from '@/components/ItemSearch';
-import MarginCard from '@/components/MarginCard';
-import SettingsDialog from '@/components/SettingsDialog';
-import LiveFeed from '@/components/LiveFeed';
-import OpportunityBoard from '@/components/OpportunityBoard';
-import MarketOverview from '@/components/MarketOverview';
-import ActiveOffers from '@/components/ActiveOffers';
-import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
-import { Item } from '@/services/osrs-api';
-import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
+import React, { useMemo } from 'react';
 import { useMarketData } from '@/hooks/use-osrs-query';
-import { useTradeHistory } from '@/hooks/use-trade-history';
-import { useActiveOffers } from '@/hooks/use-active-offers';
-import { useTradeMode } from '@/context/TradeModeContext';
-import { useSettings } from '@/context/SettingsContext';
-import { useWatchlist } from '@/hooks/use-watchlist';
-import { Loader2, RefreshCw, Trash2, LayoutDashboard } from 'lucide-react';
+import { Item } from '@/services/osrs-api';
+import { useMarketHighlights } from '@/hooks/use-market-highlights';
+import MarketCard from '@/components/dashboard/MarketCard';
+import DiscoverRow from '@/components/dashboard/DiscoverRow';
+import { Loader2, TrendingUp, TrendingDown, BarChart2, DollarSign, Shield, Gem, Zap, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { Trade } from '@/components/TradeLogDialog';
-import CapitalAllocator from '@/components/CapitalAllocator';
-import { usePriceMonitorContext } from '@/context/PriceMonitorContext';
-
-// Defined at module scope to persist across navigation but reset on reload
-const SESSION_START = Date.now();
+import SettingsDialog from '@/components/SettingsDialog';
+import ItemSearch from '@/components/ItemSearch';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
-  const { isPaper } = useTradeMode();
-  const { settings } = useSettings();
+    const { items, prices, stats, isLoading } = useMarketData(60000); // 1 min refresh for dashboard
+    const navigate = useNavigate();
 
-  // Data Hooks
-  const { items, prices, stats, isLoading, refetch } = useMarketData(settings.refreshInterval * 1000);
-  const { trades: tradeHistory, saveTrade } = useTradeHistory();
-  const { offers: activeOffers, addOffer, updateOffer, removeOffer } = useActiveOffers();
-  
-  // New Watchlist Hook
-  const { watchlist, addToWatchlist, removeFromWatchlist, clearWatchlist, loading: watchlistLoading } = useWatchlist(items);
+    // Compute Highlights
+    const {
+        topGainers,
+        topLosers,
+        highVolumeProfit,
+        mostProfitable,
+        mostProfitableF2P,
+        mostExpensive,
+        profitableAlchs
+    } = useMarketHighlights(items, prices, stats);
 
-  // Global Alerts (PriceMonitor is now in Layout via Context)
-  const { alerts, clearAlerts, removeAlert } = usePriceMonitorContext();
+    // Discover Items (Random selection from 'Most Profitable' for now to show variety)
+    const discoverItems = useMemo(() => {
+        if (!items.length) return [];
+        // Just pick 5 random items from the "Most Profitable" list to fill the discover row
+        const source = mostProfitable.length > 5 ? mostProfitable : items.slice(0, 10);
+        // Map back to Item objects
+        return source.slice(0, 5).map(h => items.find(i => i.id === h.id)).filter((i): i is Item => !!i);
+    }, [mostProfitable, items]);
 
-  const [period, setPeriod] = useState<Period>('day');
-  
-  // Calculate Portfolio Stats with Dynamic Period
-  const portfolioStats = useMemo(() => {
-      const activeInvest = activeOffers.reduce((sum, offer) => sum + (offer.price * offer.quantity), 0);
-      const now = Date.now();
-      const today = new Date();
-      today.setHours(0,0,0,0);
+    if (isLoading && items.length === 0) {
+        return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-emerald-500" /></div>;
+    }
 
-      const filteredTrades = tradeHistory.filter(t => {
-          switch (period) {
-              case "session":
-                  return t.timestamp >= SESSION_START;
-              case "day":
-                  return t.timestamp >= today.getTime();
-              case "week":
-                  return t.timestamp >= (now - 7 * 24 * 60 * 60 * 1000);
-              case "month":
-                  return t.timestamp >= (now - 30 * 24 * 60 * 60 * 1000);
-              case "all":
-              default:
-                  return true;
-          }
-      });
+    return (
+        <div className="min-h-screen bg-slate-950 p-4 lg:p-8 space-y-8">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-100">Market Highlights</h1>
+                    <p className="text-slate-500 mt-1">
+                        The Old School Runescape market at a glance. Curated item lists to help you flip to 5B.
+                    </p>
+                </div>
 
-      const profit = filteredTrades.reduce((sum, t) => sum + t.profit, 0);
-
-      return {
-          activeInvest,
-          profit,
-          tradeCount: filteredTrades.length
-      };
-  }, [activeOffers, tradeHistory, period]);
-
-  const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, DEFAULT_STRATEGY);
-
-  const handleRefresh = async () => {
-    await refetch();
-    toast.success("Market data refreshed");
-  };
-
-  const handleAddItem = (item: Item) => {
-    addToWatchlist(item);
-  };
-
-  const handleAddBatch = (batch: Item[]) => {
-      batch.forEach(item => addToWatchlist(item));
-  };
-
-  const handleRemoveItem = (id: number) => {
-      removeFromWatchlist(id);
-  }
-
-  const handleClearAll = () => {
-      if (confirm("Clear watchlist?")) {
-          clearWatchlist();
-      }
-  }
-
-  const handleLogTrade = (trade: Trade) => {
-      saveTrade(trade);
-      toast.success("Trade logged");
-  }
-
-  return (
-    <>
-      <div className="flex flex-col items-center justify-center mb-8 relative">
-        {isPaper && (
-            <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-1 rounded shadow-lg shadow-amber-500/20 animate-pulse">
-                SIMULATION MODE
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="w-full md:w-[300px]">
+                        <ItemSearch
+                            items={items}
+                            onSelect={(item) => navigate(`/item/${item.id}`)}
+                            isLoading={isLoading}
+                        />
+                    </div>
+                    <SettingsDialog />
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 font-bold">
+                        <Crown size={16} className="mr-2" /> Upgrade
+                    </Button>
+                </div>
             </div>
-        )}
-        <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
-          {isPaper ? "Paper Trading Terminal" : "Market Terminal"}
-        </h1>
-        <ItemSearch items={items} onSelect={handleAddItem} isLoading={isLoading} />
-      </div>
-      
-      {!isLoading && (
-        <>
-            <PortfolioStatus 
-                activeInvestment={portfolioStats.activeInvest} 
-                profit={portfolioStats.profit}
-                tradeCount={portfolioStats.tradeCount}
-                period={period}
-                onPeriodChange={setPeriod}
-            />
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-                <div className="xl:col-span-2">
-                    <ActiveOffers 
-                        items={items} 
-                        prices={prices} 
-                        onLogTrade={handleLogTrade} 
-                        offers={activeOffers}
-                        onAdd={addOffer}
-                        onUpdate={updateOffer}
-                        onRemove={removeOffer}
+            {/* Market Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Row 1 */}
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Top Gainers"
+                        icon={<TrendingUp className="text-emerald-500" size={18} />}
+                        items={topGainers}
+                        type="gainers"
                     />
                 </div>
-                <div>
-                     <CapitalAllocator opportunities={bestFlips} onTrackBatch={handleAddBatch} />
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Top Losers"
+                        icon={<TrendingDown className="text-rose-500" size={18} />}
+                        items={topLosers}
+                        type="losers"
+                    />
+                </div>
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="High Volume Profit"
+                        icon={<BarChart2 className="text-purple-500" size={18} />}
+                        items={highVolumeProfit}
+                        type="neutral"
+                    />
+                </div>
+
+                {/* Row 2 */}
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Most Profitable"
+                        icon={<DollarSign className="text-amber-500" size={18} />}
+                        items={mostProfitable}
+                        type="neutral"
+                    />
+                </div>
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Most Profitable F2P"
+                        icon={<Shield className="text-blue-500" size={18} />}
+                        items={mostProfitableF2P}
+                        type="neutral"
+                    />
+                </div>
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Most Expensive"
+                        icon={<Gem className="text-cyan-500" size={18} />}
+                        items={mostExpensive}
+                        type="neutral"
+                    />
+                </div>
+
+                {/* Row 3 - Optional additional rows */}
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Profitable Alchs"
+                        icon={<Zap className="text-yellow-400" size={18} />}
+                        items={profitableAlchs}
+                        type="neutral"
+                    />
+                </div>
+                <div className="h-[320px] bg-slate-900/50 border border-slate-800/50 rounded-lg flex items-center justify-center border-dashed">
+                    <div className="text-center text-slate-500">
+                        <Crown size={32} className="mx-auto mb-2 opacity-50" />
+                        <p>Unlock more lists with Premium</p>
+                    </div>
+                </div>
+                <div className="h-[320px] bg-slate-900/50 border border-slate-800/50 rounded-lg flex items-center justify-center border-dashed">
+                    <div className="text-center text-slate-500">
+                        <BarChart2 size={32} className="mx-auto mb-2 opacity-50" />
+                        <p>Custom Filters Coming Soon</p>
+                    </div>
                 </div>
             </div>
 
-            <MarketOverview items={items} prices={prices} stats={stats} />
-            
-            <OpportunityBoard 
-                dumps={dumps.slice(0, 8)} 
-                bestFlips={bestFlips.slice(0, 8)} 
-                onTrackItem={handleAddItem}
-                filter='all'
-            />
-        </>
-      )}
-
-      {/* WATCHLIST */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-             <h2 className="text-xl font-semibold text-slate-200 flex items-center gap-2">
-                <LayoutDashboard className="h-5 w-5 text-emerald-500" />
-                Active Watchlist 
-                <span className="ml-2 text-sm text-slate-500 font-normal">
-                    ({watchlist.length} items) {watchlistLoading && <Loader2 className="inline h-3 w-3 animate-spin"/>}
-                </span>
-            </h2>
-            <SettingsDialog />
-        </div>
-        
-        <div className="flex gap-2">
-            {watchlist.length > 0 && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearAll}
-                    className="text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
-                >
-                    <Trash2 className="h-4 w-4" />
-                </Button>
-            )}
-            <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                className="border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
-            >
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Refresh
-            </Button>
-        </div>
-      </div>
-
-      {isLoading && items.length === 0 ? (
-        <div className="flex justify-center py-20">
-            <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
-          {watchlist.map(item => (
-            <div key={item.id} className="relative group h-full">
-                <MarginCard 
-                    item={item} 
-                    priceData={prices[item.id]} 
-                    stats={stats[item.id]}
-                    onLogTrade={handleLogTrade}
-                />
-                <button 
-                    onClick={() => handleRemoveItem(item.id)}
-                    className="absolute -top-2 -right-2 bg-slate-800 text-slate-400 hover:text-rose-500 hover:bg-slate-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    title="Remove item"
-                >
-                    <Trash2 size={14} />
-                </button>
+            {/* Discover Section */}
+            <div className="pt-8 border-t border-slate-900">
+                <DiscoverRow items={discoverItems} prices={prices} />
             </div>
-          ))}
-          
-          {!watchlistLoading && watchlist.length === 0 && (
-             <div className="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20">
-                 <p className="text-slate-500">Your watchlist is empty.</p>
-                 <p className="text-sm text-slate-600 mt-2">Search for items above to start tracking prices and margins.</p>
-             </div>
-          )}
-        </div>
-      )}
 
-      <LiveFeed 
-        alerts={alerts} 
-        onClear={clearAlerts} 
-        onRemove={removeAlert} 
-      />
-    </>
-  );
+            <div className="h-8" />
+        </div>
+    );
 };
 
 export default Dashboard;

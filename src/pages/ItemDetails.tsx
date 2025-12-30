@@ -1,196 +1,130 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import PriceChart from '@/components/PriceChart';
+import { Item, PriceData, TimeSeriesPoint } from '@/services/osrs-api';
 import { calculateMargin, calculateVolatility } from '@/lib/osrs-math';
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, ExternalLink, Activity } from 'lucide-react';
-import { toast } from 'sonner';
 import { useMarketData } from '@/hooks/use-osrs-query';
-import { useTradeHistory } from '@/hooks/use-trade-history';
-import { Trade } from '@/components/TradeLogDialog';
+import { useWatchlist } from '@/hooks/use-watchlist';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
-// Modular Components
-import { ItemHeader } from '@/components/ItemHeader';
-import { MetricCards } from '@/components/MetricCards';
-import { DeepAnalysis } from '@/components/DeepAnalysis';
-import { VolumeAnalysis } from '@/components/VolumeAnalysis';
-import { HistoryTable } from '@/components/HistoryTable';
-import { SmartAnalysis } from '@/components/SmartAnalysis';
-import ItemNotes from '@/components/ItemNotes';
-import PricePredictor from '@/components/PricePredictor';
-import PersonalItemStats from '@/components/PersonalItemStats';
+// Stitch Components
+import ItemHeader from '@/components/dashboard/ItemHeader';
+import VolumeCard from '@/components/dashboard/VolumeCard';
+import PriceActionChart from '@/components/dashboard/PriceActionChart';
+import { SmartAnalysis, AlgorithmicForecast, ArbitrageCheck } from '@/components/dashboard/AnalysisWidgets';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
-  const { items, prices, stats, isLoading } = useMarketData();
-  const { trades, saveTrade, deleteTrade } = useTradeHistory();
+  const itemId = id ? parseInt(id) : 12934; // Default to Zulrah Scale if missing
 
-  const itemData = useMemo(() => {
-    if (!id || isLoading || items.length === 0) return null;
-    const foundItem = items.find(i => i.id.toString() === id);
-    if (!foundItem) return null;
-    
-    return {
-        item: foundItem,
-        price: prices[foundItem.id],
-        stat: stats[foundItem.id]
-    };
-  }, [id, items, prices, stats, isLoading]);
+  const { items, prices, stats, isLoading } = useMarketData(60000);
+  const { addToWatchlist } = useWatchlist(items);
 
-  const itemHistory = useMemo(() => {
-      if (!id) return [];
-      return trades
-        .filter(t => t.itemId.toString() === id)
-        .sort((a, b) => b.timestamp - a.timestamp);
-  }, [trades, id]);
+  const [chartData, setChartData] = useState<TimeSeriesPoint[]>([]);
 
-  const handleLogTrade = (trade: Trade) => {
-    saveTrade(trade);
-    toast.success("Trade logged to history");
-  };
-
-  const handleDeleteTrade = (tradeId: string) => {
-      if (confirm("Delete this trade record?")) {
-          deleteTrade(tradeId);
-          toast.success("Trade deleted");
+  // Fetch timeseries for the chart
+  useEffect(() => {
+    const fetchChart = async () => {
+      if (!itemId) return;
+      try {
+        const { osrsApi } = await import('@/services/osrs-api');
+        const data = await osrsApi.getTimeseries(itemId, '1h');
+        setChartData(data);
+      } catch (e) {
+        console.error("Failed to fetch chart", e);
       }
-  };
+    };
+    fetchChart();
+  }, [itemId]);
 
-  if (isLoading) {
+  const selectedItem = items.find(i => i.id === itemId);
+  const selectedPrice = prices[itemId];
+  const selectedStats = stats[itemId];
+
+  if (!selectedItem || !selectedPrice || !selectedStats) {
+    if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-emerald-500" /></div>;
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-12 w-1/3 bg-slate-800 rounded" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-slate-800 rounded" />)}
-        </div>
-        <div className="h-[400px] bg-slate-800 rounded" />
+      <div className="flex flex-col items-center justify-center h-screen space-y-4">
+        <p className="text-slate-500">Item data not found.</p>
+        <Link to="/"><Button>Back to Dashboard</Button></Link>
       </div>
     );
   }
 
-  if (!itemData || !itemData.price) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
-        <h2 className="text-2xl font-bold mb-2">Item Not Found</h2>
-        <Link to="/" className="text-emerald-500 hover:underline">Return to Dashboard</Link>
-      </div>
-    );
-  }
-
-  const { item, price, stat } = itemData;
-
-  // --- CALCULATIONS ---
-  const { net, roi, tax } = calculateMargin(price.low, price.high);
-  const volatility = calculateVolatility(price.high, price.low);
-  const volume = stat ? stat.highPriceVolume + stat.lowPriceVolume : 0;
-  
-  const spread = price.high - price.low;
-  const avgSpread = stat ? (stat.avgHighPrice - stat.avgLowPrice) : 0;
-  const spreadDifference = avgSpread > 0 ? ((spread - avgSpread) / avgSpread) * 100 : 0;
-  
-  const natureRunePrice = 100;
-  const highAlchProfit = (item.highalch || 0) - price.low - natureRunePrice;
-  const isAlchable = highAlchProfit > 0;
-  const buyPressure = stat ? (stat.highPriceVolume / (volume || 1)) * 100 : 50;
-
-  let recommendation = "Neutral";
-  if (net > 0 && roi > 2 && volatility < 20) {
-      recommendation = "Strong Buy";
-  } else if (volatility > 80) {
-      recommendation = "Extreme Volatility";
-  } else if (item.highalch && price.low < item.highalch) {
-      recommendation = "Safe Floor (Alch)";
-  } else if (spreadDifference > 50) {
-      recommendation = "Gap Widening";
-  }
+  const { net } = calculateMargin(selectedPrice.low, selectedPrice.high);
+  const volatility = calculateVolatility(selectedPrice.high, selectedPrice.low);
 
   return (
-    <>
-      <div className="mb-6 flex items-center justify-between">
-        <Link to="/" className="flex items-center text-slate-400 hover:text-emerald-400 transition-colors">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-        </Link>
-        <div className="flex gap-2">
-            <a href={`https://prices.runescape.wiki/osrs/item/${item.id}`} target="_blank" rel="noreferrer">
-                <Button variant="outline" size="sm" className="bg-slate-900 border-slate-700 text-slate-300">
-                    <ExternalLink className="mr-2 h-4 w-4" /> Wiki
-                </Button>
-            </a>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-950 p-4 lg:p-6 space-y-4">
+      <Link to="/" className="inline-flex items-center text-slate-400 hover:text-white mb-4 transition-colors">
+        <ArrowLeft size={16} className="mr-2" /> Back to Market
+      </Link>
 
-      <ItemHeader 
-        item={item} 
-        price={price} 
-        recommendation={recommendation} 
-        onLogTrade={handleLogTrade} 
-      />
+      {/* --- STITCH LAYOUT GRID --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      <MetricCards 
-        price={price} 
-        net={net} 
-        roi={roi} 
-        tax={tax} 
-        volatility={volatility} 
-      />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 space-y-6">
-           <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-              <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                  <Activity className="text-emerald-500" size={20} /> Price Action
-              </h3>
-              <PriceChart itemId={item.id} />
-           </div>
+        {/* LEFT COLUMN: Header & Chart (Span 2) */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          {/* 1. Header & Quick Stats Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[220px]">
+            <ItemHeader
+              item={selectedItem}
+              price={selectedPrice}
+              netProfit={net}
+              volatility={volatility}
+            />
+            <VolumeCard stats={selectedStats} />
+          </div>
+
+          {/* 2. Main Price Chart */}
+          <div className="flex-1 min-h-[400px]">
+            <PriceActionChart data={chartData} />
+          </div>
         </div>
 
-        <VolumeAnalysis 
-            item={item}
-            price={price}
-            stat={stat}
-            volume={volume}
-            buyPressure={buyPressure}
-            net={net}
-        />
-      </div>
-      
-      <div className="space-y-6 mb-8">
-        <SmartAnalysis 
-          item={item}
-          price={price}
-          stats={stat}
-          roi={roi}
-          volatility={volatility}
-        />
-
-        <PricePredictor itemId={item.id} />
-      </div>
-
-      <DeepAnalysis 
-        item={item} 
-        price={price} 
-        stats={stat} 
-        net={net} 
-        spreadDifference={spreadDifference} 
-        isAlchable={isAlchable} 
-        highAlchProfit={highAlchProfit} 
-      />
-
-      <div className="my-8 border-t border-slate-800 pt-8">
-        <h2 className="text-xl font-bold text-slate-200 mb-6">Your Performance</h2>
-        
-        <PersonalItemStats trades={itemHistory} />
-        
-        <div className="mt-8">
-            <ItemNotes itemId={item.id} />
-        </div>
-
-        <div className="mt-8">
-            <HistoryTable history={itemHistory} onDelete={handleDeleteTrade} />
+        {/* RIGHT COLUMN: Analysis Widgets (Span 1) */}
+        <div className="flex flex-col gap-4">
+          <div className="h-[200px]">
+            <SmartAnalysis item={selectedItem} price={selectedPrice} />
+          </div>
+          <div className="h-[200px]">
+            <AlgorithmicForecast />
+          </div>
+          <div className="flex-1">
+            <MarginAnalysisChart price={selectedPrice} net={net} />
+          </div>
+          <div className="min-h-[150px]">
+            <ArbitrageCheck item={selectedItem} price={selectedPrice} />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
+
+// Quick Subcomponent for Margin Bar Chart
+const MarginAnalysisChart = ({ price, net }: { price: PriceData, net: number }) => {
+  return (
+    <Card className="p-5 bg-slate-900 border-slate-800 h-full flex flex-col">
+      <h4 className="text-slate-200 font-semibold mb-4">Margin Analysis</h4>
+      <div className="flex-1 flex items-end gap-2 justify-center pb-4">
+        {/* Visual Bar Representation */}
+        <div className="w-12 bg-slate-800 h-[60%] rounded-t relative group">
+          <div className="absolute -top-6 text-xs text-slate-400 w-full text-center">Buy</div>
+        </div>
+        <div className="w-12 bg-rose-500/50 h-[10%] rounded-t relative">
+          <div className="absolute -top-6 text-xs text-rose-400 w-full text-center">Tax</div>
+        </div>
+        <div className="w-12 bg-emerald-500 h-[30%] rounded-t relative animate-in slide-in-from-bottom duration-700">
+          <div className="absolute -top-6 text-xs text-emerald-400 w-full text-center font-bold">Net</div>
+        </div>
+      </div>
+      <div className="text-center text-xs text-slate-500">
+        Potential Profit: <span className="text-emerald-400 font-mono">{net} GP</span>
+      </div>
+    </Card>
+  )
+}
 
 export default ItemDetails;
