@@ -10,7 +10,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
+
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -31,6 +31,7 @@ public class FlipTo5BOverlay extends OverlayPanel {
 	private static final Color COLOR_BETTER = new Color(16, 185, 129); // Emerald-500
 	private static final Color COLOR_WITHIN = new Color(59, 130, 246); // Blue-500
 	private static final Color COLOR_WORSE = new Color(244, 63, 94); // Rose-500
+	private int lastSidebarItemId = -1;
 
 	@Inject
 	public FlipTo5BOverlay(Client client, FlipTo5BPlugin plugin, TooltipManager tooltipManager) {
@@ -90,17 +91,60 @@ public class FlipTo5BOverlay extends OverlayPanel {
 	private void renderOfferSetupOverlay(Graphics2D graphics) {
 		Widget setupContainer = client.getWidget(465, 23); // Better ID for setup window
 		if (setupContainer == null || setupContainer.isHidden()) {
+			// If setup window is not open, clear the sidebar item
+			if (lastSidebarItemId != -1) {
+				plugin.setSidebarItem(-1);
+				lastSidebarItemId = -1;
+			}
 			return;
 		}
 
-		Widget itemIcon = client.getWidget(465, 21); // Item icon widget usually holds the ID
-		if (itemIcon == null) {
+		// Try multiple known Widget IDs for the Item Icon in Setup Screen
+		Widget itemWidget = client.getWidget(465, 25); // Primary candidate
+		if (itemWidget == null || itemWidget.isHidden()) {
+			itemWidget = client.getWidget(465, 21); // Fallback 1
+		}
+
+		// If still null, try finding by matching child properties in container 24
+		if (itemWidget == null || itemWidget.isHidden()) {
+			Widget container = client.getWidget(465, 24);
+			if (container != null) {
+				Widget[] children = container.getChildren();
+				if (children != null) {
+					for (Widget child : children) {
+						if (child.getItemId() > -1) {
+							itemWidget = child;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if (itemWidget == null || itemWidget.isHidden()) {
+			// If item icon is not present, clear the sidebar item
+			if (lastSidebarItemId != -1) {
+				plugin.setSidebarItem(-1);
+				lastSidebarItemId = -1;
+			}
 			return;
 		}
 
-		int itemId = itemIcon.getItemId();
+		int itemId = itemWidget.getItemId();
 		if (itemId <= 0) {
+			// If item ID is invalid, clear the sidebar item
+			if (lastSidebarItemId != -1) {
+				plugin.setSidebarItem(-1);
+				lastSidebarItemId = -1;
+			}
 			return;
+		}
+
+		// Update Sidebar if changed
+		if (itemId != lastSidebarItemId) {
+			log.debug("FlipTo5B: Found Setup Item in Widget " + itemWidget.getId() + " ItemID: " + itemId);
+			plugin.setSidebarItem(itemId);
+			lastSidebarItemId = itemId;
 		}
 
 		FlipTo5BPlugin.WikiPrice priceData = plugin.getWikiPrice(itemId);
@@ -174,6 +218,9 @@ public class FlipTo5BOverlay extends OverlayPanel {
 				} else if (price >= priceData.low) {
 					color = COLOR_WITHIN;
 					statusMsg = "Competitive";
+				} else {
+					color = COLOR_WORSE;
+					statusMsg = "Too Low";
 				}
 			} else {
 				if (price <= priceData.low) {
@@ -182,6 +229,9 @@ public class FlipTo5BOverlay extends OverlayPanel {
 				} else if (price <= priceData.high) {
 					color = COLOR_WITHIN;
 					statusMsg = "Competitive";
+				} else {
+					color = COLOR_WORSE;
+					statusMsg = "Too High";
 				}
 			}
 		} else {
@@ -202,8 +252,40 @@ public class FlipTo5BOverlay extends OverlayPanel {
 			if (priceData != null) {
 				sb.append("Wiki High: ").append(QuantityFormatter.formatNumber(priceData.high)).append("</br>");
 				sb.append("Wiki Low: ").append(QuantityFormatter.formatNumber(priceData.low)).append("</br>");
+
+				// Potential Profit Calculation
+				int potentialProfit = 0;
+				if (isBuy) {
+					// Buying: Potential Profit = (Wiki High * 0.99) - Price
+					int sellParams = priceData.high;
+					int tax = calculateTax(sellParams);
+					int afterTax = sellParams - tax;
+					potentialProfit = afterTax - price;
+				} else {
+					// Selling: Realized Return = (Price * 0.99)
+					int tax = calculateTax(price);
+					int afterTax = price - tax;
+					sb.append("After Tax: ").append(QuantityFormatter.formatNumber(afterTax)).append(" gp</br>");
+				}
+
+				if (isBuy && potentialProfit != 0) {
+					Color profitColor = potentialProfit > 0 ? Color.GREEN : Color.RED;
+					sb.append("Est. Profit: ").append(
+							ColorUtil.wrapWithColorTag(QuantityFormatter.formatNumber(potentialProfit), profitColor))
+							.append(" gp/ea</br>");
+				}
 			}
 			tooltipManager.add(new Tooltip(sb.toString()));
 		}
+	}
+
+	private int calculateTax(int price) {
+		if (price < 100)
+			return 0;
+		// User requested 2% tax
+		int tax = (int) Math.floor(price * 0.02);
+		if (tax > 5000000)
+			tax = 5000000;
+		return tax;
 	}
 }

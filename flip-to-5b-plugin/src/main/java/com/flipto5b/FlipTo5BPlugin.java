@@ -21,8 +21,9 @@ import net.runelite.client.ui.NavigationButton;
 import com.flipto5b.ui.FlipTo5BPanel;
 import java.awt.image.BufferedImage;
 import java.awt.Color;
-import okhttp3.*;
+import java.io.File;
 import java.io.IOException;
+import okhttp3.*;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
@@ -94,6 +95,13 @@ public class FlipTo5BPlugin extends Plugin {
 
 		// Fetch prices immediately and then every minute
 		executor.scheduleAtFixedRate(this::fetchPrices, 0, 1, TimeUnit.MINUTES);
+
+		// HOT RELOAD FIX: Poll for offers for a few seconds to catch them if valid
+		executor.scheduleAtFixedRate(() -> {
+			if (client.getGameState() == GameState.LOGGED_IN) {
+				SwingUtilities.invokeLater(this::updatePanel);
+			}
+		}, 0, 2, TimeUnit.SECONDS); // Check every 2 seconds
 	}
 
 	@Override
@@ -154,6 +162,14 @@ public class FlipTo5BPlugin extends Plugin {
 	public void onGameStateChanged(GameStateChanged event) {
 		if (event.getGameState() == GameState.LOGGED_IN) {
 			updatePanel();
+		}
+	}
+
+	@Subscribe
+	public void onWidgetLoaded(net.runelite.api.events.WidgetLoaded event) {
+		if (event.getGroupId() == 465) { // Grand Exchange group ID
+			log.info("Grand Exchange Interface Loaded - Forcing Panel Update");
+			SwingUtilities.invokeLater(this::updatePanel);
 		}
 	}
 
@@ -230,6 +246,7 @@ public class FlipTo5BPlugin extends Plugin {
 			logPayload.data.itemName = itemManager.getItemComposition(offer.getItemId()).getName();
 			logPayload.data.quantity = offer.getQuantitySold();
 			logPayload.data.profit = 0; // Placeholder
+			logPayload.data.timestamp = System.currentTimeMillis(); // Add timestamp
 
 			if (state == GrandExchangeOfferState.BOUGHT) {
 				int qty = offer.getQuantitySold() > 0 ? offer.getQuantitySold() : 1;
@@ -242,19 +259,75 @@ public class FlipTo5BPlugin extends Plugin {
 			}
 
 			sendData(logPayload);
+			saveTradeToFile(logPayload.data); // Save locally
 		}
 	}
 
-	private void updatePanel() {
-		// Refresh active offers on the panel
-		SwingUtilities.invokeLater(() -> panel.clearActiveOffers());
+	private void saveTradeToFile(OfferData trade) {
+		File dir = new File(net.runelite.client.RuneLite.RUNELITE_DIR, "flipto5b");
+		if (!dir.exists()) {
+			dir.mkdirs();
+		}
+		File file = new File(dir, "trades.json");
 
-		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
-		if (offers == null)
+		try {
+			java.util.List<OfferData> trades;
+			if (file.exists()) {
+				// Read existing
+				java.io.FileReader reader = new java.io.FileReader(file);
+				Type listType = new TypeToken<java.util.ArrayList<OfferData>>() {
+				}.getType();
+				trades = gson.fromJson(reader, listType);
+				reader.close();
+				if (trades == null)
+					trades = new java.util.ArrayList<>();
+			} else {
+				trades = new java.util.ArrayList<>();
+			}
+
+			// Append new
+			trades.add(trade);
+
+			// Write back
+			java.io.FileWriter writer = new java.io.FileWriter(file);
+			gson.toJson(trades, writer);
+			writer.flush();
+			writer.close();
+			log.debug("Saved trade to " + file.getAbsolutePath());
+		} catch (IOException e) {
+			log.error("Failed to save trade locally", e);
+		}
+	}
+
+	public void setSidebarItem(int itemId) {
+		log.debug("Plugin: setSidebarItem called with ID " + itemId);
+		if (itemId == -1) {
+			SwingUtilities.invokeLater(() -> panel.showItemDetails(null, null, null)); // Method handles nulls or we add
+																						// new method
 			return;
+		}
 
-		int slotIndex = 0;
+		String name = itemManager.getItemComposition(itemId).getName();
+		log.debug("Plugin: Detected item " + name);
+		WikiPrice wp = getWikiPrice(itemId);
+		net.runelite.client.util.AsyncBufferedImage icon = itemManager.getImage(itemId);
+
+		panel.showItemDetails(name, wp, icon);
+	}
+
+	private void updatePanel() {
+		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
+		if (offers == null) {
+			log.debug("FlipTo5B Panel Update: OFFERS ARRAY IS NULL");
+			return;
+		}
+
+		log.debug("FlipTo5B Panel Update: Found " + offers.length + " offers.");
+
+		java.util.List<FlipTo5BPanel.PanelOffer> panelOffers = new java.util.ArrayList<>();
+
 		for (GrandExchangeOffer o : offers) {
+			log.debug(" - Slot State: " + o.getState());
 			if (o.getState() == GrandExchangeOfferState.BUYING || o.getState() == GrandExchangeOfferState.SELLING) {
 				String name = itemManager.getItemComposition(o.getItemId()).getName();
 				int qty = o.getTotalQuantity() - o.getQuantitySold();
@@ -287,9 +360,11 @@ public class FlipTo5BPlugin extends Plugin {
 					}
 				}
 
-				panel.addActiveOffer(name, qty, price, status, color, icon);
+				panelOffers.add(new FlipTo5BPanel.PanelOffer(name, qty, price, status, color, icon));
 			}
 		}
+
+		panel.updateOffers(panelOffers);
 	}
 
 	private void sendData(Payload payload) {
@@ -337,12 +412,13 @@ public class FlipTo5BPlugin extends Plugin {
 		int buyPrice;
 		int sellPrice;
 		int profit;
+		long timestamp;
 	}
 
 	public static class WikiPrice {
-		int high;
-		int highTime;
-		int low;
-		int lowTime;
+		public int high;
+		public int highTime;
+		public int low;
+		public int lowTime;
 	}
 }

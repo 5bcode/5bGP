@@ -45,6 +45,25 @@ export const ItemHeader = ({ item, price, recommendation, onLogTrade }: ItemHead
         <div>
           <h1 className="text-3xl font-bold text-slate-100 tracking-tight">{item.name}</h1>
           <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-400">
+            {/* Live Data Indicator */}
+            {(() => {
+              const nowSecCalls = Math.floor(Date.now() / 1000);
+              const lastUpdate = Math.max(price.highTime || 0, price.lowTime || 0);
+              const diff = nowSecCalls - lastUpdate;
+              const isLive = diff < 60; // Fresh if < 1 min
+
+              if (isLive) return (
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 flex items-center gap-1.5 animate-in fade-in">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>LIVE</span>
+                </Badge>
+              );
+              return null;
+            })()}
+
             <Badge variant="outline" className="border-slate-700 bg-slate-950 font-mono text-xs">ID: {item.id}</Badge>
             {item.limit && (
               <Badge variant="outline" className="border-slate-700 bg-slate-950 text-xs">

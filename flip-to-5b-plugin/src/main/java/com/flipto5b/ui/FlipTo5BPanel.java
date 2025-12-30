@@ -4,11 +4,11 @@ import com.flipto5b.FlipTo5BPlugin;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.CardLayout;
 import javax.inject.Inject;
-import javax.swing.BoxLayout;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
@@ -27,6 +27,13 @@ public class FlipTo5BPanel extends PluginPanel {
 
     private long sessionProfit = 0;
 
+    private final JPanel contentPanel = new JPanel();
+    private final CardLayout cardLayout = new CardLayout();
+
+    // View Names
+    private static final String VIEW_OVERVIEW = "OVERVIEW";
+    private static final String VIEW_DETAILS = "DETAILS";
+
     @Inject
     public FlipTo5BPanel(FlipTo5BPlugin plugin, ItemManager itemManager) {
         super();
@@ -36,11 +43,6 @@ public class FlipTo5BPanel extends PluginPanel {
         setBorder(new EmptyBorder(10, 10, 10, 10));
         setBackground(ColorScheme.DARK_GRAY_COLOR);
         setLayout(new BorderLayout());
-
-        JPanel layoutPanel = new JPanel();
-        layoutPanel.setLayout(new BoxLayout(layoutPanel, BoxLayout.Y_AXIS));
-        layoutPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        add(layoutPanel, BorderLayout.NORTH);
 
         // Header: Session Profit
         JPanel profitPanel = new JPanel(new BorderLayout());
@@ -55,27 +57,144 @@ public class FlipTo5BPanel extends PluginPanel {
 
         profitPanel.add(title, BorderLayout.WEST);
         profitPanel.add(sessionProfitLabel, BorderLayout.EAST);
-        layoutPanel.add(profitPanel);
+        add(profitPanel, BorderLayout.NORTH);
 
-        // Active Offers Section
-        layoutPanel.add(createHeader("Active Offers"));
+        // Main Content Area with CardLayout
+        contentPanel.setLayout(cardLayout);
+        contentPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        add(contentPanel, BorderLayout.CENTER);
+
+        // 1. OVERVIEW PANEL
+        JPanel overviewPanel = new JPanel();
+        overviewPanel.setLayout(new BoxLayout(overviewPanel, BoxLayout.Y_AXIS));
+        overviewPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+        overviewPanel.add(createHeader("Active Offers"));
         activeOffersContainer.setLayout(new BoxLayout(activeOffersContainer, BoxLayout.Y_AXIS));
         activeOffersContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        layoutPanel.add(activeOffersContainer);
+        overviewPanel.add(activeOffersContainer);
 
-        // Spacer
-        layoutPanel.add(new JPanel() {
+        overviewPanel.add(new JPanel() {
             {
                 setPreferredSize(new Dimension(0, 10));
                 setBackground(ColorScheme.DARK_GRAY_COLOR);
             }
         });
 
-        // Recent History Section
-        layoutPanel.add(createHeader("Recent History"));
+        overviewPanel.add(createHeader("Recent History"));
         historyContainer.setLayout(new BoxLayout(historyContainer, BoxLayout.Y_AXIS));
         historyContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        layoutPanel.add(historyContainer);
+        overviewPanel.add(historyContainer);
+
+        contentPanel.add(overviewPanel, VIEW_OVERVIEW);
+
+        // 2. DETAILS PANEL (Placeholder, updated dynamically)
+        JPanel detailsPanelHolder = new JPanel(new BorderLayout());
+        detailsPanelHolder.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        contentPanel.add(detailsPanelHolder, VIEW_DETAILS);
+
+        // Show Overview by default
+        cardLayout.show(contentPanel, VIEW_OVERVIEW);
+    }
+
+    public void showItemDetails(String name, FlipTo5BPlugin.WikiPrice priceData,
+            net.runelite.client.util.AsyncBufferedImage icon) {
+        SwingUtilities.invokeLater(() -> {
+            if (name == null) {
+                cardLayout.show(contentPanel, VIEW_OVERVIEW);
+                return;
+            }
+
+            JPanel details = new JPanel();
+            details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
+            details.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+            // Back Button
+            JButton backBtn = new JButton("Back to Overview");
+            backBtn.addActionListener(e -> cardLayout.show(contentPanel, VIEW_OVERVIEW));
+            backBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+            details.add(backBtn);
+            details.add(Box.createRigidArea(new Dimension(0, 10)));
+
+            // Header
+            JPanel header = new JPanel(new BorderLayout());
+            header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+            header.setBorder(new EmptyBorder(10, 10, 10, 10));
+            JLabel nameLabel = new JLabel(name);
+            nameLabel.setForeground(Color.WHITE);
+            nameLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeBoldFont());
+            if (icon != null) {
+                nameLabel.setIcon(new javax.swing.ImageIcon(icon));
+            }
+            header.add(nameLabel, BorderLayout.CENTER);
+            details.add(header);
+
+            details.add(Box.createRigidArea(new Dimension(0, 15)));
+
+            if (priceData != null) {
+                // Prices
+                details.add(createDetailRow("Wiki Buy:", QuantityFormatter.formatNumber(priceData.high),
+                        ColorScheme.GRAND_EXCHANGE_PRICE));
+                details.add(createDetailRow("Wiki Sell:", QuantityFormatter.formatNumber(priceData.low),
+                        ColorScheme.GRAND_EXCHANGE_PRICE));
+
+                details.add(Box.createRigidArea(new Dimension(0, 10)));
+
+                // Analysis
+                int margin = priceData.high - priceData.low;
+                int tax = (int) Math.floor(priceData.high * 0.01); // 1% tax for calculation
+                if (tax > 5000000)
+                    tax = 5000000;
+
+                int profit = margin - tax;
+                double roi = ((double) profit / priceData.low) * 100;
+
+                details.add(createDetailRow("Margin:", QuantityFormatter.formatNumber(margin), Color.WHITE));
+                details.add(createDetailRow("Tax (1%):", QuantityFormatter.formatNumber(tax), Color.RED));
+                details.add(Box.createRigidArea(new Dimension(0, 5)));
+
+                details.add(createDetailRow("Profit/Ea:", QuantityFormatter.formatNumber(profit),
+                        profit > 0 ? Color.GREEN : Color.RED));
+                details.add(
+                        createDetailRow("ROI:", String.format("%.2f%%", roi), profit > 0 ? Color.GREEN : Color.RED));
+            }
+
+            // Update content
+            JPanel container = (JPanel) findComponent(contentPanel, VIEW_DETAILS);
+            container.removeAll();
+            container.add(details, BorderLayout.NORTH);
+            container.revalidate();
+            container.repaint();
+
+            cardLayout.show(contentPanel, VIEW_DETAILS);
+        });
+    }
+
+    private Component findComponent(Container container, String name) {
+        for (Component c : container.getComponents()) {
+            if (name.equals(c.getName()))
+                return c; // Standard card layout naming
+        }
+        // Fallback since CardLayout adds with constraints, assume we render into the
+        // second slot for now
+        return container.getComponent(1);
+    }
+
+    private JPanel createDetailRow(String labelText, String valueText, Color valueColor) {
+        JPanel row = new JPanel(new BorderLayout());
+        row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        row.setBorder(new EmptyBorder(2, 5, 2, 5));
+
+        JLabel label = new JLabel(labelText);
+        label.setForeground(Color.GRAY);
+
+        JLabel value = new JLabel(valueText);
+        value.setForeground(valueColor);
+        value.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+
+        row.add(label, BorderLayout.WEST);
+        row.add(value, BorderLayout.EAST);
+        return row;
     }
 
     private JPanel createHeader(String text) {
@@ -114,9 +233,14 @@ public class FlipTo5BPanel extends PluginPanel {
         });
     }
 
-    public void clearActiveOffers() {
+    public void updateOffers(java.util.List<PanelOffer> offers) {
         SwingUtilities.invokeLater(() -> {
             activeOffersContainer.removeAll();
+            for (PanelOffer offer : offers) {
+                OfferPanel panel = new OfferPanel();
+                panel.update(offer.name, offer.price, offer.qty, offer.status, offer.color, offer.icon);
+                activeOffersContainer.add(panel);
+            }
             activeOffersContainer.revalidate();
             activeOffersContainer.repaint();
         });
@@ -130,5 +254,24 @@ public class FlipTo5BPanel extends PluginPanel {
             historyContainer.revalidate();
             historyContainer.repaint();
         });
+    }
+
+    public static class PanelOffer {
+        String name;
+        int qty;
+        int price;
+        String status;
+        Color color;
+        net.runelite.client.util.AsyncBufferedImage icon;
+
+        public PanelOffer(String name, int qty, int price, String status, Color color,
+                net.runelite.client.util.AsyncBufferedImage icon) {
+            this.name = name;
+            this.qty = qty;
+            this.price = price;
+            this.status = status;
+            this.color = color;
+            this.icon = icon;
+        }
     }
 }
