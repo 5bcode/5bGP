@@ -3,8 +3,10 @@ import { createChart, ColorType, IChartApi, Time, AreaSeries, HistogramSeries, C
 import { Card } from '@/components/ui/card';
 import { osrsApi, TimeSeriesPoint, TimeStep } from '@/services/osrs-api';
 import { Button } from '@/components/ui/button';
-import { Loader2, TrendingUp, TrendingDown, Minus, Maximize2 } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Minus, Maximize2, LineChart, BarChart3 } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
+import { useChartSettings } from '@/hooks/use-chart-settings';
+import ChartSettingsDialog from './ChartSettingsDialog';
 
 interface PriceActionChartProps {
     itemId: number;
@@ -127,6 +129,10 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
     const [selectedTimeframe, setSelectedTimeframe] = useState<TimeStep>('5m');
     const [data, setData] = useState<TimeSeriesPoint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+
+    // Chart Settings
+    const { settings, updateSettings, resetSettings } = useChartSettings();
 
     // Default Indicators
     const [showSMA, setShowSMA] = useState(false);
@@ -148,6 +154,28 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             (d.avgHighPrice || 0) < avg * 5
         );
     }, [data]);
+
+    // Calculate weighted average price (volume-weighted)
+    const weightedPriceData = useMemo(() => {
+        return renderData.map(d => {
+            const highVol = d.highPriceVolume || 0;
+            const lowVol = d.lowPriceVolume || 0;
+            const totalVol = highVol + lowVol;
+            if (totalVol === 0) {
+                // Fallback to simple average if no volume
+                return {
+                    timestamp: d.timestamp,
+                    weightedPrice: ((d.avgHighPrice || 0) + (d.avgLowPrice || 0)) / 2
+                };
+            }
+            // Volume-weighted average
+            const weightedPrice = (
+                (d.avgHighPrice || 0) * highVol +
+                (d.avgLowPrice || 0) * lowVol
+            ) / totalVol;
+            return { timestamp: d.timestamp, weightedPrice };
+        });
+    }, [renderData]);
 
     const chartSignals = useMemo(() => {
         if (renderData.length < 30) return [];
@@ -297,41 +325,82 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             sma20Series.setData(timestamps.map((t, i) => ({ time: t, value: sma20[i] })).filter(d => d.value));
         }
 
-        // 3. Price Area (Gradient)
-        const sellSeries = chart.addSeries(AreaSeries, {
-            lineColor: '#10b981', topColor: 'rgba(16, 185, 129, 0.10)', bottomColor: 'rgba(16, 185, 129, 0.01)',
-            lineWidth: 2, priceFormat: { type: 'price', precision: 0, minMove: 1 }, title: 'Sell'
-        });
-        sellSeries.setData(renderData.map(d => ({ time: d.timestamp as Time, value: d.avgHighPrice as number })));
-        sellSeriesRef.current = sellSeries;
-
-        // Realtime Price Line from Header Data
-        if (latestHigh) {
-            sellSeries.createPriceLine({
-                price: latestHigh,
-                color: '#10b981',
-                lineWidth: 1,
-                lineStyle: LineStyle.Dashed,
-                axisLabelVisible: false,
-                title: 'Live Sell',
+        // 3. Price Series - MODE DEPENDENT
+        if (settings.priceMode === 'weighted') {
+            // WEIGHTED MODE: Single volume-weighted average line
+            const weightedSeries = chart.addSeries(LineSeries, {
+                color: '#ef4444',
+                lineWidth: 2,
+                priceFormat: { type: 'price', precision: 0, minMove: 1 },
+                title: 'Weighted',
+                crosshairMarkerVisible: settings.showPointMarkers,
             });
-        }
+            weightedSeries.setData(weightedPriceData.map(d => ({
+                time: d.timestamp as Time,
+                value: d.weightedPrice
+            })));
+            sellSeriesRef.current = null; // Not using area series in weighted mode
 
-        const buySeries = chart.addSeries(AreaSeries, {
-            lineColor: '#3b82f6', topColor: 'rgba(59, 130, 246, 0.10)', bottomColor: 'rgba(59, 130, 246, 0.01)',
-            lineWidth: 2, priceFormat: { type: 'price', precision: 0, minMove: 1 }, title: 'Buy'
-        });
-        buySeries.setData(renderData.filter(d => d.avgLowPrice).map(d => ({ time: d.timestamp as Time, value: d.avgLowPrice as number })));
-
-        if (latestLow) {
-            buySeries.createPriceLine({
-                price: latestLow,
-                color: '#3b82f6',
-                lineWidth: 1,
-                lineStyle: LineStyle.Dashed,
-                axisLabelVisible: false,
-                title: 'Live Buy',
+            // Add recent price line
+            if (settings.showRecentPriceLine && latestHigh && latestLow) {
+                const avgLatest = (latestHigh + latestLow) / 2;
+                weightedSeries.createPriceLine({
+                    price: avgLatest,
+                    color: '#ef4444',
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: 'Live',
+                });
+            }
+        } else {
+            // HIGH/LOW MODE: Dual lines for buy and sell
+            // Sell Line (High Price) - Orange/Yellow color to match reference
+            const sellSeries = chart.addSeries(LineSeries, {
+                color: '#f97316', // Orange
+                lineWidth: 2,
+                priceFormat: { type: 'price', precision: 0, minMove: 1 },
+                title: 'Sell',
+                crosshairMarkerVisible: settings.showPointMarkers,
+                lastValueVisible: true,
             });
+            sellSeries.setData(renderData.map(d => ({ time: d.timestamp as Time, value: d.avgHighPrice as number })));
+            sellSeriesRef.current = sellSeries as unknown as ISeriesApi<"Area">;
+
+            // Buy Line (Low Price) - Cyan/Blue color to match reference
+            const buySeries = chart.addSeries(LineSeries, {
+                color: '#06b6d4', // Cyan
+                lineWidth: 2,
+                priceFormat: { type: 'price', precision: 0, minMove: 1 },
+                title: 'Buy',
+                crosshairMarkerVisible: settings.showPointMarkers,
+                lastValueVisible: true,
+            });
+            buySeries.setData(renderData.filter(d => d.avgLowPrice).map(d => ({ time: d.timestamp as Time, value: d.avgLowPrice as number })));
+
+            // Realtime Price Lines
+            if (settings.showRecentPriceLine) {
+                if (latestHigh) {
+                    sellSeries.createPriceLine({
+                        price: latestHigh,
+                        color: '#f97316',
+                        lineWidth: 1,
+                        lineStyle: LineStyle.Dashed,
+                        axisLabelVisible: true,
+                        title: '',
+                    });
+                }
+                if (latestLow) {
+                    buySeries.createPriceLine({
+                        price: latestLow,
+                        color: '#06b6d4',
+                        lineWidth: 1,
+                        lineStyle: LineStyle.Dashed,
+                        axisLabelVisible: true,
+                        title: '',
+                    });
+                }
+            }
         }
 
         // 4. MACD
@@ -408,7 +477,7 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                 sellSeriesRef.current = null;
             }
         };
-    }, [renderData, selectedTimeframe, showSMA, showMACD, showVolume, latestHigh, latestLow]);
+    }, [renderData, selectedTimeframe, showSMA, showMACD, showVolume, latestHigh, latestLow, settings.priceMode, settings.showPointMarkers, settings.showRecentPriceLine, weightedPriceData]);
 
     // Separate Effect for Signals to allow toggling without redraw
     useEffect(() => {
@@ -469,6 +538,34 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Price Mode Toggle */}
+                    <div className="flex gap-0.5 bg-slate-800/50 p-0.5 rounded-lg border border-slate-700/50">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => updateSettings({ priceMode: 'highlow' })}
+                            className={`h-7 w-7 transition-all ${settings.priceMode === 'highlow'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                }`}
+                            title="High/Low Mode"
+                        >
+                            <LineChart size={14} />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => updateSettings({ priceMode: 'weighted' })}
+                            className={`h-7 w-7 transition-all ${settings.priceMode === 'weighted'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                }`}
+                            title="Weighted Avg Mode"
+                        >
+                            <BarChart3 size={14} />
+                        </Button>
+                    </div>
+
                     <Button variant="ghost" size="icon" onClick={fitContent} className="h-7 w-7 text-slate-400 hover:text-white" title="Reset View">
                         <Maximize2 size={14} />
                     </Button>
@@ -496,6 +593,15 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                             </Button>
                         ))}
                     </div>
+
+                    {/* Settings Button */}
+                    <ChartSettingsDialog
+                        settings={settings}
+                        onUpdateSettings={updateSettings}
+                        onResetSettings={resetSettings}
+                        open={settingsOpen}
+                        onOpenChange={setSettingsOpen}
+                    />
                 </div>
             </div>
             <div className="relative flex-1 w-full min-h-[350px]">
