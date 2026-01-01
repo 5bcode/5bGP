@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { createChart, ColorType, IChartApi, Time, AreaSeries, HistogramSeries, CrosshairMode, LineSeries, MouseEventParams, LineStyle, SeriesMarker } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time, AreaSeries, HistogramSeries, CrosshairMode, LineSeries, MouseEventParams, LineStyle, SeriesMarker, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { osrsApi, TimeSeriesPoint, TimeStep } from '@/services/osrs-api';
 import { Button } from '@/components/ui/button';
@@ -120,6 +120,7 @@ const calculateBollinger = (data: number[], period: number = 20, multiplier: num
 const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartProps) => {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
+    const sellSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
     const isChartDisposed = useRef(false);
     const tooltipRef = useRef<HTMLDivElement>(null);
 
@@ -237,6 +238,7 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
         return () => { cancelled = true; };
     }, [itemId, selectedTimeframe]);
 
+    // Initialize Chart
     useEffect(() => {
         if (!chartContainerRef.current || renderData.length === 0) return;
 
@@ -301,6 +303,7 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             lineWidth: 2, priceFormat: { type: 'price', precision: 0, minMove: 1 }, title: 'Sell'
         });
         sellSeries.setData(renderData.map(d => ({ time: d.timestamp as Time, value: d.avgHighPrice as number })));
+        sellSeriesRef.current = sellSeries;
 
         // Realtime Price Line from Header Data
         if (latestHigh) {
@@ -312,26 +315,6 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                 axisLabelVisible: false,
                 title: 'Live Sell',
             });
-        }
-
-        // SIGNALS
-        if (showSignals) {
-            console.log(`[PriceActionChart] Displaying ${chartSignals.length} signals`);
-            try {
-                // Remove extra props via mapping to ensure type safety if SeriesMarker is strict
-                const safeMarkers = chartSignals.map(m => ({
-                    time: m.time,
-                    position: m.position,
-                    shape: m.shape,
-                    color: m.color,
-                    text: m.text,
-                    size: m.size
-                }));
-                // We use 'as any' on the series to avoid strict generic mismatches with ISeriesApi vs AreaSeries
-                (sellSeries as any).setMarkers(safeMarkers);
-            } catch (e) {
-                console.warn("Failed to set markers on chart", e);
-            }
         }
 
         const buySeries = chart.addSeries(AreaSeries, {
@@ -386,14 +369,14 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             const vol = formatGP(dataPoint.highPriceVolume + dataPoint.lowPriceVolume);
 
             tooltipRef.current.innerHTML = `
-                <div class="font-bold text-slate-200 mb-1">${dateStr}</div>
-                <div class="flex items-center gap-2"><div class="w-2 h-2 bg-emerald-500 rounded-full"></div> <span class="text-slate-400">Sell:</span> <span class="text-emerald-400 font-mono ml-auto">${sell}</span></div>
-                <div class="flex items-center gap-2"><div class="w-2 h-2 bg-blue-500 rounded-full"></div> <span class="text-slate-400">Buy:</span> <span class="text-blue-400 font-mono ml-auto">${buy}</span></div>
-                <div class="flex items-center gap-2 border-t border-slate-700 mt-1 pt-1"><span class="text-slate-500">Vol:</span> <span class="text-slate-300 font-mono ml-auto">${vol}</span></div>
+                <div class="font-medium text-slate-300 mb-2 pb-2 border-b border-slate-700/50">${dateStr}</div>
+                <div class="flex items-center gap-3 mb-1.5"><div class="w-2 h-2 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] rounded-full"></div> <span class="text-slate-400">Sell:</span> <span class="text-emerald-400 font-mono font-medium ml-auto">${sell}</span></div>
+                <div class="flex items-center gap-3 mb-1.5"><div class="w-2 h-2 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] rounded-full"></div> <span class="text-slate-400">Buy:</span> <span class="text-blue-400 font-mono font-medium ml-auto">${buy}</span></div>
+                <div class="flex items-center gap-3 pt-1.5 border-t border-slate-700/50"><span class="text-slate-500 text-[10px] uppercase tracking-wider">Volume</span> <span class="text-slate-300 font-mono ml-auto">${vol}</span></div>
             `;
 
-            const tooltipWidth = 160;
-            const tooltipHeight = 100;
+            const tooltipWidth = 180;
+            const tooltipHeight = 130;
             const x = Math.min(chartContainerRef.current.clientWidth - tooltipWidth, Math.max(0, param.point.x));
             const y = Math.min(chartContainerRef.current.clientHeight - tooltipHeight, Math.max(0, param.point.y - 120));
 
@@ -402,18 +385,19 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             tooltipRef.current.style.opacity = '1';
         });
 
-        const handleResize = () => {
-            if (chartContainerRef.current && chartRef.current && !isChartDisposed.current) {
-                chartRef.current.applyOptions({
-                    width: chartContainerRef.current.clientWidth,
-                    height: chartContainerRef.current.clientHeight
-                });
+        const handleResize = (entries: ResizeObserverEntry[]) => {
+            if (!entries[0] || !entries[0].contentRect) return;
+            if (chartRef.current && !isChartDisposed.current) {
+                const { width, height } = entries[0].contentRect;
+                chartRef.current.applyOptions({ width, height });
             }
         };
-        window.addEventListener('resize', handleResize);
+
+        const resizeObserver = new ResizeObserver(handleResize);
+        if (chartContainerRef.current) resizeObserver.observe(chartContainerRef.current);
 
         return () => {
-            window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
             isChartDisposed.current = true;
             if (chartRef.current) {
                 try {
@@ -422,13 +406,41 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                     // ignore cleanup error
                 }
                 chartRef.current = null;
+                sellSeriesRef.current = null;
             }
         };
-    }, [renderData, selectedTimeframe, showSMA, showMACD, showVolume, showSignals, chartSignals, latestHigh, latestLow]);
+    }, [renderData, selectedTimeframe, showSMA, showMACD, showVolume, latestHigh, latestLow]);
+
+    // Separate Effect for Signals to allow toggling without redraw
+    useEffect(() => {
+        if (!sellSeriesRef.current) return;
+
+        if (showSignals) {
+            try {
+                // We use 'as unknown' and specific casting to satisfy strict TS rules without 'any'
+                const safeMarkers = chartSignals.map(m => ({
+                    time: m.time,
+                    position: m.position,
+                    shape: m.shape,
+                    color: m.color,
+                    text: m.text,
+                    size: m.size
+                } as SeriesMarker<Time>));
+
+                // Define a minimal interface for the method we need, bypassing generic complexity
+                (sellSeriesRef.current as unknown as { setMarkers: (m: SeriesMarker<Time>[]) => void }).setMarkers(safeMarkers);
+            } catch (e) {
+                console.warn("Failed to set markers", e);
+            }
+        } else {
+            (sellSeriesRef.current as unknown as { setMarkers: (m: SeriesMarker<Time>[]) => void }).setMarkers([]);
+        }
+    }, [showSignals, chartSignals]);
 
     const fitContent = () => {
         if (chartRef.current) chartRef.current.timeScale().fitContent();
     };
+
 
     const handleTimeframeChange = (step: TimeStep) => { if (step !== selectedTimeframe) setSelectedTimeframe(step); };
     const TrendIcon = chartStats?.priceChange && chartStats.priceChange > 0 ? TrendingUp : chartStats?.priceChange && chartStats.priceChange < 0 ? TrendingDown : Minus;
@@ -460,8 +472,8 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                             size="sm"
                             onClick={() => setShowSignals(!showSignals)}
                             className={`h-6 px-2 text-[10px] transition-all duration-300 ${showSignals
-                                    ? 'bg-rose-900/40 text-rose-200 ring-1 ring-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
-                                    : 'text-slate-500 hover:text-rose-300 hover:bg-slate-800'
+                                ? 'bg-rose-900/40 text-rose-200 ring-1 ring-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
+                                : 'text-slate-500 hover:text-rose-300 hover:bg-slate-800'
                                 }`}
                         >
                             Signals
@@ -485,15 +497,15 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                 {/* No Signals Warning */}
                 {showSignals && chartSignals.length === 0 && !isLoading && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-in fade-in zoom-in-95 duration-300">
-                        <div className="bg-slate-900/80 backdrop-blur border border-slate-700/50 text-slate-400 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                            No signals detected in current view
+                        <div className="bg-slate-900/90 backdrop-blur border border-rose-500/30 text-rose-200 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 ring-1 ring-rose-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                            No signals detected in current timeframe
                         </div>
                     </div>
                 )}
 
                 <div ref={chartContainerRef} className="w-full h-full relative" />
-                <div ref={tooltipRef} className="absolute pointer-events-none bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-xl z-10 transition-opacity duration-100 opacity-0 min-w-[160px] text-xs" style={{ top: 0, left: 0 }}></div>
+                <div ref={tooltipRef} className="absolute pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-700/80 p-3 rounded-xl shadow-2xl z-10 transition-opacity duration-100 opacity-0 min-w-[180px] text-xs ring-1 ring-white/5" style={{ top: 0, left: 0 }}></div>
             </div>
         </Card>
     );

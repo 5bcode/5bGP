@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import Analytics from '@/components/Analytics';
 import ProfitHeatmap from '@/components/ProfitHeatmap';
+import ActiveTradesWidget from '@/components/dashboard/ActiveTradesWidget';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -14,8 +15,18 @@ import { matchTrades, MatchedFlip } from '@/lib/trade-matching';
 import { Trade } from '@/components/TradeLogDialog';
 
 const History = () => {
-    const { trades, deleteTrade, clearHistory, saveTrade } = useTradeHistory();
-    const { items } = useMarketData(); // For import matching
+    const {
+        trades,
+        activePositions,
+        deleteTrade,
+        clearHistory,
+        saveTrade,
+        closePosition,
+        deletePosition,
+        updatePosition
+    } = useTradeHistory();
+
+    const { items, prices } = useMarketData(); // Fetch prices for active P/L calculation
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'timestamp',
@@ -112,18 +123,27 @@ const History = () => {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-100">Trade Portfolio</h1>
-                    <p className="text-slate-500">Track your performance and history.</p>
+                    <p className="text-slate-500">Track active positions and historical performance.</p>
                 </div>
                 <div className="flex gap-2">
                     <BulkImportDialog items={items} onImport={handleBulkImport} />
                     <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900 text-slate-300">
                         <Download className="mr-2 h-4 w-4" /> Export CSV
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={trades.length === 0} className="text-rose-500 hover:bg-rose-950/20">
+                    <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={trades.length === 0 && activePositions.length === 0} className="text-rose-500 hover:bg-rose-950/20">
                         <Trash2 className="mr-2 h-4 w-4" /> Clear All
                     </Button>
                 </div>
             </div>
+
+            {/* ACTIVE POSITIONS WIDGET */}
+            <ActiveTradesWidget
+                positions={activePositions}
+                prices={prices}
+                onClosePosition={closePosition}
+                onDeletePosition={deletePosition}
+                onUpdatePosition={updatePosition}
+            />
 
             <Tabs defaultValue="flips" className="space-y-8">
                 <TabsList className="bg-slate-900 border border-slate-800">

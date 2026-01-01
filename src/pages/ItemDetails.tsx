@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import ItemHeader from '@/components/dashboard/ItemHeader';
 import VolumeCard from '@/components/dashboard/VolumeCard';
 import PriceActionChart from '@/components/dashboard/PriceActionChart';
+import { TrendAnalysis } from '@/components/dashboard/TrendAnalysis';
 import { SmartAnalysis, AlgorithmicForecast, ArbitrageCheck, MarginBreakdown } from '@/components/dashboard/AnalysisWidgets';
 
 const ItemDetails = () => {
@@ -60,7 +61,7 @@ const ItemDetails = () => {
           </div>
 
           {/* 2. Main Price Chart */}
-          <div className="flex-1 min-h-[400px]">
+          <div className="flex-1 min-h-[550px]">
             <PriceActionChart
               itemId={itemId}
               latestHigh={selectedPrice.high}
@@ -71,6 +72,7 @@ const ItemDetails = () => {
 
         {/* RIGHT COLUMN: Analysis Widgets (Span 1) */}
         <div className="flex flex-col gap-4">
+          <TrendAnalysis itemId={itemId} />
           <SmartAnalysis item={selectedItem} price={selectedPrice} stats={selectedStats} />
           <AlgorithmicForecast item={selectedItem} price={selectedPrice} stats={selectedStats} />
           <MarginBreakdown price={selectedPrice} />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Item, PriceData } from '@/services/osrs-api';
 import { formatGP } from '@/lib/osrs-math';
 import { TrendingUp, TrendingDown, Crown, HelpCircle } from 'lucide-react';
@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import TradeLogDialog from '@/components/TradeLogDialog';
+import { useTradeHistory } from '@/hooks/use-trade-history';
 
 interface ItemHeaderProps {
     item: Item;
@@ -16,6 +18,8 @@ interface ItemHeaderProps {
 
 const ItemHeader = ({ item, price, netProfit, volatility }: ItemHeaderProps) => {
     const isProfitPositive = netProfit > 0;
+    const { saveTrade, openPosition } = useTradeHistory();
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     return (
         <div className="glass-card p-6 h-full flex flex-col justify-between relative overflow-hidden group">
@@ -86,9 +90,19 @@ const ItemHeader = ({ item, price, netProfit, volatility }: ItemHeaderProps) => 
             </div>
 
             {/* Action Button */}
-            <Button className="w-full bg-emerald-600 hover:bg-emerald-500 text-white h-14 text-lg font-bold shadow-lg shadow-emerald-500/20 tracking-wide uppercase transition-all hover:scale-[1.02] active:scale-[0.98] relative z-10">
-                Start Trade
-            </Button>
+            <TradeLogDialog
+                item={item}
+                priceData={price}
+                isOpen={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                onSave={saveTrade}
+                onSavePosition={openPosition}
+                trigger={
+                    <Button className="w-full bg-emerald-600 hover:bg-emerald-500 text-white h-14 text-lg font-bold shadow-lg shadow-emerald-500/20 tracking-wide uppercase transition-all hover:scale-[1.02] active:scale-[0.98] relative z-10">
+                        Start Trade
+                    </Button>
+                }
+            />
         </div>
     );
 };
