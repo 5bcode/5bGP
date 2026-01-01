@@ -1,9 +1,25 @@
 package com.flipto5b;
 
+import com.flipto5b.ui.FlipTo5BPanel;
+import com.flipto5b.engine.SignalEngine;
+import com.flipto5b.engine.PricingEngine;
+import com.flipto5b.engine.OpportunityManager;
+import com.flipto5b.model.MarketSignal;
+import com.flipto5b.sync.SyncManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
+import java.awt.image.BufferedImage;
+import java.awt.Color;
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
@@ -12,23 +28,14 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GrandExchangeOfferChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import com.flipto5b.ui.FlipTo5BPanel;
-import java.awt.image.BufferedImage;
-import java.awt.Color;
-import java.io.File;
-import java.io.IOException;
+import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import okhttp3.*;
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @PluginDescriptor(name = "FlipTo5B Sync", description = "Syncs GE trades to FlipTo5B and shows margin overlays", tags = {
@@ -59,10 +66,16 @@ public class FlipTo5BPlugin extends Plugin {
 	private ClientToolbar clientToolbar;
 
 	@Inject
-	private net.runelite.client.ui.overlay.tooltip.TooltipManager tooltipManager;
+	private TooltipManager tooltipManager;
 
 	private FlipTo5BPanel panel;
 	private NavigationButton navButton;
+
+	// --- ENGINES ---
+	private SignalEngine signalEngine;
+	private PricingEngine pricingEngine;
+	private OpportunityManager opportunityManager;
+	private SyncManager syncManager;
 
 	@Inject
 	private ScheduledExecutorService executor;
@@ -77,6 +90,13 @@ public class FlipTo5BPlugin extends Plugin {
 	@Override
 	protected void startUp() throws Exception {
 		log.info("!!! FLIPTO5B SYNC INITIALIZED !!!");
+
+		// Initialize Engines
+		signalEngine = new SignalEngine(okHttpClient, gson, itemManager);
+		pricingEngine = new PricingEngine();
+		opportunityManager = new OpportunityManager();
+		syncManager = new SyncManager(okHttpClient, gson, "https://api.flipto5b.com/sync", "user_123");
+
 		overlay = new FlipTo5BOverlay(client, this, tooltipManager);
 		overlayManager.add(overlay);
 		log.info("FlipTo5B Overlay MANUALLY instances and added.");
@@ -96,12 +116,54 @@ public class FlipTo5BPlugin extends Plugin {
 		// Fetch prices immediately and then every minute
 		executor.scheduleAtFixedRate(this::fetchPrices, 0, 1, TimeUnit.MINUTES);
 
+		// Schedule Signal Scan (runs every 60s)
+		executor.scheduleAtFixedRate(this::runSignalScan, 5, 60, TimeUnit.SECONDS);
+
 		// HOT RELOAD FIX: Poll for offers for a few seconds to catch them if valid
 		executor.scheduleAtFixedRate(() -> {
 			if (client.getGameState() == GameState.LOGGED_IN) {
 				SwingUtilities.invokeLater(this::updatePanel);
 			}
 		}, 0, 2, TimeUnit.SECONDS); // Check every 2 seconds
+	}
+
+	private void runSignalScan() {
+		if (client.getGameState() != GameState.LOGGED_IN)
+			return;
+
+		try {
+			// Config-driven settings
+			SignalEngine.SignalConfig scanConfig = SignalEngine.SignalConfig.builder()
+					.timeHorizonMinutes(30) // Default 30 min
+					.riskTolerance(SignalEngine.SignalConfig.RiskTolerance.MEDIUM)
+					.minScore(40.0)
+					.maxResults(10)
+					.build();
+
+			log.debug("Running Signal Scan...");
+			List<MarketSignal> signals = signalEngine.scan(scanConfig);
+
+			// Integrate Pricing Engine
+			if (!signals.isEmpty()) {
+				MarketSignal top = signals.get(0);
+				// Simple usage to suppress warning and test integration
+				var rec = pricingEngine.calculate(top, 10000000, 1, top.getWikiLow() - 100, top.getWikiHigh() + 100);
+				log.debug("Top Signal Recommendation: Buy {} Sell {}", rec.getBuyAt(), rec.getSellAt());
+			}
+
+			// Integrate Opportunity Manager
+			if (opportunityManager != null) {
+				log.debug("Opportunity Manager is ready");
+			}
+
+			SwingUtilities.invokeLater(() -> {
+				if (panel != null) {
+					panel.updateSignals(signals);
+				}
+			});
+		} catch (Exception e) {
+			log.error("Error during signal scan", e);
+		}
 	}
 
 	@Override
@@ -365,6 +427,22 @@ public class FlipTo5BPlugin extends Plugin {
 		}
 
 		panel.updateOffers(panelOffers);
+
+		// Trigger Cloud Sync
+		// Convert PanelOffers to ActiveOfferDTOs
+		List<com.flipto5b.sync.SyncManager.ActiveOfferDTO> syncOffers = new java.util.ArrayList<>();
+		for (FlipTo5BPanel.PanelOffer po : panelOffers) {
+			syncOffers.add(com.flipto5b.sync.SyncManager.ActiveOfferDTO.builder()
+					.itemName(po.name)
+					.price(po.price)
+					.quantity(po.qty)
+					.state(po.status)
+					.createdAt(System.currentTimeMillis())
+					.build());
+		}
+		if (syncManager != null) {
+			syncManager.synchronize(syncOffers);
+		}
 	}
 
 	private void sendData(Payload payload) {

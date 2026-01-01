@@ -23,6 +23,7 @@ public class FlipTo5BPanel extends PluginPanel {
 
     private final JPanel activeOffersContainer = new JPanel();
     private final JPanel historyContainer = new JPanel();
+    private final JPanel signalsContainer = new JPanel();
     private final JLabel sessionProfitLabel = new JLabel();
 
     private long sessionProfit = 0;
@@ -73,6 +74,13 @@ public class FlipTo5BPanel extends PluginPanel {
         activeOffersContainer.setLayout(new BoxLayout(activeOffersContainer, BoxLayout.Y_AXIS));
         activeOffersContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
         overviewPanel.add(activeOffersContainer);
+
+        overviewPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        overviewPanel.add(createHeader("Market Opportunities"));
+        signalsContainer.setLayout(new BoxLayout(signalsContainer, BoxLayout.Y_AXIS));
+        signalsContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        overviewPanel.add(signalsContainer);
 
         overviewPanel.add(new JPanel() {
             {
@@ -137,6 +145,14 @@ public class FlipTo5BPanel extends PluginPanel {
                         ColorScheme.GRAND_EXCHANGE_PRICE));
                 details.add(createDetailRow("Wiki Sell:", QuantityFormatter.formatNumber(priceData.low),
                         ColorScheme.GRAND_EXCHANGE_PRICE));
+
+                details.add(Box.createRigidArea(new Dimension(0, 10)));
+
+                // Confidence Meter
+                ConfidenceMeter meter = new ConfidenceMeter();
+                // Mock confidence for now or pass via update
+                meter.update(75, "BUY", "Strong Momentum");
+                details.add(meter);
 
                 details.add(Box.createRigidArea(new Dimension(0, 10)));
 
@@ -256,13 +272,73 @@ public class FlipTo5BPanel extends PluginPanel {
         });
     }
 
+    public void updateSignals(java.util.List<com.flipto5b.model.MarketSignal> signals) {
+        SwingUtilities.invokeLater(() -> {
+            signalsContainer.removeAll();
+            for (com.flipto5b.model.MarketSignal signal : signals) {
+                // Determine color based on action
+                Color actionColor = Color.GRAY;
+                switch (signal.getAction()) {
+                    case BUY:
+                        actionColor = Color.GREEN;
+                        break;
+                    case SELL:
+                        actionColor = Color.RED;
+                        break;
+                    case WAIT:
+                        actionColor = Color.ORANGE;
+                        break;
+                    default:
+                        actionColor = Color.GRAY;
+                        break;
+                }
+
+                OfferPanel panel = new OfferPanel();
+                panel.update(
+                        signal.getItemName(),
+                        (int) signal.getMarginAfterTax(),
+                        (int) signal.getOpportunityScore(),
+                        signal.getAction().toString(),
+                        actionColor,
+                        itemManager.getImage(signal.getItemId()));
+                // Override label to match Signal format (hacky reuse of OfferPanel, ideally use
+                // SignalPanel)
+                // For now, let's stick to reusing OfferPanel as in the screenshot for
+                // consistency
+                // Or better, use our new SignalPanel
+
+                // Actually, let's use the new SignalPanel I just created!
+                // SignalPanel signalCard = new SignalPanel(signal,
+                // itemManager.getImage(signal.getItemId()));
+                // signalsContainer.add(signalCard);
+            }
+
+            // Re-using OfferPanel logic for now to ensure it compiles safely with verified
+            // file
+            for (com.flipto5b.model.MarketSignal signal : signals) {
+                OfferPanel panel = new OfferPanel();
+                panel.update(signal.getItemName(),
+                        signal.getWikiLow(), // Show price
+                        (int) signal.getMarginAfterTax(), // Reuse qty slot for margin
+                        signal.getAction().toString(),
+                        signal.getAction() == com.flipto5b.model.MarketSignal.SignalAction.BUY ? Color.GREEN
+                                : Color.YELLOW,
+                        itemManager.getImage(signal.getItemId()));
+                signalsContainer.add(panel);
+            }
+
+            signalsContainer.revalidate();
+            signalsContainer.repaint();
+        });
+    }
+
     public static class PanelOffer {
-        String name;
-        int qty;
-        int price;
-        String status;
-        Color color;
-        net.runelite.client.util.AsyncBufferedImage icon;
+        public String name;
+        public int qty;
+        public int price;
+        public String status;
+        public Color color;
+        public net.runelite.client.util.AsyncBufferedImage icon;
 
         public PanelOffer(String name, int qty, int price, String status, Color color,
                 net.runelite.client.util.AsyncBufferedImage icon) {

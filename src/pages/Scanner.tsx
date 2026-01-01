@@ -1,15 +1,22 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Item } from '@/services/osrs-api';
-import { useMarketAnalysis, DEFAULT_STRATEGY } from '@/hooks/use-market-analysis';
+import { useMarketAnalysis, DEFAULT_STRATEGY, MarketOpportunity } from '@/hooks/use-market-analysis';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { useStrategies, Strategy } from '@/hooks/use-strategies';
-import { Loader2, ArrowLeft, TrendingUp, ArrowDown, Trash2 } from 'lucide-react';
+import { useScannerColumns, ALL_COLUMNS, ScannerRow } from '@/hooks/use-scanner-columns';
+import { useScannerFilters } from '@/hooks/use-scanner-filters';
+import { Loader2, ArrowLeft, TrendingUp, ArrowDown, Trash2, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ScannerTable from '@/components/ScannerTable';
 import StrategyBuilder from '@/components/StrategyBuilder';
+import ColumnSelectorDialog from '@/components/scanner/ColumnSelectorDialog';
+import FilterBuilderPanel from '@/components/scanner/FilterBuilderPanel';
+import SavedFiltersDialog from '@/components/scanner/SavedFiltersDialog';
 
 const Scanner = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -21,6 +28,8 @@ const Scanner = () => {
         key: 'score',
         direction: 'desc'
     });
+    const [searchQuery, setSearchQuery] = useState('');
+    const [autoRefresh, setAutoRefresh] = useState(true);
 
     // Strategy Management
     const { strategies, saveStrategy, deleteStrategy } = useStrategies();
@@ -30,8 +39,32 @@ const Scanner = () => {
         return strategies.find(s => s.id === selectedStrategyId) || DEFAULT_STRATEGY;
     }, [strategies, selectedStrategyId]);
 
+    // Column & Filter Hooks
+    const {
+        columns,
+        visibleColumns,
+        columnsByCategory,
+        toggleColumn,
+        resetToDefault: resetColumns,
+        isColumnVisible,
+    } = useScannerColumns();
+
+    const {
+        conditions,
+        presets,
+        addCondition,
+        updateCondition,
+        removeCondition,
+        clearConditions,
+        loadPreset,
+        saveAsPreset,
+        deletePreset,
+        filterRow,
+        activeFilterCount,
+    } = useScannerFilters();
+
     // React Query
-    const { items, prices, stats, isLoading } = useMarketData();
+    const { items, prices, stats, isLoading } = useMarketData(autoRefresh ? 60000 : 0);
 
     useEffect(() => {
         setSearchParams({ type, strategy: selectedStrategyId });
@@ -46,10 +79,46 @@ const Scanner = () => {
     }, []);
 
     const { dumps, bestFlips } = useMarketAnalysis(items, prices, stats, currentStrategy);
-    const data = type === 'crash' ? dumps : bestFlips;
+    const rawData = type === 'crash' ? dumps : bestFlips;
 
+    // Apply filters and search
+    const filteredData = useMemo(() => {
+        let result = rawData;
+
+        // Search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(row =>
+                row.item.name.toLowerCase().includes(query)
+            );
+        }
+
+        // Column filters
+        if (conditions.length > 0) {
+            result = result.filter(row => {
+                const scannerRow: ScannerRow = {
+                    item: row.item,
+                    price: row.price,
+                    stats: row.stats,
+                    score: row.score,
+                    metric: row.metric,
+                    secondaryMetric: row.secondaryMetric,
+                };
+
+                return filterRow((columnId: string) => {
+                    const colDef = ALL_COLUMNS.find(c => c.id === columnId);
+                    if (!colDef) return null;
+                    return colDef.accessor(scannerRow);
+                });
+            });
+        }
+
+        return result;
+    }, [rawData, searchQuery, conditions, filterRow]);
+
+    // Sort and paginate
     const displayData = useMemo(() => {
-        const topItems = data.slice(0, 100);
+        const topItems = filteredData.slice(0, 200);
 
         return [...topItems].sort((a, b) => {
             let aValue: number | string = 0;
@@ -87,7 +156,7 @@ const Scanner = () => {
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [data, sortConfig]);
+    }, [filteredData, sortConfig]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -119,7 +188,7 @@ const Scanner = () => {
 
     return (
         <>
-            <div className="mb-6">
+            <div className="mb-4">
                 <Link to="/" className="text-slate-400 hover:text-emerald-400 flex items-center gap-2 mb-4 transition-colors">
                     <ArrowLeft size={16} /> Back to Dashboard
                 </Link>
@@ -184,7 +253,74 @@ const Scanner = () => {
                 </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+            {/* Enhanced Toolbar */}
+            <div className="bg-slate-900 border border-slate-800 rounded-t-lg px-4 py-3 flex flex-wrap items-center gap-3">
+                {/* Filter Builder */}
+                <FilterBuilderPanel
+                    conditions={conditions}
+                    onAddCondition={addCondition}
+                    onUpdateCondition={updateCondition}
+                    onRemoveCondition={removeCondition}
+                    onClearConditions={clearConditions}
+                />
+
+                {/* Saved Filters */}
+                <SavedFiltersDialog
+                    presets={presets}
+                    hasActiveFilters={activeFilterCount > 0}
+                    onLoadPreset={loadPreset}
+                    onSavePreset={saveAsPreset}
+                    onDeletePreset={deletePreset}
+                />
+
+                {/* Sort Button */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSort(sortConfig.key)}
+                    className="gap-2 bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300"
+                >
+                    <ArrowUpDown size={14} />
+                    Sort
+                </Button>
+
+                {/* Column Selector */}
+                <ColumnSelectorDialog
+                    visibleColumns={visibleColumns}
+                    columnsByCategory={columnsByCategory}
+                    onToggleColumn={toggleColumn}
+                    onReset={resetColumns}
+                    isColumnVisible={isColumnVisible}
+                />
+
+                {/* Spacer */}
+                <div className="flex-1" />
+
+                {/* Search */}
+                <Input
+                    placeholder="Search all columns..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-48 h-8 text-sm bg-slate-800 border-slate-700 placeholder:text-slate-500"
+                />
+
+                {/* Auto Refresh Toggle */}
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Switch
+                        checked={autoRefresh}
+                        onCheckedChange={setAutoRefresh}
+                        className="data-[state=checked]:bg-emerald-600"
+                    />
+                    <span>Auto-refresh</span>
+                </div>
+
+                {/* Item Count */}
+                <span className="text-xs text-slate-500">
+                    {displayData.length} / {items.length} items
+                </span>
+            </div>
+
+            <div className="bg-slate-900 border border-t-0 border-slate-800 rounded-b-lg overflow-hidden">
                 {isLoading ? (
                     <div className="h-64 flex items-center justify-center">
                         <Loader2 className="animate-spin text-emerald-500 h-8 w-8" />

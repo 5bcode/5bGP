@@ -40,7 +40,6 @@ public class SignalEngine {
     private static final String WIKI_LATEST_URL = "https://prices.runescape.wiki/api/v1/osrs/latest";
     private static final String WIKI_24H_URL = "https://prices.runescape.wiki/api/v1/osrs/24h";
     private static final String USER_AGENT = "FlipTo5B-SignalEngine/1.0";
-    private static final MediaType JSON = MediaType.parse("application/json");
 
     /** Minimum volume to consider an item tradeable */
     private static final int MIN_VOLUME_THRESHOLD = 50;
@@ -493,11 +492,12 @@ public class SignalEngine {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful() || response.body() == null) {
+            ResponseBody responseBody = response.body();
+            if (!response.isSuccessful() || responseBody == null) {
                 return Collections.emptyMap();
             }
 
-            String body = response.body().string();
+            String body = responseBody.string();
             JsonObject json = gson.fromJson(body, JsonObject.class);
             JsonObject data = json.getAsJsonObject("data");
 
@@ -515,11 +515,12 @@ public class SignalEngine {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful() || response.body() == null) {
+            ResponseBody responseBody = response.body();
+            if (!response.isSuccessful() || responseBody == null) {
                 return Collections.emptyMap();
             }
 
-            String body = response.body().string();
+            String body = responseBody.string();
             JsonObject json = gson.fromJson(body, JsonObject.class);
             JsonObject data = json.getAsJsonObject("data");
 
