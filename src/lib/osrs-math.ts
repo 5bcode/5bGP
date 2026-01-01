@@ -66,3 +66,67 @@ export function calculateOpportunityScore(
 
   return (netProfit * 0.0001) + (roiScore * 10) + (volScore * 5) - riskPenalty;
 }
+
+// --- TECHNICAL ANALYSIS HELPERS ---
+
+export function calculateSMA(data: number[], period: number): number[] {
+  if (data.length < period) return [];
+  const sma = [];
+  for (let i = period - 1; i < data.length; i++) {
+    const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+    sma.push(sum / period);
+  }
+  return sma;
+}
+
+export function calculateEMA(data: number[], period: number): number[] {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  const ema = [data[0]]; // Start with first point to approximate
+  for (let i = 1; i < data.length; i++) {
+    ema.push(data[i] * k + ema[i - 1] * (1 - k));
+  }
+  // Trim to match data length minus initial warmup if needed, 
+  // but for simplicity we return aligned with data indices roughly
+  return ema;
+}
+
+export function calculateRSI(data: number[], period: number = 14): number[] {
+  if (data.length < period + 1) return [];
+
+  const changes = [];
+  for (let i = 1; i < data.length; i++) {
+    changes.push(data[i] - data[i - 1]);
+  }
+
+  const rsi = [];
+  let avgGain = 0;
+  let avgLoss = 0;
+
+  // First period
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i];
+    else avgLoss += Math.abs(changes[i]);
+  }
+
+  avgGain /= period;
+  avgLoss /= period;
+
+  const firstRS = avgGain / (avgLoss || 1); // Avoid div by zero
+  rsi.push(100 - (100 / (1 + firstRS)));
+
+  // Subsequent periods (Smoothed)
+  for (let i = period; i < changes.length; i++) {
+    const change = changes[i];
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? Math.abs(change) : 0;
+
+    avgGain = ((avgGain * (period - 1)) + gain) / period;
+    avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+
+    const rs = avgGain / (avgLoss || 0.00001);
+    rsi.push(100 - (100 / (1 + rs)));
+  }
+
+  return rsi;
+}

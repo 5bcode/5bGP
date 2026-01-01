@@ -26,13 +26,11 @@ const App = () => (
       <SettingsProvider>
         <TradeModeProvider>
           <TooltipProvider>
-            <PriceMonitorProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
+            <BrowserRouter>
+              <PriceMonitorProvider>
                 <Routes>
                   <Route path="/login" element={<Login />} />
-                  
+
                   <Route element={
                     <ProtectedRoute>
                       <Layout />
@@ -47,8 +45,8 @@ const App = () => (
                     <Route path="*" element={<NotFound />} />
                   </Route>
                 </Routes>
-              </BrowserRouter>
-            </PriceMonitorProvider>
+              </PriceMonitorProvider>
+            </BrowserRouter>
           </TooltipProvider>
         </TradeModeProvider>
       </SettingsProvider>

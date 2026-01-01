@@ -1,6 +1,5 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { PriceData } from '@/services/osrs-api';
 import { calculateMargin, calculateVolatility } from '@/lib/osrs-math';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { useWatchlist } from '@/hooks/use-watchlist';
@@ -11,14 +10,17 @@ import { Button } from '@/components/ui/button';
 import ItemHeader from '@/components/dashboard/ItemHeader';
 import VolumeCard from '@/components/dashboard/VolumeCard';
 import PriceActionChart from '@/components/dashboard/PriceActionChart';
-import { TrendAnalysis } from '@/components/dashboard/TrendAnalysis';
-import { SmartAnalysis, AlgorithmicForecast, ArbitrageCheck, MarginBreakdown } from '@/components/dashboard/AnalysisWidgets';
+import SignalWidget from '@/components/dashboard/SignalWidget';
+// Support existing widgets if needed, but SignalWidget replaces the main decision ones
+import { ArbitrageCheck, MarginBreakdown } from '@/components/dashboard/AnalysisWidgets';
 
 const ItemDetails = () => {
   const { id } = useParams<{ id: string }>();
   const itemId = id ? parseInt(id) : 12934; // Default to Zulrah Scale if missing
 
   const { items, prices, stats, isLoading } = useMarketData(60000);
+
+  // We don't strictly need useWatchlist here unless we add a button, but keeping for consistency
   const { addToWatchlist } = useWatchlist(items);
 
   const selectedItem = items.find(i => i.id === itemId);
@@ -72,9 +74,9 @@ const ItemDetails = () => {
 
         {/* RIGHT COLUMN: Analysis Widgets (Span 1) */}
         <div className="flex flex-col gap-4">
-          <TrendAnalysis itemId={itemId} />
-          <SmartAnalysis item={selectedItem} price={selectedPrice} stats={selectedStats} />
-          <AlgorithmicForecast item={selectedItem} price={selectedPrice} stats={selectedStats} />
+          {/* NEW: Smart Signal Engine Widget */}
+          <SignalWidget itemId={itemId} />
+
           <MarginBreakdown price={selectedPrice} />
           <ArbitrageCheck item={selectedItem} price={selectedPrice} />
         </div>

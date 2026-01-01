@@ -38,7 +38,8 @@ export const useMarketHighlights = (
                 mostProfitable: [],
                 mostProfitableF2P: [],
                 mostExpensive: [],
-                profitableAlchs: []
+                profitableAlchs: [],
+                potentialDumps: []
             };
         }
 

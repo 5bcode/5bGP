@@ -70,6 +70,6 @@ export function useTimeseries(id: number, timestep: TimeStep) {
   return useQuery({
     queryKey: QUERY_KEYS.timeseries(id, timestep),
     queryFn: () => osrsApi.getTimeseries(id, timestep),
-    staleTime: 1000 * 60 * 5, // 5 mins
+    staleTime: 1000 * 60 * 1, // 1 min for fresher signals
   });
 }

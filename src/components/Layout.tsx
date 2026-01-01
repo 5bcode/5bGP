@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import NotificationCenter from '@/components/NotificationCenter';
-import { usePriceMonitorContext } from '@/context/PriceMonitorContext';
+import { usePriceMonitorContext } from '@/context/usePriceMonitor';
 
 const Layout = () => {
   const location = useLocation();

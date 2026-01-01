@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { MarketAlert } from '@/components/LiveFeed';
+import { useNavigate } from 'react-router-dom';
 import { useSettings } from '@/context/SettingsContext';
 import { useWatchlist } from '@/hooks/use-watchlist';
 import { useMarketData } from '@/hooks/use-osrs-query';
@@ -14,7 +15,7 @@ interface PriceMonitorContextType {
   testSystem: () => void;
 }
 
-const PriceMonitorContext = createContext<PriceMonitorContextType | undefined>(undefined);
+export const PriceMonitorContext = createContext<PriceMonitorContextType | undefined>(undefined);
 
 export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }) => {
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
@@ -39,7 +40,8 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
   const playAlertSound = useCallback(() => {
     if (!settings.soundEnabled) return;
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      // Use a custom interface to type-check webkitAudioContext without using 'any'
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
 
       const ctx = new AudioContextClass();
@@ -96,6 +98,9 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
     }
   }, [settings.discordWebhookUrl]);
 
+  // Navigation
+  const navigate = useNavigate();
+
   // Monitoring Logic
   useEffect(() => {
     if (!prices || !stats || watchlist.length === 0) return;
@@ -127,7 +132,14 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
           const msg = `Panic Wick: ${item.name}`;
           const desc = `-${(drop * 100).toFixed(1)}% drop detected!`;
 
-          toast.error(msg, { description: desc, duration: 5000 });
+          toast.error(msg, {
+            description: desc,
+            duration: 8000,
+            action: {
+              label: 'View',
+              onClick: () => navigate(`/item/${item.id}`)
+            }
+          });
           playAlertSound();
           sendDiscordAlert(item, drop * 100, price.low);
 
@@ -136,7 +148,7 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
         }
       }
     });
-  }, [prices, stats, watchlist, settings.alertThreshold, playAlertSound, sendDiscordAlert, addAlert]);
+  }, [prices, stats, watchlist, settings.alertThreshold, playAlertSound, sendDiscordAlert, addAlert, navigate]);
 
   // Debug / Test Function
   const testSystem = useCallback(() => {
@@ -153,25 +165,20 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
       price: mockPrice
     };
 
-    toast.error('Test Alert: Cannonball', { description: '-15% Drop Detected (Simulation)' });
+    toast.error('Test Alert: Cannonball', {
+      description: '-15% Drop Detected (Simulation)',
+      action: {
+        label: 'View',
+        onClick: () => navigate(`/item/${mockItem.id}`)
+      }
+    });
     playAlertSound();
     addAlert(alertData);
-
-    // We don't spam discord on test to avoid angering the API gods, or we can:
-    // sendDiscordAlert(mockItem, 15, 145);
-  }, [addAlert, playAlertSound]);
+  }, [addAlert, playAlertSound, navigate]);
 
   return (
     <PriceMonitorContext.Provider value={{ alerts, clearAlerts, removeAlert, testSystem }}>
       {children}
     </PriceMonitorContext.Provider>
   );
-};
-
-export const usePriceMonitorContext = () => {
-  const context = useContext(PriceMonitorContext);
-  if (context === undefined) {
-    throw new Error('usePriceMonitorContext must be used within a PriceMonitorProvider');
-  }
-  return context;
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 import AverageDownCalc from '@/components/tools/AverageDownCalc';
-import { usePriceMonitorContext } from '@/context/PriceMonitorContext';
+import { usePriceMonitorContext } from '@/context/usePriceMonitor';
 import CutLossCalc from '@/components/tools/CutLossCalc';
 import ApiKeyManager from '@/components/ApiKeyManager';
 import { Calculator, Settings } from 'lucide-react';

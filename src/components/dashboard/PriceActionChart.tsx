@@ -385,19 +385,18 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             tooltipRef.current.style.opacity = '1';
         });
 
-        const handleResize = (entries: ResizeObserverEntry[]) => {
-            if (!entries[0] || !entries[0].contentRect) return;
-            if (chartRef.current && !isChartDisposed.current) {
-                const { width, height } = entries[0].contentRect;
-                chartRef.current.applyOptions({ width, height });
+        const handleResize = () => {
+            if (chartContainerRef.current && chartRef.current && !isChartDisposed.current) {
+                chartRef.current.applyOptions({
+                    width: chartContainerRef.current.clientWidth,
+                    height: chartContainerRef.current.clientHeight
+                });
             }
         };
-
-        const resizeObserver = new ResizeObserver(handleResize);
-        if (chartContainerRef.current) resizeObserver.observe(chartContainerRef.current);
+        window.addEventListener('resize', handleResize);
 
         return () => {
-            resizeObserver.disconnect();
+            window.removeEventListener('resize', handleResize);
             isChartDisposed.current = true;
             if (chartRef.current) {
                 try {
@@ -415,8 +414,12 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
     useEffect(() => {
         if (!sellSeriesRef.current) return;
 
-        if (showSignals) {
-            try {
+        try {
+            // Define minimal interface to satisfy TS without full library type complexity
+            type SeriesWithMarkers = { setMarkers: (m: SeriesMarker<Time>[]) => void };
+            const series = sellSeriesRef.current as unknown as SeriesWithMarkers;
+
+            if (showSignals) {
                 // We use 'as unknown' and specific casting to satisfy strict TS rules without 'any'
                 const safeMarkers = chartSignals.map(m => ({
                     time: m.time,
@@ -428,12 +431,16 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                 } as SeriesMarker<Time>));
 
                 // Define a minimal interface for the method we need, bypassing generic complexity
-                (sellSeriesRef.current as unknown as { setMarkers: (m: SeriesMarker<Time>[]) => void }).setMarkers(safeMarkers);
-            } catch (e) {
-                console.warn("Failed to set markers", e);
+                if (typeof series.setMarkers === 'function') {
+                    series.setMarkers(safeMarkers);
+                }
+            } else {
+                if (typeof series.setMarkers === 'function') {
+                    series.setMarkers([]);
+                }
             }
-        } else {
-            (sellSeriesRef.current as unknown as { setMarkers: (m: SeriesMarker<Time>[]) => void }).setMarkers([]);
+        } catch (e) {
+            console.warn("Failed to set markers:", e);
         }
     }, [showSignals, chartSignals]);
 
