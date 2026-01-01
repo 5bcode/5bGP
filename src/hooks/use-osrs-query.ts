@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { osrsApi, TimeStep } from '@/services/osrs-api';
+import { osrsApi, TimeStep, Item, PriceData, Stats24h } from '@/services/osrs-api';
 
 // Cache keys
 export const QUERY_KEYS = {
@@ -39,7 +39,14 @@ export function use24hStats() {
 }
 
 // 4. Combined Hook for Dashboard/Analysis (Wait for all)
-export function useMarketData(refreshInterval?: number) {
+export function useMarketData(refreshInterval?: number): {
+  items: Item[];
+  prices: Record<string, PriceData>;
+  stats: Record<string, Stats24h>;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
+} {
   const mapping = useItemMapping();
   // Pass refresh interval (default 60s if undefined)
   const prices = useLatestPrices(refreshInterval);
@@ -52,8 +59,8 @@ export function useMarketData(refreshInterval?: number) {
     isLoading: mapping.isLoading || prices.isLoading || stats.isLoading,
     isError: mapping.isError || prices.isError || stats.isError,
     refetch: () => {
-        prices.refetch();
-        stats.refetch();
+      prices.refetch();
+      stats.refetch();
     }
   };
 }

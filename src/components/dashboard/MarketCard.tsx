@@ -10,48 +10,52 @@ interface MarketCardProps {
     icon?: React.ReactNode;
     items: MarketHighlightItem[];
     type?: 'gainers' | 'losers' | 'neutral';
+    onViewAll?: () => void;
 }
 
-const MarketCard = ({ title, icon, items, type = 'neutral' }: MarketCardProps) => {
+const MarketCard = ({ title, icon, items, type = 'neutral', onViewAll }: MarketCardProps) => {
     const navigate = useNavigate();
 
     return (
-        <Card className="bg-slate-900 border-slate-800 flex flex-col overflow-hidden h-full">
-            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
-                <div className="flex items-center gap-2 text-slate-200 font-semibold">
+        <div className="glass-card flex flex-col overflow-hidden h-full clickable-card group/card">
+            <div className="p-4 border-b border-slate-800/60 flex justify-between items-center bg-slate-950/20 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-slate-100 font-bold tracking-tight">
                     {icon}
                     <span>{title}</span>
                 </div>
-                <button className="text-xs text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                <button
+                    onClick={(e) => { e.stopPropagation(); onViewAll?.(); }}
+                    className="text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors cursor-pointer"
+                >
                     view all <ArrowRight size={12} />
                 </button>
             </div>
 
-            <div className="flex-1 overflow-auto p-2">
+            <div className="flex-1 overflow-auto p-2 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
                 <table className="w-full text-sm">
                     <thead>
-                        <tr className="text-xs text-slate-500 border-b border-slate-800/50">
-                            <th className="text-left pb-2 pl-2 font-medium">Item</th>
-                            <th className="text-right pb-2 font-medium">Price</th>
-                            <th className="text-right pb-2 pr-2 font-medium">
+                        <tr className="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800/40">
+                            <th className="text-left pb-2 pl-2 font-semibold">Item</th>
+                            <th className="text-right pb-2 font-semibold">Price</th>
+                            <th className="text-right pb-2 pr-2 font-semibold">
                                 {type === 'gainers' ? 'Change' : type === 'losers' ? 'Change' : 'Profit'}
                             </th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-800/30">
                         {items.map((item) => (
                             <tr
                                 key={item.id}
                                 onClick={() => navigate(`/item/${item.id}`)}
-                                className="group hover:bg-slate-800/50 transition-colors cursor-pointer border-b border-slate-800/30 last:border-0"
+                                className="group hover:bg-slate-800/40 transition-colors cursor-pointer"
                             >
-                                <td className="py-2 pl-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
+                                <td className="py-2.5 pl-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 overflow-hidden shadow-sm group-hover:border-slate-700 transition-colors">
                                             <img
                                                 src={`https://static.runelite.net/cache/item/icon/${item.id}.png`}
                                                 alt={item.name}
-                                                className="w-full h-full object-contain p-0.5"
+                                                className="w-full h-full object-contain p-1"
                                                 onError={(e) => {
                                                     (e.target as HTMLImageElement).style.display = 'none';
                                                     (e.target as HTMLImageElement).parentElement!.innerText = '??';
@@ -59,15 +63,15 @@ const MarketCard = ({ title, icon, items, type = 'neutral' }: MarketCardProps) =
                                                 }}
                                             />
                                         </div>
-                                        <span className="text-slate-300 group-hover:text-emerald-300 font-medium truncate max-w-[120px]">
+                                        <span className="text-slate-300 font-medium truncate max-w-[120px] group-hover:text-emerald-300 transition-colors">
                                             {item.name}
                                         </span>
                                     </div>
                                 </td>
-                                <td className="text-right py-2 text-slate-400 font-mono">
+                                <td className="text-right py-2.5 text-slate-400 font-mono text-xs">
                                     {formatGP(item.price)}
                                 </td>
-                                <td className={`text-right py-2 pr-2 font-mono font-bold ${item.isPositive === true ? 'text-emerald-400' :
+                                <td className={`text-right py-2.5 pr-2 font-mono text-xs font-bold ${item.isPositive === true ? 'text-emerald-400' :
                                     item.isPositive === false ? 'text-rose-400' : 'text-slate-300'
                                     }`}>
                                     {item.metricLabel}
@@ -77,7 +81,7 @@ const MarketCard = ({ title, icon, items, type = 'neutral' }: MarketCardProps) =
                     </tbody>
                 </table>
             </div>
-        </Card>
+        </div>
     );
 };
 

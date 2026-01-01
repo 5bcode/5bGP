@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
@@ -48,7 +49,7 @@ serve(async (req) => {
 
     if (type === 'update_slot') {
       // Data expected: { slot: 0-7, state: 'EMPTY' | 'ACTIVE', item_id?, ... }
-      
+
       if (data.state === 'EMPTY') {
         // Delete offer in this slot
         result = await supabaseClient
@@ -86,12 +87,12 @@ serve(async (req) => {
           timestamp: Date.now()
         })
     } else {
-        throw new Error("Unknown event type")
+      throw new Error("Unknown event type")
     }
 
     if (result.error) {
-        console.error("DB Error", result.error)
-        throw result.error
+      console.error("DB Error", result.error)
+      throw result.error
     }
 
     return new Response(JSON.stringify({ success: true }), {

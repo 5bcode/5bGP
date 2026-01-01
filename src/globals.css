@@ -31,7 +31,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-    
+
     --radius: 0.5rem;
   }
 }
@@ -43,13 +43,31 @@
   body {
     @apply bg-slate-950 text-slate-100 transition-colors duration-500;
   }
-  
+
   /* Paper Trading Mode Theme Overrides */
   body.paper-mode {
     @apply border-4 border-amber-500/30;
   }
-  
+
   body.paper-mode nav {
     @apply border-amber-900/50 bg-amber-950/20;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-slate-900/50 backdrop-blur-md border border-slate-800/60 shadow-lg rounded-xl;
+  }
+  .glass-panel {
+    @apply bg-slate-950/40 border border-slate-800/40 rounded-lg;
+  }
+  .clickable-card {
+    @apply hover:bg-slate-800/60 hover:border-slate-700 hover:shadow-emerald-900/10 transition-all duration-300 cursor-pointer;
+  }
+  .metric-label {
+    @apply text-xs font-semibold uppercase tracking-wider text-slate-500;
+  }
+  .data-text {
+    @apply font-mono text-slate-300;
   }
 }

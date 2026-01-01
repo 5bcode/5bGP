@@ -1,18 +1,21 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { Item } from '@/services/osrs-api';
-import { useMarketHighlights } from '@/hooks/use-market-highlights';
+import { useMarketHighlights, MarketHighlightItem } from '@/hooks/use-market-highlights';
 import MarketCard from '@/components/dashboard/MarketCard';
 import DiscoverRow from '@/components/dashboard/DiscoverRow';
-import { Loader2, TrendingUp, TrendingDown, BarChart2, DollarSign, Shield, Gem, Zap, Crown } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, BarChart2, DollarSign, Shield, Gem, Zap, Crown, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SettingsDialog from '@/components/SettingsDialog';
 import ItemSearch from '@/components/ItemSearch';
 import { useNavigate } from 'react-router-dom';
+import { formatGP } from '@/lib/osrs-math';
+import SortableMarketTable from '@/components/dashboard/SortableMarketTable';
 
 const Dashboard = () => {
     const { items, prices, stats, isLoading } = useMarketData(60000); // 1 min refresh for dashboard
     const navigate = useNavigate();
+    const [viewAll, setViewAll] = useState<{ title: string; items: MarketHighlightItem[] } | null>(null);
 
     // Compute Highlights
     const {
@@ -22,7 +25,8 @@ const Dashboard = () => {
         mostProfitable,
         mostProfitableF2P,
         mostExpensive,
-        profitableAlchs
+        profitableAlchs,
+        potentialDumps
     } = useMarketHighlights(items, prices, stats);
 
     // Discover Items (Random selection from 'Most Profitable' for now to show variety)
@@ -38,8 +42,29 @@ const Dashboard = () => {
         return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-emerald-500" /></div>;
     }
 
+    // --- FULL LIST VIEW ---
+    if (viewAll) {
+        return (
+            <div className="min-h-screen p-4 lg:p-8 space-y-6 animate-fade-in">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" onClick={() => setViewAll(null)} className="text-slate-400 hover:text-white">
+                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+                    </Button>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-3xl font-bold text-slate-100">{viewAll.title}</h1>
+                    <p className="text-slate-500">Showing top 50 results</p>
+                </div>
+
+                <SortableMarketTable data={viewAll.items} />
+            </div>
+        );
+    }
+
+    // --- DASHBOARD VIEW ---
     return (
-        <div className="min-h-screen bg-slate-950 p-4 lg:p-8 space-y-8">
+        <div className="min-h-screen p-4 lg:p-8 space-y-8 animate-fade-in">
             {/* Header Area */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -71,24 +96,27 @@ const Dashboard = () => {
                     <MarketCard
                         title="Top Gainers"
                         icon={<TrendingUp className="text-emerald-500" size={18} />}
-                        items={topGainers}
+                        items={topGainers.slice(0, 8)}
                         type="gainers"
+                        onViewAll={() => setViewAll({ title: 'Top Gainers', items: topGainers })}
                     />
                 </div>
                 <div className="h-[320px]">
                     <MarketCard
                         title="Top Losers"
                         icon={<TrendingDown className="text-rose-500" size={18} />}
-                        items={topLosers}
+                        items={topLosers.slice(0, 8)}
                         type="losers"
+                        onViewAll={() => setViewAll({ title: 'Top Losers', items: topLosers })}
                     />
                 </div>
                 <div className="h-[320px]">
                     <MarketCard
                         title="High Volume Profit"
                         icon={<BarChart2 className="text-purple-500" size={18} />}
-                        items={highVolumeProfit}
+                        items={highVolumeProfit.slice(0, 8)}
                         type="neutral"
+                        onViewAll={() => setViewAll({ title: 'High Volume Profit', items: highVolumeProfit })}
                     />
                 </div>
 
@@ -97,24 +125,27 @@ const Dashboard = () => {
                     <MarketCard
                         title="Most Profitable"
                         icon={<DollarSign className="text-amber-500" size={18} />}
-                        items={mostProfitable}
+                        items={mostProfitable.slice(0, 8)}
                         type="neutral"
+                        onViewAll={() => setViewAll({ title: 'Most Profitable', items: mostProfitable })}
                     />
                 </div>
                 <div className="h-[320px]">
                     <MarketCard
                         title="Most Profitable F2P"
                         icon={<Shield className="text-blue-500" size={18} />}
-                        items={mostProfitableF2P}
+                        items={mostProfitableF2P.slice(0, 8)}
                         type="neutral"
+                        onViewAll={() => setViewAll({ title: 'Most Profitable F2P', items: mostProfitableF2P })}
                     />
                 </div>
                 <div className="h-[320px]">
                     <MarketCard
                         title="Most Expensive"
                         icon={<Gem className="text-cyan-500" size={18} />}
-                        items={mostExpensive}
+                        items={mostExpensive.slice(0, 8)}
                         type="neutral"
+                        onViewAll={() => setViewAll({ title: 'Most Expensive', items: mostExpensive })}
                     />
                 </div>
 
@@ -123,8 +154,9 @@ const Dashboard = () => {
                     <MarketCard
                         title="Profitable Alchs"
                         icon={<Zap className="text-yellow-400" size={18} />}
-                        items={profitableAlchs}
+                        items={profitableAlchs.slice(0, 8)}
                         type="neutral"
+                        onViewAll={() => setViewAll({ title: 'Profitable Alchs', items: profitableAlchs })}
                     />
                 </div>
                 <div className="h-[320px] bg-slate-900/50 border border-slate-800/50 rounded-lg flex items-center justify-center border-dashed">
@@ -133,11 +165,14 @@ const Dashboard = () => {
                         <p>Unlock more lists with Premium</p>
                     </div>
                 </div>
-                <div className="h-[320px] bg-slate-900/50 border border-slate-800/50 rounded-lg flex items-center justify-center border-dashed">
-                    <div className="text-center text-slate-500">
-                        <BarChart2 size={32} className="mx-auto mb-2 opacity-50" />
-                        <p>Custom Filters Coming Soon</p>
-                    </div>
+                <div className="h-[320px]">
+                    <MarketCard
+                        title="Potential Dumps"
+                        icon={<AlertTriangle className="text-rose-600" size={18} />}
+                        items={potentialDumps.slice(0, 8)}
+                        type="losers"
+                        onViewAll={() => setViewAll({ title: 'Potential Dumps (Panic Sells)', items: potentialDumps })}
+                    />
                 </div>
             </div>
 

@@ -4,19 +4,24 @@ import { calculateMargin } from '@/lib/osrs-math';
 
 // --- FILTERING THRESHOLDS ---
 const TEN_MINUTES_MS = 10 * 60 * 1000;
-const MIN_PRICE = 500;          // Minimum price to filter junk
-const MIN_VOLUME = 50;          // Minimum 24h volume for liquidity
-const MAX_SPREAD_PERCENT = 50;  // Maximum spread % to filter illiquid/manipulated items
-const LIMIT_CYCLES_PER_DAY = 6; // GE buy limit resets every 4 hours (6 times per day)
+const MIN_PRICE = 500;
+const MIN_VOLUME = 100;
+const MIN_TURNOVER = 5_000_000;
+const MAX_SPREAD_PERCENT = 40;
+
 
 export interface MarketHighlightItem {
     id: number;
     name: string;
     icon: string;
     price: number;
-    metric: number; // The value to sort by (e.g. change, profit)
-    metricLabel: string; // Formatted string (e.g. "+5.2%", "1.2M")
+    metric: number;
+    metricLabel: string;
     isPositive?: boolean;
+    volume: number;
+    members: boolean;
+    roi: number;
+    spread: number;
 }
 
 export const useMarketHighlights = (
@@ -44,131 +49,156 @@ export const useMarketHighlights = (
             const stat = stats[item.id];
             if (!price || !stat) return null;
 
-            // --- FILTER 1: Staleness Check (traded within last 10 min) ---
+            // --- FILTER 1: Staleness ---
             const lastTradeTime = Math.max(price.highTime * 1000, price.lowTime * 1000);
-            if (lastTradeTime < now - TEN_MINUTES_MS) return null;
+            if (lastTradeTime < now - (TEN_MINUTES_MS * 1.5)) return null;
 
-            // --- FILTER 2: Minimum Price ---
+            // --- FILTER 2: Min Price/Volume ---
             if (price.high < MIN_PRICE) return null;
-
-            // --- FILTER 3: Minimum Volume ---
             const volume = stat.highPriceVolume + stat.lowPriceVolume;
             if (volume < MIN_VOLUME) return null;
 
-            // --- FILTER 4: Max Spread (sanity check for illiquid items) ---
+            // --- FILTER 3: Turnover ---
+            const turnover = price.high * volume;
+            if (price.high < 100_000_000 && turnover < MIN_TURNOVER) return null;
+
+            // --- FILTER 4: Spread ---
             const spreadPercent = price.low > 0 ? ((price.high - price.low) / price.low) * 100 : 0;
             if (spreadPercent > MAX_SPREAD_PERCENT) return null;
 
             // --- CALCULATIONS ---
             const currentPrice = price.high;
             const avgPrice = stat.avgHighPrice;
-
-            // Change: Current vs 24h average (proxy for daily movement)
             const change = avgPrice ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+            const { net, roi } = calculateMargin(price.low, price.high);
 
-            const { net } = calculateMargin(price.low, price.high);
-
-            // Achievable Profit: Capped by buy limit * daily cycles
-            const limitPerCycle = item.limit || 1;
-            const achievableVolume = Math.min(volume, limitPerCycle * LIMIT_CYCLES_PER_DAY);
+            const limitPerCycle = item.limit || 1000;
+            // Use single 4-hour limit to match standard "Potential Profit" metric
+            const achievableVolume = Math.min(volume, limitPerCycle);
             const achievableProfit = net * achievableVolume;
+            const alchProfit = (item.highalch || 0) - price.low - 105;
 
-            // Alch Profit: High Alch - Buy Price - Nature Rune (~100)
-            const alchProfit = (item.highalch || 0) - price.low - 100;
+            const isQualityFlip = roi > 1;
 
             return {
                 ...item,
                 price: currentPrice,
                 change,
                 net,
+                roi,
+                spread: spreadPercent,
                 achievableProfit,
                 alchProfit,
-                volume
+                volume,
+                isQualityFlip
             };
         }).filter((i): i is NonNullable<typeof i> => i !== null && i.price > 0);
 
-        // --- HELPER: Convert processed list to MarketHighlightItem[] ---
+        // --- HELPER ---
         const toHighlight = (
             list: typeof processed,
             metricKey: keyof typeof processed[number],
             labelFn: (i: typeof processed[0]) => string,
-            positiveCheck?: (v: number) => boolean
+            positiveCheck?: (v: number) => boolean,
+            limit = 50
         ): MarketHighlightItem[] => {
-            return list.slice(0, 8).map(i => ({
+            return list.slice(0, limit).map(i => ({
                 id: i.id,
                 name: i.name,
                 icon: i.icon,
                 price: i.price,
                 metric: i[metricKey] as number,
                 metricLabel: labelFn(i),
-                isPositive: positiveCheck ? positiveCheck(i[metricKey] as number) : undefined
+                isPositive: positiveCheck ? positiveCheck(i[metricKey] as number) : undefined,
+                volume: i.volume,
+                members: i.members,
+                roi: i.roi,
+                spread: i.spread
             }));
         };
 
         const formatNumber = (num: number) => {
-            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(2) + 'B';
+            if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
+            if (num >= 10_000) return (num / 1_000).toFixed(1) + 'K';
             return num.toString();
         }
 
         // --- BUILD HIGHLIGHT LISTS ---
-
-        // 1. Top Gainers (Highest positive % change)
         const topGainers = toHighlight(
-            [...processed].sort((a, b) => b.change - a.change),
+            [...processed]
+                .filter(i => i.change > 0 && (i.volume > 5000 || i.price > 1_000_000))
+                .sort((a, b) => b.change - a.change),
             'change',
             (i) => `+${i.change.toFixed(2)}%`,
             () => true
         );
 
-        // 2. Top Losers (Most negative % change)
         const topLosers = toHighlight(
-            [...processed].sort((a, b) => a.change - b.change),
+            [...processed]
+                .filter(i => i.change < 0 && (i.volume > 5000 || i.price > 1_000_000))
+                .sort((a, b) => a.change - b.change),
             'change',
             (i) => `${i.change.toFixed(2)}%`,
             () => false
         );
 
-        // 3. High Volume Profit (Realistic daily profit based on achievable volume)
         const highVolumeProfit = toHighlight(
-            [...processed].sort((a, b) => b.achievableProfit - a.achievableProfit),
+            [...processed]
+                .filter(i => i.volume > 1000)
+                .sort((a, b) => b.achievableProfit - a.achievableProfit),
             'achievableProfit',
             (i) => `+${formatNumber(i.achievableProfit)}`,
             () => true
         );
 
-        // 4. Most Profitable (Highest margin per flip)
         const mostProfitable = toHighlight(
-            [...processed].sort((a, b) => b.net - a.net),
+            [...processed]
+                .filter(i => i.isQualityFlip)
+                .sort((a, b) => b.net - a.net),
             'net',
             (i) => `+${formatNumber(i.net)}`,
             () => true
         );
 
-        // 5. Most Profitable F2P (Highest margin, non-members items)
         const mostProfitableF2P = toHighlight(
-            [...processed].filter(i => !i.members).sort((a, b) => b.net - a.net),
+            [...processed]
+                .filter(i => !i.members && i.roi > 0.5)
+                .sort((a, b) => b.net - a.net),
             'net',
             (i) => `+${formatNumber(i.net)}`,
             () => true
         );
 
-        // 6. Most Expensive (Highest price, shows margin as metric)
         const mostExpensive = toHighlight(
-            [...processed].sort((a, b) => b.price - a.price),
+            [...processed]
+                .filter(i => i.volume > 2)
+                .sort((a, b) => b.price - a.price),
             'net',
             (i) => `+${formatNumber(i.net)}`,
             () => true
         );
 
-        // 7. Profitable Alchs (Items where High Alch > GE Buy + Nat Rune)
         const profitableAlchs = toHighlight(
-            [...processed].filter(i => i.highalch && i.alchProfit > 0).sort((a, b) => b.alchProfit - a.alchProfit),
+            [...processed]
+                .filter(i => i.highalch && i.alchProfit > 150)
+                .sort((a, b) => b.alchProfit - a.alchProfit),
             'alchProfit',
             (i) => `+${formatNumber(i.alchProfit)}`,
             () => true
         );
 
+        const potentialDumps = toHighlight(
+            [...processed]
+                .filter(i => {
+                    const turnover = i.price * i.volume;
+                    return i.change < -5 && turnover > 20_000_000;
+                })
+                .sort((a, b) => a.change - b.change), // Biggest drop first
+            'change',
+            (i) => `${i.change.toFixed(2)}%`,
+            () => false
+        );
 
         return {
             topGainers,
@@ -177,7 +207,8 @@ export const useMarketHighlights = (
             mostProfitable,
             mostProfitableF2P,
             mostExpensive,
-            profitableAlchs
+            profitableAlchs,
+            potentialDumps
         };
 
     }, [items, prices, stats]);

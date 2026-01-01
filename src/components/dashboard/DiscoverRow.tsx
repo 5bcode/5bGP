@@ -16,38 +16,38 @@ const DiscoverCard = ({ item, price, change }: DiscoverCardProps) => {
     const isUp = change >= 0;
 
     return (
-        <Card
+        <div
             onClick={() => navigate(`/item/${item.id}`)}
-            className="bg-slate-900 border-slate-800 p-4 hover:bg-slate-800 transition-all cursor-pointer group"
+            className="glass-card p-4 clickable-card group relative"
         >
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded bg-slate-800 border border-slate-700 shrink-0 overflow-hidden">
+            <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 overflow-hidden shadow-sm group-hover:border-slate-700 transition-colors">
                         <img
                             src={`https://static.runelite.net/cache/item/icon/${item.id}.png`}
                             alt={item.name}
-                            className="w-full h-full object-contain p-0.5"
+                            className="w-full h-full object-contain p-1"
                         />
                     </div>
-                    <span className="text-sm font-bold text-slate-200 truncate group-hover:text-emerald-400 max-w-[140px]">
+                    <span className="text-sm font-bold text-slate-200 truncate group-hover:text-emerald-400 max-w-[140px] transition-colors">
                         {item.name}
                     </span>
                 </div>
                 {isUp ? <TrendingUp size={16} className="text-emerald-500" /> : <TrendingDown size={16} className="text-rose-500" />}
             </div>
 
-            <div className="mt-4">
-                <p className="text-xl font-bold text-white font-mono">{formatGP(price.high)}</p>
+            <div className="mt-2">
+                <p className="text-xl font-bold text-slate-100 font-mono tracking-tight">{formatGP(price.high)}</p>
                 <div className="flex items-center justify-between mt-1">
                     <p className={`text-xs font-bold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {isUp ? '+' : ''}{change.toFixed(2)}%
                     </p>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0">
                         <ArrowRight size={14} className="text-slate-400" />
                     </div>
                 </div>
             </div>
-        </Card>
+        </div>
     );
 }
 
