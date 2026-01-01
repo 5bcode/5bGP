@@ -17,6 +17,12 @@ type TimeframeOption = {
     step: TimeStep;
 };
 
+// Use type intersection instead of interface extension for compatibility with union types
+type MarkerWithMeta = SeriesMarker<Time> & {
+    indexObs: number;
+    type: 'buy' | 'sell';
+};
+
 const TIMEFRAMES: TimeframeOption[] = [
     { label: '5M', step: '5m' },
     { label: '1H', step: '1h' },
@@ -148,7 +154,7 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
         const rsi = calculateRSI(prices);
         const { lower, upper } = calculateBollinger(prices);
 
-        const markers: SeriesMarker<Time>[] = [];
+        const markers: MarkerWithMeta[] = [];
 
         // Generate signals
         for (let i = 20; i < renderData.length; i++) {
@@ -160,10 +166,10 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
 
             if (!lowerBand || !upperBand || isNaN(currRsi)) continue;
 
-            // BUY SIGNAL: RSI crosses up 30 OR Bounce off Lower Band
-            if ((prevRsi < 30 && currRsi >= 30) || (price <= lowerBand && currRsi < 40)) {
+            // BUY SIGNAL: RSI crosses up 35 (relaxed from 30) OR Bounce off Lower Band with low RSI
+            if ((prevRsi < 35 && currRsi >= 35) || (price <= lowerBand && currRsi < 45)) {
                 // Deduplicate: Don't spam buy signals
-                const lastMarker = markers[markers.length - 1] as any;
+                const lastMarker = markers[markers.length - 1];
                 if (!lastMarker || (i - lastMarker.indexObs > 5) || lastMarker.type === 'sell') {
                     markers.push({
                         time: renderData[i].timestamp as Time,
@@ -171,17 +177,17 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                         color: '#10b981',
                         shape: 'arrowUp',
                         text: 'BUY',
-                        size: 1,
-                    } as SeriesMarker<Time>);
-                    (markers[markers.length - 1] as any).indexObs = i;
-                    (markers[markers.length - 1] as any).type = 'buy';
+                        size: 2,
+                        indexObs: i,
+                        type: 'buy'
+                    });
                 }
             }
 
-            // SELL SIGNAL: RSI crosses down 70 OR Reject off Upper Band
-            if ((prevRsi > 70 && currRsi <= 70) || (price >= upperBand && currRsi > 60)) {
+            // SELL SIGNAL: RSI crosses down 65 (relaxed from 70) OR Reject off Upper Band with high RSI
+            if ((prevRsi > 65 && currRsi <= 65) || (price >= upperBand && currRsi > 55)) {
                 // Deduplicate
-                const lastMarker = markers[markers.length - 1] as any;
+                const lastMarker = markers[markers.length - 1];
                 if (!lastMarker || (i - lastMarker.indexObs > 5) || lastMarker.type === 'buy') {
                     markers.push({
                         time: renderData[i].timestamp as Time,
@@ -189,13 +195,14 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                         color: '#ef4444',
                         shape: 'arrowDown',
                         text: 'SELL',
-                        size: 1,
-                    } as SeriesMarker<Time>);
-                    (markers[markers.length - 1] as any).indexObs = i;
-                    (markers[markers.length - 1] as any).type = 'sell';
+                        size: 2,
+                        indexObs: i,
+                        type: 'sell'
+                    });
                 }
             }
         }
+        console.log(`[PriceActionChart] Generated ${markers.length} signals`);
         return markers;
     }, [renderData]);
 
@@ -302,15 +309,26 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                 color: '#10b981',
                 lineWidth: 1,
                 lineStyle: LineStyle.Dashed,
-                axisLabelVisible: false, // HIDDEN LABEL to fix clutter
+                axisLabelVisible: false,
                 title: 'Live Sell',
             });
         }
 
         // SIGNALS
         if (showSignals) {
+            console.log(`[PriceActionChart] Displaying ${chartSignals.length} signals`);
             try {
-                (sellSeries as any).setMarkers(chartSignals);
+                // Remove extra props via mapping to ensure type safety if SeriesMarker is strict
+                const safeMarkers = chartSignals.map(m => ({
+                    time: m.time,
+                    position: m.position,
+                    shape: m.shape,
+                    color: m.color,
+                    text: m.text,
+                    size: m.size
+                }));
+                // We use 'as any' on the series to avoid strict generic mismatches with ISeriesApi vs AreaSeries
+                (sellSeries as any).setMarkers(safeMarkers);
             } catch (e) {
                 console.warn("Failed to set markers on chart", e);
             }
@@ -328,7 +346,7 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                 color: '#3b82f6',
                 lineWidth: 1,
                 lineStyle: LineStyle.Dashed,
-                axisLabelVisible: false, // HIDDEN LABEL to fix clutter
+                axisLabelVisible: false,
                 title: 'Live Buy',
             });
         }
@@ -437,7 +455,17 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                     </Button>
                     <div className="w-px h-4 bg-slate-800 mx-1"></div>
                     <div className="flex gap-0.5 bg-slate-800/50 p-0.5 rounded-lg">
-                        <Button variant="ghost" size="sm" onClick={() => setShowSignals(!showSignals)} className={`h-6 px-2 text-[10px] ${showSignals ? 'bg-slate-700 text-rose-100' : 'text-slate-500'}`}>Signals</Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowSignals(!showSignals)}
+                            className={`h-6 px-2 text-[10px] transition-all duration-300 ${showSignals
+                                    ? 'bg-rose-900/40 text-rose-200 ring-1 ring-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
+                                    : 'text-slate-500 hover:text-rose-300 hover:bg-slate-800'
+                                }`}
+                        >
+                            Signals
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => setShowSMA(!showSMA)} className={`h-6 px-2 text-[10px] ${showSMA ? 'bg-slate-700 text-yellow-400' : 'text-slate-500'}`}>SMA</Button>
                         <Button variant="ghost" size="sm" onClick={() => setShowMACD(!showMACD)} className={`h-6 px-2 text-[10px] ${showMACD ? 'bg-slate-700 text-emerald-400' : 'text-slate-500'}`}>MACD</Button>
                         <Button variant="ghost" size="sm" onClick={() => setShowVolume(!showVolume)} className={`h-6 px-2 text-[10px] ${showVolume ? 'bg-slate-700 text-blue-200' : 'text-slate-500'}`}>Vol</Button>
@@ -453,6 +481,17 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
             </div>
             <div className="relative flex-1 w-full min-h-[350px]">
                 {isLoading && <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 z-20 gap-2"><Loader2 className="animate-spin text-emerald-500" size={28} /><span className="text-xs text-slate-500">Loading chart data...</span></div>}
+
+                {/* No Signals Warning */}
+                {showSignals && chartSignals.length === 0 && !isLoading && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-in fade-in zoom-in-95 duration-300">
+                        <div className="bg-slate-900/80 backdrop-blur border border-slate-700/50 text-slate-400 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                            No signals detected in current view
+                        </div>
+                    </div>
+                )}
+
                 <div ref={chartContainerRef} className="w-full h-full relative" />
                 <div ref={tooltipRef} className="absolute pointer-events-none bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-xl z-10 transition-opacity duration-100 opacity-0 min-w-[160px] text-xs" style={{ top: 0, left: 0 }}></div>
             </div>
