@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatGP } from '@/lib/osrs-math';
-import { Wallet, PiggyBank, TrendingUp, Lock, Edit2, Check, Calendar, Cloud } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Lock, Edit2, Check, Calendar, Cloud, Coins } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
 import { toast } from 'sonner';
 import {
@@ -104,20 +104,21 @@ const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPerio
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
       {/* TOTAL CAPITAL */}
-      <Card className="bg-slate-900 border-slate-800 md:col-span-1">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <Wallet size={14} className="text-blue-500" /> Total Capital
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="glass-card overflow-hidden">
+        <div className="p-4 border-b border-slate-800/60 bg-slate-950/20 backdrop-blur-sm flex items-center justify-between">
+           <div className="flex items-center gap-2 metric-label">
+                <Wallet size={14} className="text-blue-500" /> Total Capital
+           </div>
+           {mode === 'live' && <Cloud size={10} className="text-slate-600" />}
+        </div>
+        <div className="p-4">
           {isEditing ? (
             <div className="flex items-center gap-2">
               <Input 
                 type="number" 
                 value={editValue} 
                 onChange={(e) => setEditValue(e.target.value)}
-                className="h-8 bg-slate-950 border-slate-700 font-mono"
+                className="h-8 bg-slate-950 border-slate-700 font-mono text-slate-100"
                 placeholder={totalCash.toString()}
                 autoFocus
               />
@@ -143,52 +144,56 @@ const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPerio
               </Button>
             </div>
           )}
-          <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
-             <span>Start of day balance</span>
-             {mode === 'live' && <Cloud size={10} className="text-slate-600" />}
+          <div className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">
+             Starting bankroll balance
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* LIQUIDITY / UTILIZATION */}
-      <Card className="bg-slate-900 border-slate-800 md:col-span-2">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider flex items-center gap-2">
-             <PiggyBank size={14} className="text-amber-500" /> Liquidity Manager
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-           <div className="flex justify-between items-end mb-2">
+      <div className="glass-card md:col-span-2 overflow-hidden">
+        <div className="p-4 border-b border-slate-800/60 bg-slate-950/20 backdrop-blur-sm">
+           <div className="flex items-center gap-2 metric-label">
+                <PiggyBank size={14} className="text-amber-500" /> Liquidity Manager
+           </div>
+        </div>
+        <div className="p-4">
+           <div className="flex justify-between items-end mb-3">
               <div>
-                  <div className={`text-2xl font-bold font-mono ${liquidCash < 0 ? 'text-rose-500' : 'text-slate-100'}`}>
+                  <div className={`text-2xl font-bold font-mono ${liquidCash < 0 ? 'text-rose-500 shadow-rose-900/20' : 'text-slate-100'}`}>
                       {formatGP(liquidCash)}
                   </div>
-                  <div className="text-xs text-emerald-500 flex items-center gap-1">
-                     Available to trade
+                  <div className="text-[10px] text-emerald-500/80 font-bold uppercase tracking-widest">
+                     Available Liquid
                   </div>
               </div>
               <div className="text-right">
                   <div className="text-sm font-mono text-slate-400 flex items-center justify-end gap-1">
-                    <Lock size={12} /> {formatGP(activeInvestment)}
+                    <Lock size={12} className="opacity-50" /> {formatGP(activeInvestment)}
                   </div>
-                  <div className="text-xs text-slate-500">Locked in GE</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">In GE Offers</div>
               </div>
            </div>
-           <Progress 
-             value={utilization} 
-             className={`h-2 bg-slate-800 ${utilization > 90 ? "[&>div]:bg-rose-500" : "[&>div]:bg-blue-500"}`} 
-           />
-        </CardContent>
-      </Card>
+           <div className="relative">
+                <Progress 
+                    value={utilization} 
+                    className={`h-1.5 bg-slate-800/50 ${utilization > 90 ? "[&>div]:bg-rose-500" : "[&>div]:bg-blue-500"}`} 
+                />
+                {utilization > 90 && (
+                    <div className="absolute -top-6 right-0 text-[9px] text-rose-400 font-bold animate-pulse">OVERLEVERAGED</div>
+                )}
+           </div>
+        </div>
+      </div>
 
       {/* DYNAMIC P&L */}
-      <Card className="bg-slate-900 border-slate-800 md:col-span-1">
-        <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-xs font-medium text-slate-400 uppercase tracking-wider flex items-center gap-2">
-             <TrendingUp size={14} className={profit >= 0 ? "text-emerald-500" : "text-rose-500"} /> 
-             <span>{periodLabels[period]} P&L</span>
-          </CardTitle>
-          <DropdownMenu>
+      <div className="glass-card overflow-hidden">
+        <div className="p-4 border-b border-slate-800/60 bg-slate-950/20 backdrop-blur-sm flex items-center justify-between">
+           <div className="flex items-center gap-2 metric-label">
+                <TrendingUp size={14} className={profit >= 0 ? "text-emerald-500" : "text-rose-500"} /> 
+                <span>{periodLabels[period]} P&L</span>
+           </div>
+           <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-slate-200">
                     <Calendar size={12} />
@@ -202,21 +207,21 @@ const PortfolioStatus = ({ activeInvestment, profit, tradeCount, period, onPerio
                 <DropdownMenuItem onClick={() => onPeriodChange('all')}>All Time</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </CardHeader>
-        <CardContent>
-           <div className={`text-2xl font-bold font-mono ${profit >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+        </div>
+        <div className="p-4">
+           <div className={`text-2xl font-bold font-mono ${profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {profit > 0 ? '+' : ''}{formatGP(profit)}
            </div>
            <div className="flex justify-between items-center mt-1">
-              <span className={`text-xs font-bold ${roi > 0 ? 'text-emerald-500' : roi < 0 ? 'text-rose-500' : 'text-slate-500'}`}>
+              <span className={`text-[10px] font-black tracking-tighter ${roi > 0 ? 'text-emerald-500/70' : roi < 0 ? 'text-rose-500/70' : 'text-slate-600'}`}>
                 {roi.toFixed(2)}% ROI
               </span>
-              <span className="text-xs text-slate-500">
-                {tradeCount} trades
+              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+                {tradeCount} TRADES
               </span>
            </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
