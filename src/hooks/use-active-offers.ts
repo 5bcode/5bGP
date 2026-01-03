@@ -13,7 +13,6 @@ export function useActiveOffers() {
   const [offers, setOffers] = useState<ActiveOffer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load Offers & Subscribe
   useEffect(() => {
     if (mode === 'paper') {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -31,12 +30,12 @@ export function useActiveOffers() {
         }
 
         const fetchOffers = async () => {
-            // Don't set loading true on refetches to avoid flickering
             try {
                 const { data, error } = await supabase
                     .from('active_offers')
                     .select('*')
-                    .order('slot', { ascending: true }); // Order by slot for GE consistency
+                    .eq('user_id', user.id) // SECURITY FIX: Only fetch current user's offers
+                    .order('slot', { ascending: true });
 
                 if (error) throw error;
 
@@ -67,9 +66,8 @@ export function useActiveOffers() {
 
         fetchOffers();
 
-        // Subscribe to changes
         const channel = supabase
-            .channel('public:active_offers')
+            .channel(`public:active_offers:${user.id}`)
             .on(
                 'postgres_changes',
                 {
@@ -99,14 +97,9 @@ export function useActiveOffers() {
         setOffers(updated);
     } else {
         if (!user) return;
-        setOffers(prev => [...prev, offer]); // Optimistic
+        setOffers(prev => [...prev, offer]);
 
         try {
-            // Find next available slot if not provided? 
-            // For manual add, we just let DB handle it or assume slot management isn't strict for manual.
-            // But strict GE mapping requires slots. Let's auto-assign a high slot > 7 for manual to avoid conflict?
-            // Or just use random ID. The Edge function handles slots strictly.
-            
             const { error } = await supabase.from('active_offers').insert({
                 id: offer.id,
                 user_id: user.id,
@@ -118,7 +111,7 @@ export function useActiveOffers() {
                 timestamp: offer.timestamp,
                 target_price: offer.targetPrice,
                 original_buy_price: offer.originalBuyPrice,
-                slot: 8 // Manual offers go to 'virtual' slots to avoid overwriting RuneLite slots 0-7
+                slot: 8
             });
             if (error) throw error;
         } catch (err) {
@@ -141,13 +134,18 @@ export function useActiveOffers() {
         setOffers(prev => prev.map(o => o.id === updated.id ? updated : o));
 
         try {
-            const { error } = await supabase.from('active_offers').update({
-                offer_type: updated.type,
-                price: updated.price,
-                quantity: updated.quantity,
-                target_price: updated.targetPrice,
-                original_buy_price: updated.originalBuyPrice
-            }).eq('id', updated.id);
+            // SECURITY FIX: Explicitly check user_id to prevent IDOR
+            const { error } = await supabase
+                .from('active_offers')
+                .update({
+                    offer_type: updated.type,
+                    price: updated.price,
+                    quantity: updated.quantity,
+                    target_price: updated.targetPrice,
+                    original_buy_price: updated.originalBuyPrice
+                })
+                .eq('id', updated.id)
+                .eq('user_id', user.id);
 
             if (error) throw error;
         } catch (err) {
@@ -169,7 +167,13 @@ export function useActiveOffers() {
         setOffers(prev => prev.filter(o => o.id !== id));
 
         try {
-            const { error } = await supabase.from('active_offers').delete().eq('id', id);
+            // SECURITY FIX: Explicitly check user_id to prevent IDOR
+            const { error } = await supabase
+                .from('active_offers')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', user.id);
+            
             if (error) throw error;
         } catch (err) {
             console.error("Error removing offer:", err);

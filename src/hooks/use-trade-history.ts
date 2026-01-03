@@ -20,22 +20,19 @@ export function useTradeHistory() {
     const { mode } = useTradeMode();
     const { user } = useAuth();
     const HISTORY_KEY = 'paperTradeHistory';
-    const ACTIVE_KEY = 'paperActivePositions'; // We'll use local for active in both modes for now to avoid schema partiality issues
+    const ACTIVE_KEY = 'paperActivePositions';
 
     const [trades, setTrades] = useState<Trade[]>([]);
     const [activePositions, setActivePositions] = useState<ActivePosition[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Load Data
     useEffect(() => {
-        // 1. Load Active Positions (Always Local for MVP simplicity)
         const savedActive = localStorage.getItem(ACTIVE_KEY);
         if (savedActive) {
             try { setActivePositions(JSON.parse(savedActive)); }
             catch (e) { console.error(e); }
         }
 
-        // 2. Load History
         if (mode === 'paper') {
             const saved = localStorage.getItem(HISTORY_KEY);
             if (saved) {
@@ -44,7 +41,6 @@ export function useTradeHistory() {
             }
             setLoading(false);
         } else {
-            // Live Mode - Supabase
             if (!user) {
                 setTrades([]);
                 setLoading(false);
@@ -57,6 +53,7 @@ export function useTradeHistory() {
                     const { data, error } = await supabase
                         .from('trades')
                         .select('*')
+                        .eq('user_id', user.id) // Ensure we only fetch current user's trades
                         .order('timestamp', { ascending: false });
 
                     if (error) throw error;
@@ -83,7 +80,7 @@ export function useTradeHistory() {
             fetchTrades();
 
             const channel = supabase
-                .channel('public:trades')
+                .channel(`public:trades:${user.id}`)
                 .on('postgres_changes',
                     { event: '*', schema: 'public', table: 'trades', filter: `user_id=eq.${user.id}` },
                     () => fetchTrades()
@@ -95,8 +92,6 @@ export function useTradeHistory() {
             };
         }
     }, [mode, user]);
-
-    // --- ACTIVE POSITION ACTIONS ---
 
     const openPosition = useCallback((position: ActivePosition) => {
         setActivePositions(prev => {
@@ -123,8 +118,6 @@ export function useTradeHistory() {
         });
         toast.success("Position deleted");
     }, []);
-
-    // --- COMPLETED TRADE ACTIONS ---
 
     const saveTrade = useCallback(async (trade: Trade) => {
         if (mode === 'paper') {
@@ -173,8 +166,18 @@ export function useTradeHistory() {
             if (!user) return;
             setTrades(prev => prev.filter(t => t.id !== id));
             try {
-                await supabase.from('trades').delete().eq('id', id);
-            } catch (err) { console.error(err); }
+                // SECURITY FIX: Explicitly check user_id to prevent IDOR
+                const { error } = await supabase
+                    .from('trades')
+                    .delete()
+                    .eq('id', id)
+                    .eq('user_id', user.id);
+                
+                if (error) throw error;
+            } catch (err) { 
+                console.error(err);
+                toast.error("Failed to delete trade");
+            }
         }
     }, [mode, user]);
 
@@ -185,18 +188,22 @@ export function useTradeHistory() {
         } else {
             if (!user) return;
             setTrades([]);
-            try { await supabase.from('trades').delete().eq('user_id', user.id); }
+            try { 
+                const { error } = await supabase
+                    .from('trades')
+                    .delete()
+                    .eq('user_id', user.id);
+                
+                if (error) throw error;
+            }
             catch (err) { console.error(err); }
         }
     }, [mode, user]);
 
-    // Convert an Active Position to a Closed Trade
     const closePosition = useCallback((id: string, sellPrice: number) => {
         const position = activePositions.find(p => p.id === id);
         if (!position) return;
 
-        // Calculate Profit
-        // Tax: 1% capped at 5m per item (OSRS ge tax)
         const taxPerItem = Math.min(5000000, Math.floor(sellPrice * 0.01));
         const totalTax = taxPerItem * position.quantity;
         const revenue = sellPrice * position.quantity;
@@ -204,14 +211,14 @@ export function useTradeHistory() {
         const profit = revenue - cost - totalTax;
 
         const trade: Trade = {
-            id: position.id, // Keep same ID or new one? Keep same is tracking friendly
+            id: position.id,
             itemId: position.itemId,
             itemName: position.itemName,
             buyPrice: position.buyPrice,
             sellPrice: sellPrice,
             quantity: position.quantity,
             profit: profit,
-            timestamp: Date.now() // Close time
+            timestamp: Date.now()
         };
 
         saveTrade(trade);
