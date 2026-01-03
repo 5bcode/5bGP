@@ -1,11 +1,12 @@
+"use client";
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Plus, Trash2, Copy, Key } from 'lucide-react';
+import { Loader2, Plus, Trash2, Copy, Key, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ApiKey {
@@ -39,7 +40,6 @@ const ApiKeyManager = () => {
       setKeys(data || []);
     } catch (error) {
       console.error('Error fetching keys:', error);
-      // Don't toast on fetch error to avoid spamming if RLS is strict
     } finally {
       setLoading(false);
     }
@@ -63,10 +63,10 @@ const ApiKeyManager = () => {
 
       setKeys([data, ...keys]);
       setNewLabel('');
-      toast.success('API Key created');
+      toast.success('API Key created successfully');
     } catch (error: any) {
       console.error('Error creating key:', error);
-      toast.error('Failed to create API key: ' + (error.message || 'Unknown error'));
+      toast.error('Failed to create API key');
     } finally {
       setCreating(false);
     }
@@ -82,7 +82,7 @@ const ApiKeyManager = () => {
       if (error) throw error;
 
       setKeys(keys.filter(k => k.id !== id));
-      toast.success('API Key deleted');
+      toast.success('API Key revoked');
     } catch (error) {
       console.error('Error deleting key:', error);
       toast.error('Failed to delete API key');
@@ -95,73 +95,79 @@ const ApiKeyManager = () => {
   };
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-slate-100">
-          <Key className="h-5 w-5 text-emerald-500" /> Plugin API Keys
-        </CardTitle>
-        <CardDescription className="text-slate-500">
-          Generate keys to authenticate your RuneLite plugin. Treat these like passwords.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex gap-2 mb-6">
-          <Input
-            placeholder="Label (e.g. My Desktop)"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            className="bg-slate-950 border-slate-800"
-          />
-          <Button onClick={createKey} disabled={creating || !user} className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]">
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-2" /> Create</>}
-          </Button>
+    <div className="glass-card overflow-hidden">
+        <div className="p-4 border-b border-slate-800/60 bg-slate-950/20 backdrop-blur-sm flex justify-between items-center">
+            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Key className="text-emerald-500" size={18} /> Plugin API Keys
+            </h3>
+            <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-400">
+                <ShieldCheck size={10} /> SECURE STORAGE
+            </div>
         </div>
+        <div className="p-6 space-y-6">
+            <p className="text-sm text-slate-500">
+                Generate a secure key to link your **RuneLite Plugin** with your web dashboard. These keys grant access to your trade logs—do not share them.
+            </p>
 
-        {loading ? (
-          <div className="flex justify-center p-4">
-            <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
-          </div>
-        ) : keys.length === 0 ? (
-          <div className="text-center text-slate-500 py-8 border border-dashed border-slate-800 rounded">
-            No API keys found. Generate one to start syncing data.
-          </div>
-        ) : (
-          <div className="rounded-md border border-slate-800 overflow-hidden">
-            <Table>
-              <TableHeader className="bg-slate-950">
-                <TableRow className="border-slate-800 hover:bg-slate-950">
-                  <TableHead className="text-slate-400">Label</TableHead>
-                  <TableHead className="text-slate-400">Key ID</TableHead>
-                  <TableHead className="text-slate-400">Created</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {keys.map((key) => (
-                  <TableRow key={key.id} className="border-slate-800 hover:bg-slate-800/50">
-                    <TableCell className="font-medium text-slate-200">{key.label}</TableCell>
-                    <TableCell className="font-mono text-xs text-slate-400 flex items-center gap-2">
-                      {key.key_value}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-emerald-400" onClick={() => copyKey(key.key_value)}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-500">
-                      {new Date(key.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-rose-500" onClick={() => deleteKey(key.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            <div className="flex flex-col sm:flex-row gap-3">
+                <Input
+                    placeholder="Key Label (e.g. Home Desktop)"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    className="bg-slate-950/50 border-slate-800 text-slate-200"
+                />
+                <Button onClick={createKey} disabled={creating || !user} className="bg-emerald-600 hover:bg-emerald-500 text-white min-w-[140px] font-bold">
+                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-2" /> Generate Key</>}
+                </Button>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center p-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-500/50" />
+                </div>
+            ) : keys.length === 0 ? (
+                <div className="text-center text-slate-600 py-12 border-2 border-dashed border-slate-800/50 rounded-xl bg-slate-900/10">
+                    No active API keys. Generate one to start syncing.
+                </div>
+            ) : (
+                <div className="rounded-xl border border-slate-800 overflow-hidden bg-slate-950/20">
+                    <Table>
+                        <TableHeader className="bg-slate-950/50">
+                            <TableRow className="border-slate-800/50 hover:bg-transparent">
+                                <TableHead className="text-slate-500 text-[10px] uppercase font-bold py-3">Label</TableHead>
+                                <TableHead className="text-slate-500 text-[10px] uppercase font-bold">Key Identity</TableHead>
+                                <TableHead className="text-slate-500 text-[10px] uppercase font-bold">Issued</TableHead>
+                                <TableHead className="w-[60px]"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-slate-800/30">
+                            {keys.map((key) => (
+                                <TableRow key={key.id} className="border-none hover:bg-slate-800/30 transition-colors group">
+                                    <TableCell className="font-bold text-slate-200">{key.label}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            <code className="text-xs text-slate-400 font-mono bg-slate-900 px-2 py-1 rounded border border-slate-800">{key.key_value.slice(0, 8)}...{key.key_value.slice(-4)}</code>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500 hover:text-emerald-400" onClick={() => copyKey(key.key_value)}>
+                                                <Copy className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-500 font-mono">
+                                        {new Date(key.created_at).toLocaleDateString()}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteKey(key.id)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
+        </div>
+    </div>
   );
 };
 

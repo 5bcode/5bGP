@@ -78,6 +78,7 @@ public class FlipTo5BPlugin extends Plugin {
 	private SyncManager syncManager;
 
 	@Inject
+	@lombok.Getter
 	private ScheduledExecutorService executor;
 
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");

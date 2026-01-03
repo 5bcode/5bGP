@@ -5,11 +5,12 @@ import { MarketOpportunity } from '@/hooks/use-market-analysis';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { ArrowUp, ArrowDown, ArrowUpDown, Plus, Check, ExternalLink } from 'lucide-react';
-import { formatGP } from '@/lib/osrs-math';
 import ItemIcon from '@/components/ItemIcon';
 import ScannerRangeBar from '@/components/ScannerRangeBar';
 import { useSettings } from '@/context/SettingsContext';
 import { cn } from '@/lib/utils';
+import { useScannerColumns, ScannerRow } from '@/hooks/use-scanner-columns';
+import ConnectedSparklineCell from '@/components/scanner/ConnectedSparklineCell';
 
 interface ScannerTableProps {
     data: MarketOpportunity[];
@@ -23,6 +24,7 @@ interface ScannerTableProps {
 const ScannerTable = ({ data, type, sortConfig, onSort, trackedIds, onTrack }: ScannerTableProps) => {
     const { settings } = useSettings();
     const { compactMode } = settings;
+    const { columns } = useScannerColumns();
 
     const SortIcon = ({ column }: { column: string }) => {
         if (sortConfig.key !== column) return <ArrowUpDown size={14} className="ml-1 opacity-20" />;
@@ -44,108 +46,145 @@ const ScannerTable = ({ data, type, sortConfig, onSort, trackedIds, onTrack }: S
             <Table className="min-w-[800px]">
                 <TableHeader className="bg-slate-950">
                     <TableRow className="border-slate-800 hover:bg-slate-950">
-                        <TableHead className={compactMode ? "h-8 py-1" : ""}></TableHead>
+                        {/* Always show ItemIcon column */}
+                        <TableHead className={compactMode ? "h-8 py-1 w-12" : "w-16"}></TableHead>
 
-                        <TableHead
-                            className={cn("text-slate-400 cursor-pointer hover:text-slate-200 select-none", compactMode && "h-8 py-1")}
-                            onClick={() => onSort('name')}
-                        >
-                            <div className="flex items-center gap-1">Item <SortIcon column="name" /></div>
-                        </TableHead>
+                        {/* Dynamic Columns */}
+                        {columns.map((col) => (
+                            <TableHead
+                                key={col.id}
+                                className={cn(
+                                    "text-slate-400 cursor-pointer hover:text-slate-200 select-none",
+                                    compactMode && "h-8 py-1",
+                                    col.align === 'right' && "text-right",
+                                    col.align === 'center' && "text-center",
+                                )}
+                                style={{ width: col.width }}
+                                onClick={col.sortable ? () => onSort(col.id) : undefined}
+                            >
+                                <div className={cn(
+                                    "flex items-center gap-1",
+                                    col.align === 'right' && "justify-end",
+                                    col.align === 'center' && "justify-center"
+                                )}>
+                                    {col.label}
+                                    {col.sortable && <SortIcon column={col.id} />}
+                                </div>
+                            </TableHead>
+                        ))}
 
-                        <TableHead
-                            className={cn("text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none", compactMode && "h-8 py-1")}
-                            onClick={() => onSort('price')}
-                        >
-                            <div className="flex items-center justify-end gap-1">Buy Price <SortIcon column="price" /></div>
-                        </TableHead>
-
-                        <TableHead
-                            className={cn("text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none", compactMode && "h-8 py-1")}
-                            onClick={() => onSort('metric')}
-                        >
-                            <div className="flex items-center justify-end gap-1">
-                                {type === 'crash' ? 'Drop %' : 'Profit / Item'} <SortIcon column="metric" />
-                            </div>
-                        </TableHead>
-
-                        <TableHead
-                            className={cn("text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none", compactMode && "h-8 py-1")}
-                            onClick={() => onSort('secondary')}
-                        >
-                            <div className="flex items-center justify-end gap-1">
-                                {type === 'crash' ? 'Potential Profit' : 'ROI'} <SortIcon column="secondary" />
-                            </div>
-                        </TableHead>
-
-                        <TableHead
-                            className={cn("text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none", compactMode && "h-8 py-1")}
-                            onClick={() => onSort('volume')}
-                        >
-                            <div className="flex items-center justify-end gap-1">Volume (24h) <SortIcon column="volume" /></div>
-                        </TableHead>
-
-                        <TableHead
-                            className={cn("text-right text-slate-400 cursor-pointer hover:text-slate-200 select-none", compactMode && "h-8 py-1")}
-                            onClick={() => onSort('score')}
-                        >
-                            <div className="flex items-center justify-end gap-1">Score <SortIcon column="score" /></div>
-                        </TableHead>
-
-                        <TableHead className={compactMode ? "h-8 py-1" : ""}></TableHead>
+                        {/* Actions Column */}
+                        <TableHead className={compactMode ? "h-8 py-1 w-20" : "w-24"}></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {data.map((row) => {
                         const isTracked = trackedIds.has(row.item.id);
+
+                        // Construct the unified ScannerRow object
+                        const scannerRow: ScannerRow = {
+                            item: row.item,
+                            price: row.price,
+                            stats: row.stats,
+                            score: row.score,
+                            metric: row.metric,
+                            secondaryMetric: row.secondaryMetric,
+                        };
+
                         return (
                             <TableRow key={row.item.id} className={cn("border-slate-800", isTracked ? 'bg-emerald-950/10 hover:bg-emerald-950/20' : 'hover:bg-slate-800/50')}>
+                                {/* Icon Column */}
                                 <TableCell className={compactMode ? "py-1" : ""}>
                                     <ItemIcon item={row.item} size={compactMode ? "sm" : "md"} />
                                 </TableCell>
-                                <TableCell className={cn("font-medium text-slate-200", compactMode && "py-1 text-xs")}>
-                                    <div className="flex flex-col">
-                                        <Link to={`/item/${row.item.id}`} className="hover:text-emerald-400 transition-colors">
-                                            {row.item.name}
-                                        </Link>
-                                        {!compactMode && (
-                                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                <span>ID: {row.item.id}</span>
-                                                {row.item.limit && <span className="bg-slate-950 px-1 rounded">Lim: {row.item.limit}</span>}
-                                            </div>
-                                        )}
-                                    </div>
-                                </TableCell>
-                                <TableCell className={cn("text-right font-mono text-slate-300", compactMode && "py-1 text-xs")}>
-                                    {formatGP(row.price.low)}
-                                    {!compactMode && row.stats.avgHighPrice && row.stats.avgLowPrice && (
-                                        <div className="w-24 ml-auto mt-1">
-                                            <ScannerRangeBar
-                                                current={row.price.low}
-                                                low={row.stats.avgLowPrice}
-                                                high={row.stats.avgHighPrice}
-                                            />
-                                        </div>
-                                    )}
-                                </TableCell>
-                                <TableCell className={cn("text-right font-bold", type === 'crash' ? 'text-rose-500' : 'text-emerald-400', compactMode && "py-1 text-xs")}>
-                                    {type === 'crash'
-                                        ? `-${row.metric.toFixed(1)}%`
-                                        : `+${formatGP(row.metric)}`
+
+                                {/* Dynamic Cells */}
+                                {columns.map((col) => {
+                                    // Custom rendering logic for specific columns
+                                    if (col.id === 'item') {
+                                        return (
+                                            <TableCell key={col.id} className={cn("font-medium text-slate-200", compactMode && "py-1 text-xs")}>
+                                                <div className="flex flex-col">
+                                                    <Link to={`/item/${row.item.id}`} className="hover:text-emerald-400 transition-colors">
+                                                        {row.item.name}
+                                                    </Link>
+                                                    {!compactMode && (
+                                                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                            <span>ID: {row.item.id}</span>
+                                                            {row.item.limit && <span className="bg-slate-950 px-1 rounded">Lim: {row.item.limit}</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        );
                                     }
-                                </TableCell>
-                                <TableCell className={cn("text-right font-mono text-slate-400", compactMode && "py-1 text-xs")}>
-                                    {type === 'crash'
-                                        ? formatGP(row.secondaryMetric)
-                                        : `${row.secondaryMetric.toFixed(2)}%`
+
+                                    if (col.id === 'buyPrice') {
+                                        return (
+                                            <TableCell key={col.id} className={cn("text-right font-mono text-slate-300", compactMode && "py-1 text-xs")}>
+                                                {col.format ? col.format(col.accessor(scannerRow) as any) : col.accessor(scannerRow)}
+                                                {!compactMode && row.stats.avgHighPrice && row.stats.avgLowPrice && (
+                                                    <div className="w-24 ml-auto mt-1">
+                                                        <ScannerRangeBar
+                                                            current={row.price.low}
+                                                            low={row.stats.avgLowPrice}
+                                                            high={row.stats.avgHighPrice}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                        );
                                     }
-                                </TableCell>
-                                <TableCell className={cn("text-right text-slate-400", compactMode && "py-1 text-xs")}>
-                                    {formatGP(row.stats.highPriceVolume + row.stats.lowPriceVolume)}
-                                </TableCell>
-                                <TableCell className={cn("text-right font-mono text-xs text-slate-500", compactMode && "py-1")}>
-                                    {row.score.toFixed(1)}
-                                </TableCell>
+
+                                    if (col.category === 'sparklines') {
+                                        const timeframe = col.id.replace('sparkline', ''); // '24h', '7d', etc.
+                                        let days = 1;
+                                        if (timeframe === '7d') days = 7;
+                                        // 1m and 1y would need separate logic or passing days=30 etc.
+
+                                        // Assuming 5m timestep for 24h, 1h for 7d+ would be better but let's stick to 5m/1h based on what we have
+                                        const timestep = timeframe === '24h' ? '5m' : '1h';
+
+                                        return (
+                                            <TableCell key={col.id} className={cn(compactMode && "py-1")}>
+                                                <div className="flex justify-center">
+                                                    <ConnectedSparklineCell
+                                                        itemId={row.item.id}
+                                                        timestep={timestep}
+                                                        days={days}
+                                                    />
+                                                </div>
+                                            </TableCell>
+                                        );
+                                    }
+
+                                    // Default rendering
+                                    const rawValue = col.accessor(scannerRow);
+                                    const formattedValue = col.format ? col.format(rawValue as any) : rawValue;
+
+                                    let colorClass = "text-slate-400";
+                                    if (col.colorize && typeof rawValue === 'number') {
+                                        if (rawValue > 0) colorClass = "text-emerald-400";
+                                        else if (rawValue < 0) colorClass = "text-rose-500";
+                                    }
+                                    if (col.id.includes('score')) colorClass = "text-slate-500";
+
+                                    return (
+                                        <TableCell
+                                            key={col.id}
+                                            className={cn(
+                                                compactMode && "py-1 text-xs",
+                                                col.align === 'right' && "text-right font-mono",
+                                                col.align === 'center' && "text-center",
+                                                colorClass
+                                            )}
+                                        >
+                                            {formattedValue}
+                                        </TableCell>
+                                    );
+                                })}
+
+                                {/* Actions Column */}
                                 <TableCell className={compactMode ? "py-1" : ""}>
                                     <div className="flex justify-end gap-2">
                                         {isTracked ? (

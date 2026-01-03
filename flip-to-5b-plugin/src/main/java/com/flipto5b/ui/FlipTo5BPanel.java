@@ -60,6 +60,43 @@ public class FlipTo5BPanel extends PluginPanel {
         profitPanel.add(sessionProfitLabel, BorderLayout.EAST);
         add(profitPanel, BorderLayout.NORTH);
 
+        // Search Bar Panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        searchPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
+
+        net.runelite.client.ui.components.IconTextField searchBar = new net.runelite.client.ui.components.IconTextField();
+        searchBar.setIcon(net.runelite.client.ui.components.IconTextField.Icon.SEARCH);
+        searchBar.setPreferredSize(new Dimension(100, 30));
+        searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
+        searchBar.setMinimumSize(new Dimension(0, 30));
+        searchBar.addActionListener(e -> {
+            String query = searchBar.getText();
+            if (query != null && !query.isEmpty()) {
+                // Execute search on background thread to avoid UI freeze
+                plugin.getExecutor().submit(() -> {
+                    var results = itemManager.search(query);
+                    if (!results.isEmpty()) {
+                        // Pick first match
+                        int itemId = results.get(0).getId();
+                        plugin.setSidebarItem(itemId);
+                        SwingUtilities.invokeLater(() -> searchBar.setText(""));
+                    }
+                });
+            }
+        });
+
+        searchPanel.add(searchBar, BorderLayout.CENTER);
+
+        // Container for Top Elements (Profit + Search)
+        JPanel topContainer = new JPanel();
+        topContainer.setLayout(new BoxLayout(topContainer, BoxLayout.Y_AXIS));
+        topContainer.add(profitPanel);
+        topContainer.add(searchPanel);
+
+        add(topContainer, BorderLayout.NORTH);
+
         // Main Content Area with CardLayout
         contentPanel.setLayout(cardLayout);
         contentPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);

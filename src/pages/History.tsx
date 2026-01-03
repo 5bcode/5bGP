@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useMemo } from 'react';
 import Analytics from '@/components/Analytics';
 import ProfitHeatmap from '@/components/ProfitHeatmap';
@@ -5,13 +7,13 @@ import ActiveTradesWidget from '@/components/dashboard/ActiveTradesWidget';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Trash2, ArrowUp, ArrowDown, ArrowUpDown, TrendingUp } from 'lucide-react';
+import { Download, Trash2, ArrowUp, ArrowDown, ArrowUpDown, TrendingUp, History as HistoryIcon } from 'lucide-react';
 import { formatGP } from '@/lib/osrs-math';
 import { toast } from 'sonner';
 import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import BulkImportDialog from '@/components/BulkImportDialog';
-import { matchTrades, MatchedFlip } from '@/lib/trade-matching';
+import { matchTrades } from '@/lib/trade-matching';
 import { Trade } from '@/components/TradeLogDialog';
 
 const History = () => {
@@ -26,17 +28,15 @@ const History = () => {
         updatePosition
     } = useTradeHistory();
 
-    const { items, prices } = useMarketData(); // Fetch prices for active P/L calculation
+    const { items, prices } = useMarketData();
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'timestamp',
         direction: 'desc'
     });
 
-    // Calculate matched flips from raw trades
     const matchedFlips = useMemo(() => matchTrades(trades), [trades]);
 
-    // Adapt MatchedFlip to Trade interface for Analytics component
     const analyticsData: Trade[] = useMemo(() => {
         return matchedFlips.map(f => ({
             id: f.id,
@@ -119,24 +119,23 @@ const History = () => {
     };
 
     return (
-        <>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+        <div className="space-y-8 max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-100">Trade Portfolio</h1>
-                    <p className="text-slate-500">Track active positions and historical performance.</p>
+                    <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Trade Portfolio</h1>
+                    <p className="text-slate-500 mt-1">Track active positions and analyze your historical performance.</p>
                 </div>
                 <div className="flex gap-2">
                     <BulkImportDialog items={items} onImport={handleBulkImport} />
-                    <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900 text-slate-300">
+                    <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-300">
                         <Download className="mr-2 h-4 w-4" /> Export CSV
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={trades.length === 0 && activePositions.length === 0} className="text-rose-500 hover:bg-rose-950/20">
+                    <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={trades.length === 0 && activePositions.length === 0} className="text-rose-500 hover:bg-rose-500/10">
                         <Trash2 className="mr-2 h-4 w-4" /> Clear All
                     </Button>
                 </div>
             </div>
 
-            {/* ACTIVE POSITIONS WIDGET */}
             <ActiveTradesWidget
                 positions={activePositions}
                 prices={prices}
@@ -145,150 +144,157 @@ const History = () => {
                 onUpdatePosition={updatePosition}
             />
 
-            <Tabs defaultValue="flips" className="space-y-8">
-                <TabsList className="bg-slate-900 border border-slate-800">
-                    <TabsTrigger value="flips" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-                        Completed Flips
+            <Tabs defaultValue="flips" className="space-y-6">
+                <TabsList className="bg-slate-900/50 border border-slate-800 p-1">
+                    <TabsTrigger value="flips" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white transition-all">
+                        <TrendingUp size={14} className="mr-2" /> Completed Flips
                     </TabsTrigger>
-                    <TabsTrigger value="transactions" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                        Transaction Log
+                    <TabsTrigger value="transactions" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
+                        <HistoryIcon size={14} className="mr-2" /> Transaction Log
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="flips" className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
-                    {/* Use Matched Data for Analytics */}
+                <TabsContent value="flips" className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                     {analyticsData.length > 0 ? (
                         <>
-                            <ProfitHeatmap trades={analyticsData} />
+                            <div className="glass-card overflow-hidden">
+                                <ProfitHeatmap trades={analyticsData} />
+                            </div>
                             <Analytics trades={analyticsData} />
 
-                            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-                                <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
-                                    <h2 className="text-lg font-semibold text-slate-200">Completed Flips</h2>
-                                    <span className="text-xs text-slate-500">Auto-matched (FIFO)</span>
+                            <div className="glass-card overflow-hidden">
+                                <div className="p-4 border-b border-slate-800/60 bg-slate-950/20 backdrop-blur-sm flex justify-between items-center">
+                                    <h2 className="text-lg font-bold text-slate-100">Completed Flips</h2>
+                                    <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Matched via FIFO</span>
                                 </div>
-                                <Table>
-                                    <TableHeader className="bg-slate-950">
-                                        <TableRow className="border-slate-800 hover:bg-slate-950">
-                                            <TableHead className="text-slate-400">Date Sold</TableHead>
-                                            <TableHead className="text-slate-400">Item</TableHead>
-                                            <TableHead className="text-right text-slate-400">Qty</TableHead>
-                                            <TableHead className="text-right text-slate-400">Avg Buy</TableHead>
-                                            <TableHead className="text-right text-slate-400">Avg Sell</TableHead>
-                                            <TableHead className="text-right text-slate-400">Realized Profit</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {matchedFlips.map((flip) => (
-                                            <TableRow key={flip.id} className="border-slate-800 hover:bg-slate-800/50">
-                                                <TableCell className="text-slate-400 font-mono text-xs">
-                                                    {new Date(flip.timestamp).toLocaleString()}
-                                                </TableCell>
-                                                <TableCell className="font-medium text-slate-200">
-                                                    {flip.itemName}
-                                                </TableCell>
-                                                <TableCell className="text-right text-slate-300 font-mono">
-                                                    {flip.quantity.toLocaleString()}
-                                                </TableCell>
-                                                <TableCell className="text-right text-slate-400 font-mono text-xs">
-                                                    {formatGP(flip.buyPrice)}
-                                                </TableCell>
-                                                <TableCell className="text-right text-slate-400 font-mono text-xs">
-                                                    {formatGP(flip.sellPrice)}
-                                                </TableCell>
-                                                <TableCell className={`text-right font-bold font-mono ${flip.profit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                    {flip.profit > 0 ? '+' : ''}{formatGP(flip.profit)}
-                                                </TableCell>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader className="bg-slate-950/20">
+                                            <TableRow className="border-slate-800/40 hover:bg-transparent">
+                                                <TableHead className="text-slate-500 text-xs uppercase font-bold py-4">Date Sold</TableHead>
+                                                <TableHead className="text-slate-500 text-xs uppercase font-bold">Item</TableHead>
+                                                <TableHead className="text-right text-slate-500 text-xs uppercase font-bold">Qty</TableHead>
+                                                <TableHead className="text-right text-slate-500 text-xs uppercase font-bold">Avg Buy</TableHead>
+                                                <TableHead className="text-right text-slate-500 text-xs uppercase font-bold">Avg Sell</TableHead>
+                                                <TableHead className="text-right text-slate-500 text-xs uppercase font-bold">Realized Profit</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody className="divide-y divide-slate-800/30">
+                                            {matchedFlips.map((flip) => (
+                                                <TableRow key={flip.id} className="border-none hover:bg-slate-800/40 transition-colors">
+                                                    <TableCell className="text-slate-400 font-mono text-xs">
+                                                        {new Date(flip.timestamp).toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell className="font-bold text-slate-200">
+                                                        {flip.itemName}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-slate-300 font-mono text-sm">
+                                                        {flip.quantity.toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-slate-400 font-mono text-xs">
+                                                        {formatGP(flip.buyPrice)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-slate-400 font-mono text-xs">
+                                                        {formatGP(flip.sellPrice)}
+                                                    </TableCell>
+                                                    <TableCell className={`text-right font-bold font-mono text-sm ${flip.profit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {flip.profit > 0 ? '+' : ''}{formatGP(flip.profit)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
                         </>
                     ) : (
-                        <div className="py-20 text-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20 text-slate-500">
-                            <TrendingUp className="mx-auto h-12 w-12 text-slate-700 mb-4" />
-                            <h3 className="text-lg font-medium text-slate-300 mb-2">No completed flips yet</h3>
-                            <p className="text-sm max-w-sm mx-auto">
-                                Once you buy and sell the same item, they will automatically pair up here to calculate your profit.
+                        <div className="py-24 text-center glass-card bg-slate-900/20 flex flex-col items-center border-dashed">
+                            <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-600 mb-4 border border-slate-700/50">
+                                <TrendingUp size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-300 mb-2">No completed flips found</h3>
+                            <p className="text-slate-500 max-w-sm">
+                                Once you close an active position or log a completed trade, the analytics engine will show your performance metrics here.
                             </p>
                         </div>
                     )}
                 </TabsContent>
 
-                <TabsContent value="transactions" className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                    <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-                        <div className="p-4 border-b border-slate-800 bg-slate-950/50">
-                            <h2 className="text-lg font-semibold text-slate-200">Raw Transaction Log</h2>
+                <TabsContent value="transactions" className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="glass-card overflow-hidden">
+                        <div className="p-4 border-b border-slate-800/60 bg-slate-950/20 backdrop-blur-sm">
+                            <h2 className="text-lg font-bold text-slate-100">Transaction Log</h2>
                         </div>
-                        <Table>
-                            <TableHeader className="bg-slate-950">
-                                <TableRow className="border-slate-800 hover:bg-slate-950">
-                                    <TableHead
-                                        className="text-slate-400 cursor-pointer hover:text-slate-200 select-none w-[180px]"
-                                        onClick={() => handleSort('timestamp')}
-                                    >
-                                        <div className="flex items-center gap-1">Date <SortIcon column="timestamp" /></div>
-                                    </TableHead>
-                                    <TableHead
-                                        className="text-slate-400 cursor-pointer hover:text-slate-200 select-none"
-                                        onClick={() => handleSort('item')}
-                                    >
-                                        <div className="flex items-center gap-1">Item <SortIcon column="item" /></div>
-                                    </TableHead>
-                                    <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('quantity')}>
-                                        <div className="flex items-center justify-end gap-1">Qty <SortIcon column="quantity" /></div>
-                                    </TableHead>
-                                    <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('buy')}>
-                                        <div className="flex items-center justify-end gap-1">Buy <SortIcon column="buy" /></div>
-                                    </TableHead>
-                                    <TableHead className="text-right text-slate-400 cursor-pointer" onClick={() => handleSort('sell')}>
-                                        <div className="flex items-center justify-end gap-1">Sell <SortIcon column="sell" /></div>
-                                    </TableHead>
-                                    <TableHead className="w-[50px]"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedTrades.map((trade) => (
-                                    <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/50">
-                                        <TableCell className="text-slate-400 font-mono text-xs">
-                                            {new Date(trade.timestamp).toLocaleString(undefined, {
-                                                year: 'numeric', month: 'numeric', day: 'numeric',
-                                                hour: '2-digit', minute: '2-digit'
-                                            })}
-                                        </TableCell>
-                                        <TableCell className="font-medium text-slate-200">
-                                            {trade.itemName}
-                                        </TableCell>
-                                        <TableCell className="text-right text-slate-300 font-mono">
-                                            {trade.quantity.toLocaleString()}
-                                        </TableCell>
-                                        <TableCell className="text-right text-slate-400 font-mono text-xs">
-                                            {trade.buyPrice > 0 ? formatGP(trade.buyPrice) : '-'}
-                                        </TableCell>
-                                        <TableCell className="text-right text-slate-400 font-mono text-xs">
-                                            {trade.sellPrice > 0 ? formatGP(trade.sellPrice) : '-'}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-slate-600 hover:text-rose-500" onClick={() => handleDelete(trade.id)}>
-                                                <Trash2 size={12} />
-                                            </Button>
-                                        </TableCell>
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader className="bg-slate-950/20">
+                                    <TableRow className="border-slate-800/40 hover:bg-transparent">
+                                        <TableHead
+                                            className="text-slate-500 text-xs uppercase font-bold py-4 cursor-pointer hover:text-slate-300 transition-colors select-none"
+                                            onClick={() => handleSort('timestamp')}
+                                        >
+                                            <div className="flex items-center gap-1">Date <SortIcon column="timestamp" /></div>
+                                        </TableHead>
+                                        <TableHead
+                                            className="text-slate-500 text-xs uppercase font-bold cursor-pointer hover:text-slate-300 transition-colors select-none"
+                                            onClick={() => handleSort('item')}
+                                        >
+                                            <div className="flex items-center gap-1">Item <SortIcon column="item" /></div>
+                                        </TableHead>
+                                        <TableHead className="text-right text-slate-500 text-xs uppercase font-bold cursor-pointer" onClick={() => handleSort('quantity')}>
+                                            <div className="flex items-center justify-end gap-1">Qty <SortIcon column="quantity" /></div>
+                                        </TableHead>
+                                        <TableHead className="text-right text-slate-500 text-xs uppercase font-bold cursor-pointer" onClick={() => handleSort('buy')}>
+                                            <div className="flex items-center justify-end gap-1">Buy <SortIcon column="buy" /></div>
+                                        </TableHead>
+                                        <TableHead className="text-right text-slate-500 text-xs uppercase font-bold cursor-pointer" onClick={() => handleSort('sell')}>
+                                            <div className="flex items-center justify-end gap-1">Sell <SortIcon column="sell" /></div>
+                                        </TableHead>
+                                        <TableHead className="w-[80px]"></TableHead>
                                     </TableRow>
-                                ))}
-                                {sortedTrades.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                                            No transactions recorded.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody className="divide-y divide-slate-800/30">
+                                    {sortedTrades.map((trade) => (
+                                        <TableRow key={trade.id} className="border-none hover:bg-slate-800/40 transition-colors group">
+                                            <TableCell className="text-slate-400 font-mono text-xs">
+                                                {new Date(trade.timestamp).toLocaleString(undefined, {
+                                                    month: 'short', day: 'numeric',
+                                                    hour: '2-digit', minute: '2-digit'
+                                                })}
+                                            </TableCell>
+                                            <TableCell className="font-bold text-slate-200">
+                                                {trade.itemName}
+                                            </TableCell>
+                                            <TableCell className="text-right text-slate-300 font-mono text-sm">
+                                                {trade.quantity.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="text-right text-emerald-400/80 font-mono text-xs">
+                                                {trade.buyPrice > 0 ? formatGP(trade.buyPrice) : '—'}
+                                            </TableCell>
+                                            <TableCell className="text-right text-blue-400/80 font-mono text-xs">
+                                                {trade.sellPrice > 0 ? formatGP(trade.sellPrice) : '—'}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDelete(trade.id)}>
+                                                    <Trash2 size={14} />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {sortedTrades.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center py-12 text-slate-500">
+                                                No transactions recorded in the log.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
                 </TabsContent>
             </Tabs>
-        </>
+        </div>
     );
 };
 
