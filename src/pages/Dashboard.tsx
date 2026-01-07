@@ -11,6 +11,7 @@ import ItemSearch from '@/components/ItemSearch';
 import { useNavigate } from 'react-router-dom';
 import { formatGP } from '@/lib/osrs-math';
 import SortableMarketTable from '@/components/dashboard/SortableMarketTable';
+import VirtualizedMarketTable from '@/components/dashboard/VirtualizedMarketTable';
 import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
 import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useActiveOffers } from '@/hooks/use-active-offers';
@@ -20,17 +21,17 @@ const Dashboard = () => {
     const { items, prices, stats, isLoading } = useMarketData(60000);
     const { trades, activePositions } = useTradeHistory();
     const { offers: geSlots } = useActiveOffers();
-    
+
     const [viewAll, setViewAll] = useState<{ title: string; items: MarketHighlightItem[] } | null>(null);
     const [statsPeriod, setStatsPeriod] = useState<Period>('day');
 
     // Portfolio Calculations
     const sessionStart = useMemo(() => Date.now(), []); // Session starts on mount
-    
+
     const filteredTrades = useMemo(() => {
         const now = Date.now();
         const today = new Date();
-        today.setHours(0,0,0,0);
+        today.setHours(0, 0, 0, 0);
 
         return trades.filter(t => {
             switch (statsPeriod) {
@@ -48,7 +49,7 @@ const Dashboard = () => {
         // Active investment = money currently in manual active positions + money in GE slots
         const manualInvested = activePositions.reduce((acc, p) => acc + (p.buyPrice * p.quantity), 0);
         const geInvested = geSlots.reduce((acc, s) => acc + (s.price * s.quantity), 0);
-        
+
         return {
             profit: totalProfit,
             tradeCount: filteredTrades.length,
@@ -94,7 +95,7 @@ const Dashboard = () => {
                     <p className="text-slate-500">Showing top 50 results based on real-time volatility</p>
                 </div>
 
-                <SortableMarketTable data={viewAll.items} />
+                <VirtualizedMarketTable data={viewAll.items} />
             </div>
         );
     }
@@ -129,7 +130,7 @@ const Dashboard = () => {
             </div>
 
             {/* Portfolio Summary Section */}
-            <PortfolioStatus 
+            <PortfolioStatus
                 activeInvestment={portfolioMetrics.activeInvestment}
                 profit={portfolioMetrics.profit}
                 tradeCount={portfolioMetrics.tradeCount}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useDeferredValue } from 'react';
 import { Item, PriceData, Stats24h } from '@/services/osrs-api';
 import { calculateMargin } from '@/lib/osrs-math';
 
@@ -29,8 +29,12 @@ export const useMarketHighlights = (
     prices: Record<string, PriceData>,
     stats: Record<string, Stats24h>
 ) => {
+    // Defer heavy computation - allows React to keep UI responsive during updates
+    const deferredPrices = useDeferredValue(prices);
+    const deferredStats = useDeferredValue(stats);
+
     return useMemo(() => {
-        if (!items.length || !Object.keys(prices).length) {
+        if (!items.length || !Object.keys(deferredPrices).length) {
             return {
                 topGainers: [],
                 topLosers: [],
@@ -46,8 +50,8 @@ export const useMarketHighlights = (
         const now = Date.now();
 
         const processed = items.map(item => {
-            const price = prices[item.id];
-            const stat = stats[item.id];
+            const price = deferredPrices[item.id];
+            const stat = deferredStats[item.id];
             if (!price || !stat) return null;
 
             // --- FILTER 1: Staleness ---
@@ -212,5 +216,5 @@ export const useMarketHighlights = (
             potentialDumps
         };
 
-    }, [items, prices, stats]);
+    }, [items, deferredPrices, deferredStats]);
 };

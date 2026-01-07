@@ -12,7 +12,7 @@ interface SortableMarketTableProps {
 type SortKey = 'name' | 'price' | 'metric' | 'volume' | 'roi' | 'spread';
 type SortDirection = 'asc' | 'desc';
 
-const SortableMarketTable = ({ data }: SortableMarketTableProps) => {
+const SortableMarketTable = React.memo(({ data }: SortableMarketTableProps) => {
     const navigate = useNavigate();
     const [sortKey, setSortKey] = useState<SortKey>('metric');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -128,6 +128,7 @@ const SortableMarketTable = ({ data }: SortableMarketTableProps) => {
                                             <img
                                                 src={`https://static.runelite.net/cache/item/icon/${item.id}.png`}
                                                 alt={item.name}
+                                                loading="lazy"
                                                 className="w-8 h-8 object-contain"
                                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                             />
@@ -203,6 +204,6 @@ const SortableMarketTable = ({ data }: SortableMarketTableProps) => {
             </div>
         </div>
     );
-};
+});
 
 export default SortableMarketTable;

@@ -11,7 +11,7 @@ interface DiscoverCardProps {
     change: number; // 24h change %
 }
 
-const DiscoverCard = ({ item, price, change }: DiscoverCardProps) => {
+const DiscoverCard = React.memo(({ item, price, change }: DiscoverCardProps) => {
     const navigate = useNavigate();
     const isUp = change >= 0;
 
@@ -26,6 +26,7 @@ const DiscoverCard = ({ item, price, change }: DiscoverCardProps) => {
                         <img
                             src={`https://static.runelite.net/cache/item/icon/${item.id}.png`}
                             alt={item.name}
+                            loading="lazy"
                             className="w-full h-full object-contain p-1"
                         />
                     </div>
@@ -49,14 +50,14 @@ const DiscoverCard = ({ item, price, change }: DiscoverCardProps) => {
             </div>
         </div>
     );
-}
+});
 
 interface DiscoverRowProps {
     items: Item[]; // Pre-selected random/trending items
     prices: Record<string, PriceData>;
 }
 
-const DiscoverRow = ({ items, prices }: DiscoverRowProps) => {
+const DiscoverRow = React.memo(({ items, prices }: DiscoverRowProps) => {
     return (
         <div className="space-y-4">
             <h3 className="text-lg font-bold text-slate-200 flex items-center gap-2">
@@ -72,6 +73,6 @@ const DiscoverRow = ({ items, prices }: DiscoverRowProps) => {
             </div>
         </div>
     )
-}
+});
 
 export default DiscoverRow;

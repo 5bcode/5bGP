@@ -13,7 +13,7 @@ interface MarketCardProps {
     onViewAll?: () => void;
 }
 
-const MarketCard = ({ title, icon, items, type = 'neutral', onViewAll }: MarketCardProps) => {
+const MarketCard = React.memo(({ title, icon, items, type = 'neutral', onViewAll }: MarketCardProps) => {
     const navigate = useNavigate();
 
     return (
@@ -55,6 +55,7 @@ const MarketCard = ({ title, icon, items, type = 'neutral', onViewAll }: MarketC
                                             <img
                                                 src={`https://static.runelite.net/cache/item/icon/${item.id}.png`}
                                                 alt={item.name}
+                                                loading="lazy"
                                                 className="w-full h-full object-contain p-1"
                                                 onError={(e) => {
                                                     (e.target as HTMLImageElement).style.display = 'none';
@@ -83,6 +84,6 @@ const MarketCard = ({ title, icon, items, type = 'neutral', onViewAll }: MarketC
             </div>
         </div>
     );
-};
+});
 
 export default MarketCard;
