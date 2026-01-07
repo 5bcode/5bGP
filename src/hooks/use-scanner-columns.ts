@@ -14,15 +14,15 @@ export interface ScannerRow {
     secondaryMetric?: number;
 }
 
-export type ColumnCategory = 
-    | 'core' 
-    | 'limit' 
-    | 'alchemy' 
-    | 'timestamps' 
-    | 'volume' 
-    | 'trends' 
-    | 'volTrends' 
-    | 'ratios' 
+export type ColumnCategory =
+    | 'core'
+    | 'limit'
+    | 'alchemy'
+    | 'timestamps'
+    | 'volume'
+    | 'trends'
+    | 'volTrends'
+    | 'ratios'
     | 'sparklines';
 
 export interface ColumnDef {
@@ -102,6 +102,15 @@ export const ALL_COLUMNS: ColumnDef[] = [
         category: 'core',
         accessor: (row) => calculateTax(row.price.high),
         format: (v) => formatGP(v as number),
+        sortable: true,
+        align: 'right',
+    },
+    {
+        id: 'taxBurden',
+        label: 'Tax Burden %',
+        category: 'core',
+        accessor: (row) => (calculateTax(row.price.high) / row.price.high) * 100,
+        format: (v) => `${(v as number).toFixed(2)}%`,
         sortable: true,
         align: 'right',
     },

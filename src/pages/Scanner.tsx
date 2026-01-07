@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import ScannerTable from '@/components/ScannerTable';
+import VirtualizedScannerTable from '@/components/VirtualizedScannerTable';
 import StrategyBuilder from '@/components/StrategyBuilder';
 import ColumnSelectorDialog from '@/components/scanner/ColumnSelectorDialog';
 import FilterBuilderPanel from '@/components/scanner/FilterBuilderPanel';
@@ -119,9 +119,8 @@ const Scanner = () => {
 
     // Sort and paginate
     const displayData = useMemo(() => {
-        const topItems = filteredData.slice(0, 200);
-
-        return [...topItems].sort((a, b) => {
+        // Virtualization allows us to render ALL items without limits
+        return [...filteredData].sort((a, b) => {
             let aValue: number | string = 0;
             let bValue: number | string = 0;
 
@@ -327,16 +326,19 @@ const Scanner = () => {
                         <Loader2 className="animate-spin text-emerald-500 h-8 w-8" />
                     </div>
                 ) : (
-                    <ScannerTable
-                        data={displayData}
-                        type={type}
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        trackedIds={trackedIds}
-                        onTrack={handleTrack}
-                    />
-                )}
+                ): (
+                        <div className = "h-[calc(100vh-300px)]"> {/* Fixed height container for virtualization */ }
+                        <VirtualizedScannerTable
+                    data={displayData}
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    trackedIds={trackedIds}
+                    onTrack={handleTrack}
+                />
             </div>
+                )}
+                )}
+        </div >
         </>
     );
 };
