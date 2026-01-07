@@ -13,6 +13,7 @@ import { formatGP } from '@/lib/osrs-math';
 import SortableMarketTable from '@/components/dashboard/SortableMarketTable';
 import VirtualizedMarketTable from '@/components/dashboard/VirtualizedMarketTable';
 import PageHeader from '@/components/PageHeader';
+import RecommendedFlips from '@/components/dashboard/RecommendedFlips';
 import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
 import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useActiveOffers } from '@/hooks/use-active-offers';
@@ -128,6 +129,9 @@ const Dashboard = () => {
                     </>
                 }
             />
+
+            {/* Recommended Flips Section */}
+            <RecommendedFlips />
 
             {/* Portfolio Summary Section */}
             <PortfolioStatus

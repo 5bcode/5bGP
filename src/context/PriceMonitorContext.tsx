@@ -141,6 +141,11 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
             }
           });
           playAlertSound();
+
+          if (settings.desktopNotificationsEnabled && Notification.permission === 'granted') {
+            new Notification(msg, { body: desc, icon: '/favicon.ico' });
+          }
+
           sendDiscordAlert(item, drop * 100, price.low);
 
           addAlert(alertData);
