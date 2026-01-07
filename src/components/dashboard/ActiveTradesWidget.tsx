@@ -86,7 +86,7 @@ const ActiveTradesWidget = ({ positions, prices, onClosePosition, onDeletePositi
             </div>
 
             {/* Active Positions Table */}
-            <Card className="bg-slate-900 border-slate-800 overflow-hidden">
+            <div className="glass-card overflow-hidden">
                 <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
                         <PlayCircle className="text-blue-500" size={18} /> Active Positions
@@ -205,7 +205,7 @@ const ActiveTradesWidget = ({ positions, prices, onClosePosition, onDeletePositi
                         })}
                     </TableBody>
                 </Table>
-            </Card>
+            </div>
         </div>
     );
 };

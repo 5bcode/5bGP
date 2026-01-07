@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatGP } from '@/lib/osrs-math';
 import SortableMarketTable from '@/components/dashboard/SortableMarketTable';
 import VirtualizedMarketTable from '@/components/dashboard/VirtualizedMarketTable';
+import PageHeader from '@/components/PageHeader';
 import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
 import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useActiveOffers } from '@/hooks/use-active-offers';
@@ -104,30 +105,29 @@ const Dashboard = () => {
     return (
         <div className="min-h-screen p-4 lg:p-8 space-y-8 animate-fade-in">
             {/* Command Center Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="space-y-1">
-                    <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Command Center</h1>
-                    <div className="flex items-center gap-3 text-slate-500 text-sm">
-                        <span className="flex items-center gap-1.5"><PlayCircle size={14} className="text-emerald-500" /> System Active</span>
-                        <span className="w-1 h-1 bg-slate-800 rounded-full" />
-                        <span>Scanning {items.length.toLocaleString()} items</span>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="w-full md:w-[320px]">
-                        <ItemSearch
-                            items={items}
-                            onSelect={(item) => navigate(`/item/${item.id}`)}
-                            isLoading={isLoading}
-                        />
-                    </div>
-                    <SettingsDialog />
-                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 font-bold group">
-                        <Crown size={16} className="mr-2 group-hover:scale-110 transition-transform" /> Upgrade
-                    </Button>
-                </div>
-            </div>
+            <PageHeader
+                title={
+                    <>
+                        Command Center
+                        <span className="flex items-center gap-2 text-xs font-normal text-slate-500 bg-slate-900/50 px-2 py-0.5 rounded-full border border-slate-800 ml-2">
+                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
+                        </span>
+                    </>
+                }
+                subtitle={`Monitoring ${items.length.toLocaleString()} items in real-time`}
+                action={
+                    <>
+                        <div className="w-full md:w-[320px]">
+                            <ItemSearch
+                                items={items}
+                                onSelect={(item) => navigate(`/item/${item.id}`)}
+                                isLoading={isLoading}
+                            />
+                        </div>
+                        <SettingsDialog />
+                    </>
+                }
+            />
 
             {/* Portfolio Summary Section */}
             <PortfolioStatus

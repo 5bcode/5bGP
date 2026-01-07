@@ -24,6 +24,15 @@ interface ChartSettingsDialogProps {
     onResetSettings: () => void;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    // Indicator toggles
+    showSMA: boolean;
+    onShowSMAChange: (show: boolean) => void;
+    showMACD: boolean;
+    onShowMACDChange: (show: boolean) => void;
+    showVolume: boolean;
+    onShowVolumeChange: (show: boolean) => void;
+    showSignals: boolean;
+    onShowSignalsChange: (show: boolean) => void;
 }
 
 const SettingRow = ({
@@ -45,6 +54,14 @@ const ChartSettingsDialog = ({
     onResetSettings,
     open,
     onOpenChange,
+    showSMA,
+    onShowSMAChange,
+    showMACD,
+    onShowMACDChange,
+    showVolume,
+    onShowVolumeChange,
+    showSignals,
+    onShowSignalsChange,
 }: ChartSettingsDialogProps) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -72,6 +89,37 @@ const ChartSettingsDialog = ({
                         <X size={16} />
                     </Button>
                 </DialogHeader>
+
+                {/* Indicators Section */}
+                <div className="py-3 border-b border-slate-800">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Indicators</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={() => onShowVolumeChange(!showVolume)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${showVolume ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                        >
+                            Volume
+                        </button>
+                        <button
+                            onClick={() => onShowMACDChange(!showMACD)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${showMACD ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                        >
+                            MACD
+                        </button>
+                        <button
+                            onClick={() => onShowSMAChange(!showSMA)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${showSMA ? 'bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                        >
+                            SMA Lines
+                        </button>
+                        <button
+                            onClick={() => onShowSignalsChange(!showSignals)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${showSignals ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                        >
+                            Buy/Sell Signals
+                        </button>
+                    </div>
+                </div>
 
                 <div className="space-y-1 py-2">
                     <SettingRow label="Show chart lines">

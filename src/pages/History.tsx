@@ -15,6 +15,7 @@ import { useMarketData } from '@/hooks/use-osrs-query';
 import BulkImportDialog from '@/components/BulkImportDialog';
 import { matchTrades } from '@/lib/trade-matching';
 import { Trade } from '@/components/TradeLogDialog';
+import PageHeader from '@/components/PageHeader';
 
 const History = () => {
     const {
@@ -120,21 +121,23 @@ const History = () => {
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Trade Portfolio</h1>
-                    <p className="text-slate-500 mt-1">Track active positions and analyze your historical performance.</p>
-                </div>
-                <div className="flex gap-2">
-                    <BulkImportDialog items={items} onImport={handleBulkImport} />
-                    <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-300">
-                        <Download className="mr-2 h-4 w-4" /> Export CSV
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={trades.length === 0 && activePositions.length === 0} className="text-rose-500 hover:bg-rose-500/10">
-                        <Trash2 className="mr-2 h-4 w-4" /> Clear All
-                    </Button>
-                </div>
-            </div>
+            <PageHeader
+                title="Trade Portfolio"
+                subtitle="Track active positions and analyze your historical performance."
+                backLink="/"
+                backLabel="Dashboard"
+                action={
+                    <div className="flex gap-2">
+                        <BulkImportDialog items={items} onImport={handleBulkImport} />
+                        <Button variant="outline" size="sm" onClick={exportCSV} disabled={trades.length === 0} className="border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-300">
+                            <Download className="mr-2 h-4 w-4" /> Export CSV
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={trades.length === 0 && activePositions.length === 0} className="text-rose-500 hover:bg-rose-500/10">
+                            <Trash2 className="mr-2 h-4 w-4" /> Clear All
+                        </Button>
+                    </div>
+                }
+            />
 
             <ActiveTradesWidget
                 positions={activePositions}

@@ -538,61 +538,18 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* Price Mode Toggle */}
-                    <div className="flex gap-0.5 bg-slate-800/50 p-0.5 rounded-lg border border-slate-700/50">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => updateSettings({ priceMode: 'highlow' })}
-                            className={`h-7 w-7 transition-all ${settings.priceMode === 'highlow'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                }`}
-                            title="High/Low Mode"
-                        >
-                            <LineChart size={14} />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => updateSettings({ priceMode: 'weighted' })}
-                            className={`h-7 w-7 transition-all ${settings.priceMode === 'weighted'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                }`}
-                            title="Weighted Avg Mode"
-                        >
-                            <BarChart3 size={14} />
-                        </Button>
-                    </div>
-
-                    <Button variant="ghost" size="icon" onClick={fitContent} className="h-7 w-7 text-slate-400 hover:text-white" title="Reset View">
-                        <Maximize2 size={14} />
-                    </Button>
-                    <div className="w-px h-4 bg-slate-800 mx-1"></div>
+                    {/* Timeframe Selection */}
                     <div className="flex gap-0.5 bg-slate-800/50 p-0.5 rounded-lg">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowSignals(!showSignals)}
-                            className={`h-6 px-2 text-[10px] transition-all duration-300 ${showSignals
-                                ? 'bg-rose-900/40 text-rose-200 ring-1 ring-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
-                                : 'text-slate-500 hover:text-rose-300 hover:bg-slate-800'
-                                }`}
-                        >
-                            Signals
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setShowSMA(!showSMA)} className={`h-6 px-2 text-[10px] ${showSMA ? 'bg-slate-700 text-yellow-400' : 'text-slate-500'}`}>SMA</Button>
-                        <Button variant="ghost" size="sm" onClick={() => setShowMACD(!showMACD)} className={`h-6 px-2 text-[10px] ${showMACD ? 'bg-slate-700 text-emerald-400' : 'text-slate-500'}`}>MACD</Button>
-                        <Button variant="ghost" size="sm" onClick={() => setShowVolume(!showVolume)} className={`h-6 px-2 text-[10px] ${showVolume ? 'bg-slate-700 text-blue-200' : 'text-slate-500'}`}>Vol</Button>
-                    </div>
-                    <div className="flex gap-0.5 bg-slate-800/50 p-0.5 rounded-lg ml-2">
                         {TIMEFRAMES.map((tf) => (
                             <Button key={tf.step} variant="ghost" size="sm" onClick={() => handleTimeframeChange(tf.step)} className={`h-6 px-2 text-[10px] ${selectedTimeframe === tf.step ? 'bg-slate-700 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>
                                 {tf.label}
                             </Button>
                         ))}
                     </div>
+
+                    <Button variant="ghost" size="icon" onClick={fitContent} className="h-7 w-7 text-slate-400 hover:text-white" title="Reset View">
+                        <Maximize2 size={14} />
+                    </Button>
 
                     {/* Settings Button */}
                     <ChartSettingsDialog
@@ -601,6 +558,14 @@ const PriceActionChart = ({ itemId, latestHigh, latestLow }: PriceActionChartPro
                         onResetSettings={resetSettings}
                         open={settingsOpen}
                         onOpenChange={setSettingsOpen}
+                        showSMA={showSMA}
+                        onShowSMAChange={setShowSMA}
+                        showMACD={showMACD}
+                        onShowMACDChange={setShowMACD}
+                        showVolume={showVolume}
+                        onShowVolumeChange={setShowVolume}
+                        showSignals={showSignals}
+                        onShowSignalsChange={setShowSignals}
                     />
                 </div>
             </div>
