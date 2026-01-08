@@ -1,0 +1,179 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Task :dependencies
+
+------------------------------------------------------------
+Root project 'flip-to-5b-sync'
+------------------------------------------------------------
+
+annotationProcessor - Annotation processors and their dependencies for source set 'main'.
+\--- org.projectlombok:lombok:1.18.30
+
+compileClasspath - Compile classpath for source set 'main'.
++--- net.runelite:client:latest.release -> 1.12.11
+|    +--- net.runelite:runelite-api:1.12.11
+|    +--- net.runelite.arn:http-api:1.2.21
+|    |    +--- com.squareup.okhttp3:okhttp:3.14.9
+|    |    |    \--- com.squareup.okio:okio:1.17.2
+|    |    +--- com.google.code.gson:gson:2.8.5
+|    |    \--- org.slf4j:slf4j-api:1.7.25
+|    +--- net.runelite:discord:1.4
+|    |    \--- net.java.dev.jna:jna:4.5.1 -> 5.9.0
+|    +--- net.runelite:rlawt:1.7
+|    +--- org.slf4j:slf4j-api:1.7.25
+|    +--- ch.qos.logback:logback-classic:1.2.9
+|    |    \--- ch.qos.logback:logback-core:1.2.9
+|    +--- net.sf.jopt-simple:jopt-simple:5.0.1
+|    +--- com.google.guava:guava:23.2-jre
+|    +--- com.google.inject:guice:4.1.0
+|    |    +--- javax.inject:javax.inject:1
+|    |    \--- aopalliance:aopalliance:1.0
+|    +--- com.google.code.gson:gson:2.8.5
+|    +--- net.runelite:flatlaf:3.2.5-rl4
+|    +--- org.apache.commons:commons-text:1.2
+|    |    \--- org.apache.commons:commons-lang3:3.7
+|    +--- net.java.dev.jna:jna:5.9.0
+|    +--- net.java.dev.jna:jna-platform:5.9.0
+|    |    \--- net.java.dev.jna:jna:5.9.0
+|    +--- com.google.code.findbugs:jsr305:3.0.2
+|    +--- com.google.protobuf:protobuf-javalite:3.21.12
+|    +--- org.lwjgl:lwjgl:3.3.2
+|    +--- org.lwjgl:lwjgl-opengl:3.3.2
+|    |    \--- org.lwjgl:lwjgl:3.3.2
+|    \--- org.lwjgl:lwjgl-opencl:3.3.2
+|         \--- org.lwjgl:lwjgl:3.3.2
+\--- org.projectlombok:lombok:1.18.30
+
+compileOnly - Compile-only dependencies for the 'main' feature. (n)
++--- net.runelite:client:latest.release (n)
+\--- org.projectlombok:lombok:1.18.30 (n)
+
+default - Configuration for default artifacts. (n)
+No dependencies
+
+implementation - Implementation dependencies for the 'main' feature. (n)
+No dependencies
+
+mainSourceElements - List of source directories contained in the Main SourceSet. (n)
+No dependencies
+
+runtimeClasspath - Runtime classpath of source set 'main'.
+No dependencies
+
+runtimeElements - Runtime elements for the 'main' feature. (n)
+No dependencies
+
+runtimeOnly - Runtime-only dependencies for the 'main' feature. (n)
+No dependencies
+
+testAnnotationProcessor - Annotation processors and their dependencies for source set 'test'.
+No dependencies
+
+testCompileClasspath - Compile classpath for source set 'test'.
++--- junit:junit:4.12
+|    \--- org.hamcrest:hamcrest-core:1.3
++--- net.runelite:client:latest.release -> 1.12.11
+|    +--- net.runelite:runelite-api:1.12.11
+|    +--- net.runelite.arn:http-api:1.2.21
+|    |    +--- com.squareup.okhttp3:okhttp:3.14.9
+|    |    |    \--- com.squareup.okio:okio:1.17.2
+|    |    +--- com.google.code.gson:gson:2.8.5
+|    |    \--- org.slf4j:slf4j-api:1.7.25
+|    +--- net.runelite:discord:1.4
+|    |    \--- net.java.dev.jna:jna:4.5.1 -> 5.9.0
+|    +--- net.runelite:rlawt:1.7
+|    +--- org.slf4j:slf4j-api:1.7.25
+|    +--- ch.qos.logback:logback-classic:1.2.9
+|    |    \--- ch.qos.logback:logback-core:1.2.9
+|    +--- net.sf.jopt-simple:jopt-simple:5.0.1
+|    +--- com.google.guava:guava:23.2-jre
+|    +--- com.google.inject:guice:4.1.0
+|    |    +--- javax.inject:javax.inject:1
+|    |    \--- aopalliance:aopalliance:1.0
+|    +--- com.google.code.gson:gson:2.8.5
+|    +--- net.runelite:flatlaf:3.2.5-rl4
+|    +--- org.apache.commons:commons-text:1.2
+|    |    \--- org.apache.commons:commons-lang3:3.7
+|    +--- net.java.dev.jna:jna:5.9.0
+|    +--- net.java.dev.jna:jna-platform:5.9.0
+|    |    \--- net.java.dev.jna:jna:5.9.0
+|    +--- com.google.code.findbugs:jsr305:3.0.2
+|    +--- com.google.protobuf:protobuf-javalite:3.21.12
+|    +--- org.lwjgl:lwjgl:3.3.2
+|    +--- org.lwjgl:lwjgl-opengl:3.3.2
+|    |    \--- org.lwjgl:lwjgl:3.3.2
+|    \--- org.lwjgl:lwjgl-opencl:3.3.2
+|         \--- org.lwjgl:lwjgl:3.3.2
+\--- net.runelite:jshell:latest.release -> 1.12.11
+
+testCompileOnly - Compile only dependencies for source set 'test'. (n)
+No dependencies
+
+testImplementation - Implementation only dependencies for source set 'test'. (n)
++--- junit:junit:4.12 (n)
++--- net.runelite:client:latest.release (n)
+\--- net.runelite:jshell:latest.release (n)
+
+testRuntimeClasspath - Runtime classpath of source set 'test'.
++--- junit:junit:4.12
+|    \--- org.hamcrest:hamcrest-core:1.3
++--- net.runelite:client:latest.release -> 1.12.11
+|    +--- net.runelite:runelite-api:1.12.11
+|    |    \--- org.slf4j:slf4j-api:1.7.25
+|    +--- net.runelite.arn:http-api:1.2.21
+|    |    +--- com.squareup.okhttp3:okhttp:3.14.9
+|    |    |    \--- com.squareup.okio:okio:1.17.2
+|    |    +--- com.google.code.gson:gson:2.8.5
+|    |    \--- org.slf4j:slf4j-api:1.7.25
+|    +--- net.runelite:discord:1.4
+|    |    \--- net.java.dev.jna:jna:4.5.1 -> 5.9.0
+|    +--- net.runelite:rlawt:1.7
+|    +--- org.slf4j:slf4j-api:1.7.25
+|    +--- ch.qos.logback:logback-classic:1.2.9
+|    |    \--- ch.qos.logback:logback-core:1.2.9
+|    +--- net.sf.jopt-simple:jopt-simple:5.0.1
+|    +--- com.google.guava:guava:23.2-jre
+|    +--- com.google.inject:guice:4.1.0
+|    |    +--- javax.inject:javax.inject:1
+|    |    \--- aopalliance:aopalliance:1.0
+|    +--- com.google.code.gson:gson:2.8.5
+|    +--- net.runelite:flatlaf:3.2.5-rl4
+|    +--- org.apache.commons:commons-text:1.2
+|    |    \--- org.apache.commons:commons-lang3:3.7
+|    +--- net.java.dev.jna:jna:5.9.0
+|    +--- net.java.dev.jna:jna-platform:5.9.0
+|    |    \--- net.java.dev.jna:jna:5.9.0
+|    +--- com.google.code.findbugs:jsr305:3.0.2
+|    +--- com.google.protobuf:protobuf-javalite:3.21.12
+|    +--- org.lwjgl:lwjgl:3.3.2
+|    +--- org.lwjgl:lwjgl-opengl:3.3.2
+|    |    \--- org.lwjgl:lwjgl:3.3.2
+|    +--- org.lwjgl:lwjgl-opencl:3.3.2
+|    |    \--- org.lwjgl:lwjgl:3.3.2
+|    +--- net.runelite:jshell:1.12.11
+|    |    +--- org.slf4j:slf4j-api:1.7.25
+|    |    +--- com.google.guava:guava:23.2-jre
+|    |    +--- com.google.inject:guice:4.1.0 (*)
+|    |    +--- com.google.code.findbugs:jsr305:3.0.2
+|    |    +--- com.fifesoft:rsyntaxtextarea:3.1.2
+|    |    \--- com.fifesoft:autocomplete:3.1.1
+|    |         \--- com.fifesoft:rsyntaxtextarea:3.1.2
+|    +--- net.runelite:flatlaf-extras:3.2.5-rl4
+|    |    +--- net.runelite:flatlaf:3.2.5-rl4
+|    |    \--- com.github.weisj:jsvg:1.2.0
+|    \--- net.runelite:injected-client:1.12.11
+|         +--- net.runelite:rlicn:1.1
+|         \--- org.json:json:20090211
+\--- net.runelite:jshell:latest.release -> 1.12.11 (*)
+
+testRuntimeOnly - Runtime only dependencies for source set 'test'. (n)
+No dependencies
+
+(*) - Indicates repeated occurrences of a transitive dependency subtree. Gradle expands transitive dependency subtrees only once per project; repeat occurrences only display the root of the subtree, followed by this annotation.
+
+(n) - A dependency or dependency configuration that cannot be resolved.
+
+A web-based, searchable dependency report is available by adding the --scan option.
+
+BUILD SUCCESSFUL in 17s
+1 actionable task: 1 executed
