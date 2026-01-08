@@ -1,12 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useCallback, useEffect } from 'react';
 import { MarketAlert } from '@/components/LiveFeed';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '@/context/SettingsContext';
 import { useWatchlist } from '@/hooks/use-watchlist';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { toast } from 'sonner';
-import { formatGP } from '@/lib/osrs-math';
-import { Item } from '@/services/osrs-api';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PriceMonitorContextType {
   alerts: MarketAlert[];
@@ -20,10 +19,10 @@ export const PriceMonitorContext = createContext<PriceMonitorContextType | undef
 export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }) => {
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
   const { settings } = useSettings();
-  const { items, prices, stats } = useMarketData(settings.refreshInterval * 1000); // Polling handled here
-  const { watchlist } = useWatchlist(items); // Assuming items are loaded
+  const { items, prices, stats } = useMarketData(settings.refreshInterval * 1000);
+  const { watchlist } = useWatchlist(items);
+  const navigate = useNavigate();
 
-  // Ref to track last alert times to prevent spam
   const lastAlerted = React.useRef<Map<string, number>>(new Map());
 
   const addAlert = useCallback((alert: MarketAlert) => {
@@ -31,77 +30,41 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
   }, []);
 
   const clearAlerts = useCallback(() => setAlerts([]), []);
+  const removeAlert = useCallback((id: string) => setAlerts(prev => prev.filter(a => a.id !== id)), []);
 
-  const removeAlert = useCallback((id: string) => {
-    setAlerts(prev => prev.filter(a => a.id !== id));
-  }, []);
-
-  // Audio Playback
   const playAlertSound = useCallback(() => {
     if (!settings.soundEnabled) return;
     try {
-      // Use a custom interface to type-check webkitAudioContext without using 'any'
-      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) return;
-
       const ctx = new AudioContextClass();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
-
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-
       osc.start();
       osc.stop(ctx.currentTime + 0.5);
-
-      setTimeout(() => {
-        if (ctx.state !== 'closed') ctx.close().catch(console.error);
-      }, 600);
-    } catch (e) {
-      console.error("Audio play failed", e);
-    }
+      setTimeout(() => { if (ctx.state !== 'closed') ctx.close().catch(() => {}); }, 600);
+    } catch (e) { console.error("Audio failed", e); }
   }, [settings.soundEnabled]);
 
-  // Discord Webhook
-  const sendDiscordAlert = useCallback(async (item: Item, dropPercent: number, price: number) => {
-    const url = settings.discordWebhookUrl;
-    if (!url) return;
-    if (!url.startsWith('https://discord.com/api/webhooks/') && !url.startsWith('https://discordapp.com/api/webhooks/')) return;
+  const sendDiscordAlert = useCallback(async (itemName: string, dropPercent: number, price: number, itemId: number) => {
+    // Only attempt if user is logged in
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
 
     try {
-      await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: "FlipTo5B Bot",
-          embeds: [{
-            title: `🚨 Panic Wick: ${item.name}`,
-            color: 0xe11d48,
-            fields: [
-              { name: "Drop", value: `-${dropPercent.toFixed(1)}%`, inline: true },
-              { name: "Price", value: formatGP(price), inline: true },
-              { name: "Link", value: `[Wiki](https://prices.runescape.wiki/osrs/item/${item.id})` }
-            ],
-            timestamp: new Date().toISOString()
-          }]
-        })
+      await supabase.functions.invoke('notify-discord', {
+        body: { itemName, dropPercent, price, itemId }
       });
     } catch (e) {
-      console.error("Discord webhook failed", e);
+      console.error("Cloud notification failed", e);
     }
-  }, [settings.discordWebhookUrl]);
+  }, []);
 
-  // Navigation
-  const navigate = useNavigate();
-
-  // Monitoring Logic
   useEffect(() => {
     if (!prices || !stats || watchlist.length === 0) return;
 
@@ -117,9 +80,8 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
       if (drop >= threshold) {
         const now = Date.now();
         const lastTime = lastAlerted.current.get(item.id.toString()) || 0;
-        const cooldown = 300000; // 5 minutes
-
-        if (now - lastTime > cooldown) {
+        
+        if (now - lastTime > 300000) { // 5m cooldown
           const alertData: MarketAlert = {
             id: crypto.randomUUID(),
             itemId: item.id,
@@ -129,20 +91,13 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
             price: price.low
           };
 
-          const msg = `Panic Wick: ${item.name}`;
-          const desc = `-${(drop * 100).toFixed(1)}% drop detected!`;
-
-          toast.error(msg, {
-            description: desc,
-            duration: 8000,
-            action: {
-              label: 'View',
-              onClick: () => navigate(`/item/${item.id}`)
-            }
+          toast.error(`Panic Wick: ${item.name}`, {
+            description: `-${(drop * 100).toFixed(1)}% drop detected!`,
+            action: { label: 'View', onClick: () => navigate(`/item/${item.id}`) }
           });
+          
           playAlertSound();
-          sendDiscordAlert(item, drop * 100, price.low);
-
+          sendDiscordAlert(item.name, drop * 100, price.low, item.id);
           addAlert(alertData);
           lastAlerted.current.set(item.id.toString(), now);
         }
@@ -150,31 +105,20 @@ export const PriceMonitorProvider = ({ children }: { children: React.ReactNode }
     });
   }, [prices, stats, watchlist, settings.alertThreshold, playAlertSound, sendDiscordAlert, addAlert, navigate]);
 
-  // Debug / Test Function
   const testSystem = useCallback(() => {
-    const mockItem: Item = { id: 2, name: 'Cannonball', members: false, examine: "Balls of steel.", value: 160, highalch: 158, limit: 7000, icon: '', lowalch: 100 };
-    const mockDrop = 0.15; // 15%
-    const mockPrice = 145;
-
     const alertData: MarketAlert = {
       id: crypto.randomUUID(),
-      itemId: mockItem.id,
-      itemName: mockItem.name,
+      itemId: 2,
+      itemName: 'Cannonball (Test)',
       timestamp: Date.now(),
-      dropPercent: mockDrop * 100,
-      price: mockPrice
+      dropPercent: 15,
+      price: 145
     };
-
-    toast.error('Test Alert: Cannonball', {
-      description: '-15% Drop Detected (Simulation)',
-      action: {
-        label: 'View',
-        onClick: () => navigate(`/item/${mockItem.id}`)
-      }
-    });
+    toast.info('Diagnostic: Alert Triggered');
     playAlertSound();
+    sendDiscordAlert('Cannonball (Diagnostic)', 15, 145, 2);
     addAlert(alertData);
-  }, [addAlert, playAlertSound, navigate]);
+  }, [addAlert, playAlertSound, sendDiscordAlert]);
 
   return (
     <PriceMonitorContext.Provider value={{ alerts, clearAlerts, removeAlert, testSystem }}>

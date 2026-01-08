@@ -1,5 +1,5 @@
 /**
- * Calculates the Simple Moving Average (SMA)
+ * Calculates the Simple Moving Average (SMA) series
  */
 export function calculateSMA(data: number[], period: number): number[] {
   const sma: number[] = [];
@@ -13,19 +13,19 @@ export function calculateSMA(data: number[], period: number): number[] {
 }
 
 /**
- * Calculates Exponential Moving Average (EMA)
+ * Calculates Exponential Moving Average (EMA) series
  */
 export function calculateEMA(data: number[], period: number): number[] {
   const k = 2 / (period + 1);
   const emaArray: number[] = [];
   
-  if (data.length < period) return emaArray;
+  if (data.length === 0) return emaArray;
 
-  // Start with SMA
-  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  // Start with first value as initial EMA
+  let ema = data[0];
   emaArray.push(ema);
 
-  for (let i = period; i < data.length; i++) {
+  for (let i = 1; i < data.length; i++) {
     ema = (data[i] * k) + (ema * (1 - k));
     emaArray.push(ema);
   }
@@ -33,9 +33,7 @@ export function calculateEMA(data: number[], period: number): number[] {
 }
 
 /**
- * Calculates MACD (Moving Average Convergence Divergence)
- * Standard: 12 EMA, 26 EMA, 9 Signal
- * Returns arrays for plotting.
+ * Calculates MACD series
  */
 export function calculateMACD(data: number[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
   if (data.length < slowPeriod) return null;
@@ -43,49 +41,20 @@ export function calculateMACD(data: number[], fastPeriod = 12, slowPeriod = 26, 
   const fastEMA = calculateEMA(data, fastPeriod);
   const slowEMA = calculateEMA(data, slowPeriod);
   
-  // Fast EMA array will be longer than Slow EMA array because it starts calculating earlier.
-  // We need to align them. The Slow EMA starts at index `slowPeriod - 1` relative to data.
-  // The Fast EMA starts at index `fastPeriod - 1`.
-  
-  // MACD Line: (12-day EMA - 26-day EMA)
   const macdLine: number[] = [];
-  
-  // Align logic:
-  // Data Index: 0 1 ... 11 (Fast Start) ... 25 (Slow Start)
-  // We can only calculate MACD starting from where Slow EMA exists.
-  
-  // Offset for fast array to match slow array start
-  const offset = slowPeriod - fastPeriod; 
-  
-  for (let i = 0; i < slowEMA.length; i++) {
-      // The i-th element of slowEMA corresponds to data index (slowPeriod - 1 + i)
-      // The corresponding fastEMA element is at (offset + i)
-      const val = fastEMA[i + offset] - slowEMA[i];
-      macdLine.push(val);
+  // EMA arrays are same length as input data
+  for (let i = 0; i < data.length; i++) {
+      macdLine.push(fastEMA[i] - slowEMA[i]);
   }
 
-  // Signal Line: 9-day EMA of MACD Line
   const signalLine = calculateEMA(macdLine, signalPeriod);
+  const histogram = macdLine.map((val, i) => val - signalLine[i]);
   
-  // Histogram: MACD Line - Signal Line
-  // We align again. Signal line starts later.
-  const histogram: number[] = [];
-  const signalOffset = signalPeriod - 1;
-
-  for (let i = 0; i < signalLine.length; i++) {
-      const macdVal = macdLine[i + signalOffset];
-      histogram.push(macdVal - signalLine[i]);
-  }
-  
-  return {
-      macd: macdLine,
-      signal: signalLine,
-      histogram: histogram
-  };
+  return { macd: macdLine, signal: signalLine, histogram };
 }
 
 /**
- * Calculates Standard Deviation for a dataset
+ * Calculates Standard Deviation for a window
  */
 export function calculateStdDev(data: number[]): number {
   if (data.length === 0) return 0;
@@ -96,34 +65,46 @@ export function calculateStdDev(data: number[]): number {
 }
 
 /**
- * Calculates Bollinger Bands (Upper, Middle, Lower)
- * Standard settings: 20-period SMA, 2 std dev
+ * Calculates Bollinger Bands series
  */
 export function calculateBollingerBands(data: number[], period: number = 20, multiplier: number = 2) {
   if (data.length < period) return null;
   
-  const slice = data.slice(-period);
-  const sma = slice.reduce((a, b) => a + b, 0) / period;
-  const stdDev = calculateStdDev(slice);
+  const upper: number[] = [];
+  const middle: number[] = [];
+  const lower: number[] = [];
 
-  return {
-    upper: sma + (stdDev * multiplier),
-    middle: sma,
-    lower: sma - (stdDev * multiplier),
-    bandwidth: (sma + (stdDev * multiplier) - (sma - (stdDev * multiplier))) / sma
-  };
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      upper.push(data[i]);
+      middle.push(data[i]);
+      lower.push(data[i]);
+      continue;
+    }
+
+    const slice = data.slice(i - period + 1, i + 1);
+    const sma = slice.reduce((a, b) => a + b, 0) / period;
+    const stdDev = calculateStdDev(slice);
+
+    upper.push(sma + (stdDev * multiplier));
+    middle.push(sma);
+    lower.push(sma - (stdDev * multiplier));
+  }
+
+  return { upper, middle, lower };
 }
 
 /**
- * Calculates Relative Strength Index (RSI)
- * Standard setting: 14 periods
+ * Calculates Relative Strength Index (RSI) series
  */
-export function calculateRSI(data: number[], period: number = 14): number {
-  if (data.length <= period) return 50; // Not enough data
+export function calculateRSI(data: number[], period: number = 14): number[] {
+  if (data.length <= period) return new Array(data.length).fill(50);
 
+  const rsi: number[] = new Array(period).fill(50);
   let gains = 0;
   let losses = 0;
 
+  // First RSI value
   for (let i = 1; i <= period; i++) {
     const change = data[i] - data[i - 1];
     if (change > 0) gains += change;
@@ -132,7 +113,9 @@ export function calculateRSI(data: number[], period: number = 14): number {
 
   let avgGain = gains / period;
   let avgLoss = losses / period;
+  rsi.push(100 - (100 / (1 + (avgGain / (avgLoss || 1)))));
 
+  // Smoothed RSI for rest
   for (let i = period + 1; i < data.length; i++) {
     const change = data[i] - data[i - 1];
     const currentGain = change > 0 ? change : 0;
@@ -140,10 +123,10 @@ export function calculateRSI(data: number[], period: number = 14): number {
 
     avgGain = ((avgGain * (period - 1)) + currentGain) / period;
     avgLoss = ((avgLoss * (period - 1)) + currentLoss) / period;
+
+    const rs = avgGain / (avgLoss || 1);
+    rsi.push(100 - (100 / (1 + rs)));
   }
 
-  if (avgLoss === 0) return 100;
-  
-  const rs = avgGain / avgLoss;
-  return 100 - (100 / (1 + rs));
+  return rsi;
 }

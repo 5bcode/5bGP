@@ -18,8 +18,7 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
   const analysis = useMemo(() => {
     if (!timeseries || timeseries.length < 30) return null;
 
-    // Extract valid closing prices (using average of high/low for stability, or just avgHigh if selling)
-    // We filter out nulls where no trading happened
+    // Extract valid closing prices
     const prices = timeseries
         .map(t => t.avgHighPrice || t.avgLowPrice || 0)
         .filter(p => p > 0);
@@ -28,13 +27,19 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
 
     const currentPrice = prices[prices.length - 1];
     
-    // 1. Calculate RSI (14)
-    const rsi = calculateRSI(prices, 14);
+    // 1. Calculate RSI (14) series
+    const rsiSeries = calculateRSI(prices, 14);
+    const rsi = rsiSeries[rsiSeries.length - 1];
 
-    // 2. Calculate Bollinger Bands (20, 2)
-    const bb = calculateBollingerBands(prices, 20, 2);
+    // 2. Calculate Bollinger Bands (20, 2) series
+    const bbSeries = calculateBollingerBands(prices, 20, 2);
 
-    if (!bb) return null;
+    if (!bbSeries) return null;
+
+    const upper = bbSeries.upper[bbSeries.upper.length - 1];
+    const lower = bbSeries.lower[bbSeries.lower.length - 1];
+    const middle = bbSeries.middle[bbSeries.middle.length - 1];
+    const bandwidth = (upper - lower) / middle;
 
     // 3. Logic Engine
     let signal = "Neutral";
@@ -48,9 +53,8 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
     const isOversold = rsi < 30;
     const isOverbought = rsi > 70;
     
-    // BB Logic
     // %B calculation: Where is price relative to bands? 0 = Lower, 1 = Upper
-    const percentB = (currentPrice - bb.lower) / (bb.upper - bb.lower);
+    const percentB = (currentPrice - lower) / (upper - lower);
 
     if (isOversold && percentB < 0.1) {
         signal = "Strong Buy";
@@ -80,7 +84,7 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
         color = "text-rose-400";
         icon = <TrendingDown />;
         description = "Momentum is fading at highs.";
-    } else if (bb.bandwidth < 0.05) {
+    } else if (bandwidth < 0.05) {
         // Squeeze
         signal = "Watch";
         signalStrength = 50;
@@ -92,7 +96,8 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
 
     return {
         rsi,
-        bb,
+        upper,
+        lower,
         currentPrice,
         signal,
         signalStrength,
@@ -114,7 +119,7 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
 
   if (!analysis) return null;
 
-  const { rsi, bb, currentPrice, signal, sentiment, color, icon, description, percentB } = analysis;
+  const { rsi, upper, lower, signal, sentiment, color, icon, description, percentB } = analysis;
 
   return (
     <Card className="bg-slate-900 border-slate-800 mb-6">
@@ -143,13 +148,13 @@ const PricePredictor = ({ itemId }: PricePredictorProps) => {
                     <div className="bg-slate-950 p-2 rounded border border-slate-800">
                          <div className="text-[10px] text-slate-500 uppercase">Est. Support</div>
                          <div className="font-mono font-bold text-emerald-400/70">
-                            {formatGP(bb.lower)}
+                            {formatGP(lower)}
                         </div>
                     </div>
                      <div className="bg-slate-950 p-2 rounded border border-slate-800">
                          <div className="text-[10px] text-slate-500 uppercase">Est. Resist</div>
                          <div className="font-mono font-bold text-rose-400/70">
-                            {formatGP(bb.upper)}
+                            {formatGP(upper)}
                         </div>
                     </div>
                 </div>
