@@ -1,31 +1,46 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useMarketData } from '@/hooks/use-osrs-query';
 import { Item } from '@/services/osrs-api';
 import { useMarketHighlights, MarketHighlightItem } from '@/hooks/use-market-highlights';
 import MarketCard from '@/components/dashboard/MarketCard';
 import DiscoverRow from '@/components/dashboard/DiscoverRow';
-import { Loader2, TrendingUp, TrendingDown, BarChart2, DollarSign, Shield, Gem, Zap, Crown, ArrowLeft, AlertTriangle, Briefcase, PlayCircle } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, BarChart2, DollarSign, Shield, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SettingsDialog from '@/components/SettingsDialog';
 import ItemSearch from '@/components/ItemSearch';
 import { useNavigate } from 'react-router-dom';
 import { formatGP } from '@/lib/osrs-math';
-import SortableMarketTable from '@/components/dashboard/SortableMarketTable';
 import VirtualizedMarketTable from '@/components/dashboard/VirtualizedMarketTable';
 import PageHeader from '@/components/PageHeader';
 import RecommendedFlips from '@/components/dashboard/RecommendedFlips';
 import PortfolioStatus, { Period } from '@/components/PortfolioStatus';
 import { useTradeHistory } from '@/hooks/use-trade-history';
 import { useActiveOffers } from '@/hooks/use-active-offers';
+import { useBankroll } from '@/hooks/use-bankroll';
+import { useBankrollHistory } from '@/hooks/use-bankroll-history';
+import BankrollChart from '@/components/dashboard/BankrollChart';
+import { useSettings } from '@/context/SettingsContext';
+import { RefreshCw } from 'lucide-react';
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const { items, prices, stats, isLoading } = useMarketData(60000);
+    const { settings } = useSettings();
+    const refreshMs = (settings.refreshInterval || 60) * 1000;
+    const { items, prices, stats, isLoading, refetch } = useMarketData(refreshMs);
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const { trades, activePositions } = useTradeHistory();
     const { offers: geSlots } = useActiveOffers();
+    const { totalCash, updateBankroll, loading: bankrollLoading } = useBankroll();
+    const { history, recordSnapshot } = useBankrollHistory();
+
+    // Track last update time
+    useEffect(() => {
+        if (!isLoading) setLastUpdated(new Date());
+    }, [prices]);
 
     const [viewAll, setViewAll] = useState<{ title: string; items: MarketHighlightItem[] } | null>(null);
     const [statsPeriod, setStatsPeriod] = useState<Period>('day');
+    const [showAllMarkets, setShowAllMarkets] = useState(false);
 
     // Portfolio Calculations
     const sessionStart = useMemo(() => Date.now(), []); // Session starts on mount
@@ -58,6 +73,15 @@ const Dashboard = () => {
             activeInvestment: manualInvested + geInvested
         };
     }, [filteredTrades, activePositions, geSlots]);
+
+    // Record bankroll snapshot periodically (rate-limited in hook)
+    useEffect(() => {
+        if (!bankrollLoading && totalCash > 0) {
+            const invested = portfolioMetrics.activeInvestment;
+            const liquid = totalCash - invested;
+            recordSnapshot(liquid, invested);
+        }
+    }, [totalCash, portfolioMetrics.activeInvestment, bankrollLoading]);
 
     // Compute Highlights
     const {
@@ -125,6 +149,23 @@ const Dashboard = () => {
                                 isLoading={isLoading}
                             />
                         </div>
+
+                        {/* Refresh Controls */}
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <span className="hidden sm:inline">
+                                Updated {Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => refetch()}
+                                className="h-8 w-8 text-slate-400 hover:text-emerald-400"
+                                title="Refresh Now (R)"
+                            >
+                                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                            </Button>
+                        </div>
+
                         <SettingsDialog />
                     </>
                 }
@@ -140,19 +181,26 @@ const Dashboard = () => {
                 tradeCount={portfolioMetrics.tradeCount}
                 period={statsPeriod}
                 onPeriodChange={setStatsPeriod}
+                totalCash={totalCash}
+                onUpdateCash={updateBankroll}
             />
+
+            {/* Bankroll History Chart */}
+            <BankrollChart data={history} />
 
             {/* Market Insights Header */}
             <div className="pt-4 border-t border-slate-900 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                     <TrendingUp size={20} className="text-emerald-500" /> Global Market Trends
                 </h2>
-                <div className="text-[10px] text-slate-600 uppercase font-black tracking-widest bg-slate-900/50 px-2 py-1 rounded border border-slate-800">
-                    Auto-refreshing 60s
+                <div className="flex items-center gap-4">
+                    <div className="text-[10px] text-slate-600 uppercase font-black tracking-widest bg-slate-900/50 px-2 py-1 rounded border border-slate-800">
+                        Auto-refreshing 60s
+                    </div>
                 </div>
             </div>
 
-            {/* Market Grid */}
+            {/* Market Grid - First Row Always Visible */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="h-[320px]">
                     <MarketCard
@@ -174,16 +222,6 @@ const Dashboard = () => {
                 </div>
                 <div className="h-[320px]">
                     <MarketCard
-                        title="High Volume Profit"
-                        icon={<BarChart2 className="text-purple-500" size={18} />}
-                        items={highVolumeProfit.slice(0, 8)}
-                        type="neutral"
-                        onViewAll={() => setViewAll({ title: 'High Volume Profit', items: highVolumeProfit })}
-                    />
-                </div>
-
-                <div className="h-[320px]">
-                    <MarketCard
                         title="Most Profitable"
                         icon={<DollarSign className="text-amber-500" size={18} />}
                         items={mostProfitable.slice(0, 8)}
@@ -191,24 +229,50 @@ const Dashboard = () => {
                         onViewAll={() => setViewAll({ title: 'Most Profitable', items: mostProfitable })}
                     />
                 </div>
-                <div className="h-[320px]">
-                    <MarketCard
-                        title="Most Profitable F2P"
-                        icon={<Shield className="text-blue-500" size={18} />}
-                        items={mostProfitableF2P.slice(0, 8)}
-                        type="neutral"
-                        onViewAll={() => setViewAll({ title: 'Most Profitable F2P', items: mostProfitableF2P })}
-                    />
+            </div>
+
+            {/* Expandable Second Row */}
+            {showAllMarkets && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                    <div className="h-[320px]">
+                        <MarketCard
+                            title="High Volume Profit"
+                            icon={<BarChart2 className="text-purple-500" size={18} />}
+                            items={highVolumeProfit.slice(0, 8)}
+                            type="neutral"
+                            onViewAll={() => setViewAll({ title: 'High Volume Profit', items: highVolumeProfit })}
+                        />
+                    </div>
+                    <div className="h-[320px]">
+                        <MarketCard
+                            title="Most Profitable F2P"
+                            icon={<Shield className="text-blue-500" size={18} />}
+                            items={mostProfitableF2P.slice(0, 8)}
+                            type="neutral"
+                            onViewAll={() => setViewAll({ title: 'Most Profitable F2P', items: mostProfitableF2P })}
+                        />
+                    </div>
+                    <div className="h-[320px]">
+                        <MarketCard
+                            title="Potential Dumps"
+                            icon={<AlertTriangle className="text-rose-600" size={18} />}
+                            items={potentialDumps.slice(0, 8)}
+                            type="losers"
+                            onViewAll={() => setViewAll({ title: 'Potential Dumps (Panic Sells)', items: potentialDumps })}
+                        />
+                    </div>
                 </div>
-                <div className="h-[320px]">
-                    <MarketCard
-                        title="Potential Dumps"
-                        icon={<AlertTriangle className="text-rose-600" size={18} />}
-                        items={potentialDumps.slice(0, 8)}
-                        type="losers"
-                        onViewAll={() => setViewAll({ title: 'Potential Dumps (Panic Sells)', items: potentialDumps })}
-                    />
-                </div>
+            )}
+
+            {/* Toggle Button */}
+            <div className="flex justify-center mt-4">
+                <Button
+                    variant="ghost"
+                    onClick={() => setShowAllMarkets(!showAllMarkets)}
+                    className="text-slate-500 hover:text-slate-200"
+                >
+                    {showAllMarkets ? 'Show Less' : 'Show More Market Insights'}
+                </Button>
             </div>
 
             {/* Discover Section */}

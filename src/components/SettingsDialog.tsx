@@ -86,15 +86,22 @@ const SettingsDialog = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Refresh Rate (Seconds)</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                type="number"
-                value={interval}
-                onChange={(e) => setInterval(e.target.value)}
-                className="bg-slate-900 border-slate-800"
-              />
+            <Label>Refresh Rate</Label>
+            <div className="flex gap-2">
+              {[15, 30, 60].map((sec) => (
+                <button
+                  key={sec}
+                  onClick={() => updateSettings({ refreshInterval: sec })}
+                  className={`px-3 py-1.5 rounded text-sm font-mono transition-colors ${settings.refreshInterval === sec
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                >
+                  {sec}s
+                </button>
+              ))}
             </div>
+            <p className="text-[10px] text-slate-500">Faster = more API calls. OSRS Wiki updates every 60s.</p>
           </div>
 
           <div className="space-y-2 pt-4 border-t border-slate-800">

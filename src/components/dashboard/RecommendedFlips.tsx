@@ -23,7 +23,7 @@ const RecommendedFlips = () => {
         minRoi: 1 // at least 1% ROI
     });
 
-    const recommendations = bestFlips.slice(0, 8); // Top 8
+    const recommendations = bestFlips.slice(0, 4); // Top 4 - keep it clean
 
     if (recommendations.length === 0) return null;
 

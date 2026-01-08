@@ -1,0 +1,52 @@
+
+> Task :compileJava FAILED
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:14: error: class, interface, or enum expected
+package com.flipto5b.sync;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:16: error: class, interface, or enum expected
+import com.google.gson.Gson;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:17: error: class, interface, or enum expected
+import com.google.gson.annotations.SerializedName;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:18: error: class, interface, or enum expected
+import lombok.Builder;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:19: error: class, interface, or enum expected
+import lombok.Getter;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:20: error: class, interface, or enum expected
+import lombok.extern.slf4j.Slf4j;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:21: error: class, interface, or enum expected
+import okhttp3.*;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:23: error: class, interface, or enum expected
+import java.io.IOException;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:24: error: class, interface, or enum expected
+import java.util.List;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:25: error: class, interface, or enum expected
+import java.util.UUID;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:26: error: class, interface, or enum expected
+import java.util.concurrent.CompletableFuture;
+^
+D:\Repo\5bGP\runelite-plugin\src\main\java\com\flipto5b\sync\SyncManager.java:27: error: class, interface, or enum expected
+import java.util.stream.Collectors;
+^
+12 errors
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+
+BUILD FAILED in 1s
+1 actionable task: 1 executed

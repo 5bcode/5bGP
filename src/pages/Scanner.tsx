@@ -326,19 +326,17 @@ const Scanner = () => {
                         <Loader2 className="animate-spin text-emerald-500 h-8 w-8" />
                     </div>
                 ) : (
-                ): (
-                        <div className = "h-[calc(100vh-300px)]"> {/* Fixed height container for virtualization */ }
+                    <div className="h-[calc(100vh-300px)]">
                         <VirtualizedScannerTable
-                    data={displayData}
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    trackedIds={trackedIds}
-                    onTrack={handleTrack}
-                />
+                            data={displayData}
+                            sortConfig={sortConfig}
+                            onSort={handleSort}
+                            trackedIds={trackedIds}
+                            onTrack={handleTrack}
+                        />
+                    </div>
+                )}
             </div>
-                )}
-                )}
-        </div >
         </>
     );
 };

@@ -63,6 +63,14 @@ const Layout = () => {
       >
         <Calculator size={18} /> Tools
       </Link>
+
+      <Link
+        to="/slots"
+        onClick={() => setMobileMenuOpen(false)}
+        className={cn("hover:text-emerald-400 transition-colors flex items-center gap-2 py-2", isActive('/slots') && (isPaper ? "text-amber-400" : "text-emerald-400"))}
+      >
+        <TrendingUp size={18} /> Slots
+      </Link>
     </>
   );
 
@@ -98,7 +106,6 @@ const Layout = () => {
   return (
     <div className="min-h-screen font-sans selection:bg-emerald-500/30 flex flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100">
       <div className={cn("transition-colors duration-300", isPaper ? "border-b-4 border-amber-500" : "")}>
-        <MarketTicker />
       </div>
       <CommandMenu />
 
