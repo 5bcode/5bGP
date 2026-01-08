@@ -339,6 +339,58 @@ public class OpportunityManager {
                 .build();
     }
 
+    // =========================================================================
+    // CO-PILOT STYLE QUICK METHODS
+    // =========================================================================
+
+    /**
+     * Quick check: should we cancel any active offer based on new signals?
+     * 
+     * <p>
+     * This is a simplified API for the Co-pilot UI overlay.
+     *
+     * @param activeOffers Currently active GE offers
+     * @param newSignals   Latest market signals from SignalEngine
+     * @return true if at least one offer should be cancelled
+     */
+    public boolean shouldCancelAnyOffer(List<ActiveOffer> activeOffers, List<MarketSignal> newSignals) {
+        EvaluationResult result = evaluateBest(activeOffers, newSignals);
+        return result.isShouldCancel();
+    }
+
+    /**
+     * Gets a human-readable cancellation advice string for overlay display.
+     *
+     * @param activeOffers Currently active GE offers
+     * @param newSignals   Latest market signals from SignalEngine
+     * @return Advice string, or null if no cancellation recommended
+     */
+    public String getCancellationAdvice(List<ActiveOffer> activeOffers, List<MarketSignal> newSignals) {
+        EvaluationResult result = evaluateBest(activeOffers, newSignals);
+
+        if (!result.isShouldCancel()) {
+            return null;
+        }
+
+        return String.format("Consider %s instead (+%,dgp/hr)",
+                result.getBetterItemName(),
+                (int) (result.getNewOpportunityRate() * 60));
+    }
+
+    /**
+     * Returns the urgency level for the best cancellation opportunity.
+     *
+     * @param activeOffers Currently active GE offers
+     * @param newSignals   Latest market signals
+     * @return Urgency level (LOW, MEDIUM, HIGH)
+     */
+    public EvaluationResult.Urgency getCancellationUrgency(
+            List<ActiveOffer> activeOffers,
+            List<MarketSignal> newSignals) {
+        EvaluationResult result = evaluateBest(activeOffers, newSignals);
+        return result.getUrgency();
+    }
+
     /**
      * Finds the single best opportunity from a list of signals.
      *

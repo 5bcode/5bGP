@@ -16,9 +16,7 @@ import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.game.ItemManager;
 
 public class FlipTo5BPanel extends PluginPanel {
-    @SuppressWarnings("unused")
     private final FlipTo5BPlugin plugin;
-    @SuppressWarnings("unused")
     private final ItemManager itemManager;
 
     private final JPanel activeOffersContainer = new JPanel();
@@ -30,6 +28,7 @@ public class FlipTo5BPanel extends PluginPanel {
 
     private final JPanel contentPanel = new JPanel();
     private final CardLayout cardLayout = new CardLayout();
+    private final JPanel detailsPanelHolder = new JPanel(new BorderLayout());
 
     // View Names
     private static final String VIEW_OVERVIEW = "OVERVIEW";
@@ -53,8 +52,8 @@ public class FlipTo5BPanel extends PluginPanel {
         JLabel title = new JLabel("Session Profit:");
         title.setForeground(Color.WHITE);
 
-        sessionProfitLabel.setText("DEBUG ACTIVE");
-        sessionProfitLabel.setForeground(Color.CYAN);
+        sessionProfitLabel.setText("0 gp");
+        sessionProfitLabel.setForeground(ColorScheme.GRAND_EXCHANGE_PRICE);
 
         profitPanel.add(title, BorderLayout.WEST);
         profitPanel.add(sessionProfitLabel, BorderLayout.EAST);
@@ -107,6 +106,35 @@ public class FlipTo5BPanel extends PluginPanel {
         overviewPanel.setLayout(new BoxLayout(overviewPanel, BoxLayout.Y_AXIS));
         overviewPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
+        // CO-PILOT SUGGESTION
+        JPanel copilotContainer = new JPanel();
+        copilotContainer.setName("copilotContainer");
+        copilotContainer.setLayout(new BorderLayout());
+        copilotContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        copilotContainer.setBorder(new EmptyBorder(5, 5, 5, 5));
+
+        // Default state
+        JLabel initLabel = new JLabel("Initializing Co-pilot...");
+        initLabel.setForeground(Color.GRAY);
+        initLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+        initLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        copilotContainer.add(initLabel, BorderLayout.CENTER);
+
+        overviewPanel.add(copilotContainer);
+        overviewPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        // QUICK PICKS Section (Co-pilot style suggestions)
+        JPanel quickPicksHeader = createHeader("⚡ Quick Picks");
+        quickPicksHeader.setBackground(new Color(16, 185, 129, 30)); // Emerald tint
+        overviewPanel.add(quickPicksHeader);
+        JPanel quickPicksContainer = new JPanel();
+        quickPicksContainer.setName("quickPicksContainer");
+        quickPicksContainer.setLayout(new BoxLayout(quickPicksContainer, BoxLayout.Y_AXIS));
+        quickPicksContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        overviewPanel.add(quickPicksContainer);
+
+        overviewPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
         overviewPanel.add(createHeader("Active Offers"));
         activeOffersContainer.setLayout(new BoxLayout(activeOffersContainer, BoxLayout.Y_AXIS));
         activeOffersContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -131,10 +159,17 @@ public class FlipTo5BPanel extends PluginPanel {
         historyContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
         overviewPanel.add(historyContainer);
 
-        contentPanel.add(overviewPanel, VIEW_OVERVIEW);
+        // Wrap overviewPanel in a JScrollPane
+        JScrollPane scrollPane = new JScrollPane(overviewPanel);
+        scrollPane.setBackground(ColorScheme.DARK_GRAY_COLOR);
+        scrollPane.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        contentPanel.add(scrollPane, VIEW_OVERVIEW);
 
         // 2. DETAILS PANEL (Placeholder, updated dynamically)
-        JPanel detailsPanelHolder = new JPanel(new BorderLayout());
+        // JPanel detailsPanelHolder = new JPanel(new BorderLayout()); // Use field
+        // instead
+        detailsPanelHolder.setName(VIEW_DETAILS);
         detailsPanelHolder.setBackground(ColorScheme.DARK_GRAY_COLOR);
         contentPanel.add(detailsPanelHolder, VIEW_DETAILS);
 
@@ -142,7 +177,7 @@ public class FlipTo5BPanel extends PluginPanel {
         cardLayout.show(contentPanel, VIEW_OVERVIEW);
     }
 
-    public void showItemDetails(String name, FlipTo5BPlugin.WikiPrice priceData,
+    private void renderItemDetails(String name, FlipTo5BPlugin.WikiPrice priceData,
             net.runelite.client.util.AsyncBufferedImage icon) {
         SwingUtilities.invokeLater(() -> {
             if (name == null) {
@@ -193,10 +228,10 @@ public class FlipTo5BPanel extends PluginPanel {
                 wikiContent.setLayout(new BoxLayout(wikiContent, BoxLayout.Y_AXIS));
                 wikiContent.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-                wikiContent.add(createDetailRowArrow("Wiki insta buy:",
+                wikiContent.add(createDetailRowArrow("Insta Buy:",
                         QuantityFormatter.formatNumber(priceData.high) + " gp (" + priceData.getHighTimeLabel() + ")",
                         new Color(16, 185, 129))); // Emerald
-                wikiContent.add(createDetailRowArrow("Wiki insta sell:",
+                wikiContent.add(createDetailRowArrow("Insta Sell:",
                         QuantityFormatter.formatNumber(priceData.low) + " gp (" + priceData.getLowTimeLabel() + ")",
                         new Color(16, 185, 129))); // Emerald
 
@@ -364,7 +399,7 @@ public class FlipTo5BPanel extends PluginPanel {
                 profitContent.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
                 int margin = priceData.high - priceData.low;
-                int tax = (int) Math.floor(priceData.high * 0.02);
+                int tax = (int) Math.floor(priceData.high * 0.01);
                 if (tax > 5000000)
                     tax = 5000000;
                 int profit = margin - tax;
@@ -372,7 +407,7 @@ public class FlipTo5BPanel extends PluginPanel {
 
                 profitContent.add(createDetailRow("Margin:",
                         QuantityFormatter.formatNumber(margin) + " gp", Color.WHITE));
-                profitContent.add(createDetailRow("Tax (2%):",
+                profitContent.add(createDetailRow("Tax (1%):",
                         "-" + QuantityFormatter.formatNumber(tax) + " gp", Color.RED));
                 profitContent.add(createDetailRow("Profit/ea:",
                         QuantityFormatter.formatNumber(profit) + " gp",
@@ -485,7 +520,7 @@ public class FlipTo5BPanel extends PluginPanel {
     private JPanel createDetailRowArrow(String labelText, String valueText, Color valueColor) {
         JPanel row = new JPanel(new BorderLayout());
         row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-        row.setBorder(new EmptyBorder(2, 10, 2, 10));
+        row.setBorder(new EmptyBorder(2, 5, 2, 5));
 
         JLabel arrow = new JLabel("→ ");
         arrow.setForeground(valueColor);
@@ -501,20 +536,22 @@ public class FlipTo5BPanel extends PluginPanel {
         JLabel value = new JLabel(valueText);
         value.setForeground(valueColor);
         value.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+        value.setPreferredSize(new Dimension(80, 0)); // Give enough space for price + time
+        value.setHorizontalAlignment(SwingConstants.RIGHT);
 
-        row.add(leftPanel, BorderLayout.WEST);
+        row.add(leftPanel, BorderLayout.CENTER);
         row.add(value, BorderLayout.EAST);
         return row;
     }
 
     private Component findComponent(Container container, String name) {
+        if (name == null)
+            return null;
         for (Component c : container.getComponents()) {
             if (name.equals(c.getName()))
-                return c; // Standard card layout naming
+                return c;
         }
-        // Fallback since CardLayout adds with constraints, assume we render into the
-        // second slot for now
-        return container.getComponent(1);
+        return null;
     }
 
     private JPanel createDetailRow(String labelText, String valueText, Color valueColor) {
@@ -668,6 +705,194 @@ public class FlipTo5BPanel extends PluginPanel {
         });
     }
 
+    /**
+     * Updates the Co-pilot Suggestion section with data from backend.
+     */
+    public void updateSuggestion(com.flipto5b.FlipTo5BPlugin.Suggestion suggestion) {
+        SwingUtilities.invokeLater(() -> {
+            // Find the copilotContainer
+            JScrollPane scrollPane = (JScrollPane) contentPanel.getComponent(0);
+            JPanel overviewPanel = (JPanel) scrollPane.getViewport().getView();
+            JPanel container = null;
+            for (Component c : overviewPanel.getComponents()) {
+                if (c instanceof JPanel && "copilotContainer".equals(c.getName())) {
+                    container = (JPanel) c;
+                    break;
+                }
+            }
+            if (container == null)
+                return;
+
+            container.removeAll();
+
+            if (suggestion == null || suggestion.isWait()) {
+                JLabel waitLabel = new JLabel(suggestion != null ? suggestion.message : "Waiting for market data...");
+                waitLabel.setForeground(Color.GRAY);
+                waitLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+                container.add(waitLabel, BorderLayout.CENTER);
+            } else {
+                // Header
+                JLabel headerLabel = new JLabel("CO-PILOT SUGGESTION");
+                headerLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeBoldFont());
+                headerLabel.setForeground(ColorScheme.BRAND_ORANGE);
+                container.add(headerLabel, BorderLayout.NORTH);
+
+                // Main Content
+                JPanel content = new JPanel(new BorderLayout());
+                content.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+                content.setBorder(new EmptyBorder(5, 5, 5, 5));
+
+                if (suggestion.item_id > 0) {
+                    JLabel icon = new JLabel(new ImageIcon(itemManager.getImage(suggestion.item_id)));
+                    content.add(icon, BorderLayout.WEST);
+                }
+
+                JPanel textPanel = new JPanel();
+                textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+                textPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+                JLabel actionLabel = new JLabel(suggestion.message);
+                actionLabel.setForeground(suggestion.isBuy() ? Color.GREEN : Color.YELLOW);
+                actionLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeBoldFont());
+
+                textPanel.add(actionLabel);
+
+                if (suggestion.quantity > 0 && suggestion.price > 0) {
+                    JLabel detailsLabel = new JLabel(String.format("Qty: %d @ %s gp",
+                            suggestion.quantity,
+                            QuantityFormatter.formatNumber(suggestion.price)));
+                    detailsLabel.setForeground(Color.WHITE);
+                    textPanel.add(detailsLabel);
+                }
+
+                content.add(textPanel, BorderLayout.CENTER);
+                container.add(content, BorderLayout.CENTER);
+
+                // Add click listener if valid item
+                if (suggestion.item_id > 0) {
+                    content.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+                    final int itemId = suggestion.item_id;
+                    content.addMouseListener(new java.awt.event.MouseAdapter() {
+                        @Override
+                        public void mouseClicked(java.awt.event.MouseEvent e) {
+                            plugin.setSidebarItem(itemId);
+                        }
+                    });
+                }
+            }
+
+            container.revalidate();
+            container.repaint();
+        });
+    }
+
+    /**
+     * Update the Quick Picks section with Co-pilot style intelligent suggestions.
+     * 
+     * @param signals List of top market signals from SignalEngine.getQuickPicks()
+     */
+    public void updateQuickPicks(java.util.List<com.flipto5b.model.MarketSignal> signals) {
+        SwingUtilities.invokeLater(() -> {
+            // Find the quickPicksContainer
+            JScrollPane scrollPane = (JScrollPane) contentPanel.getComponent(0);
+            JPanel overviewPanel = (JPanel) scrollPane.getViewport().getView();
+            JPanel container = null;
+            for (Component c : overviewPanel.getComponents()) {
+                if (c instanceof JPanel && "quickPicksContainer".equals(c.getName())) {
+                    container = (JPanel) c;
+                    break;
+                }
+            }
+            if (container == null)
+                return;
+
+            container.removeAll();
+
+            if (signals.isEmpty()) {
+                JLabel emptyLabel = new JLabel("Scanning market...");
+                emptyLabel.setForeground(Color.GRAY);
+                emptyLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+                emptyLabel.setBorder(new EmptyBorder(5, 10, 5, 10));
+                container.add(emptyLabel);
+            } else {
+                for (com.flipto5b.model.MarketSignal signal : signals) {
+                    JPanel pickPanel = new JPanel(new BorderLayout());
+                    pickPanel.setBackground(new Color(16, 185, 129, 15)); // Subtle emerald bg
+                    pickPanel.setBorder(new EmptyBorder(6, 10, 6, 10));
+
+                    // Left: Item name with icon
+                    JPanel leftPanel = new JPanel(new BorderLayout());
+                    leftPanel.setOpaque(false);
+                    JLabel icon = new JLabel(new ImageIcon(itemManager.getImage(signal.getItemId())));
+                    JLabel nameLabel = new JLabel(signal.getItemName());
+                    nameLabel.setForeground(Color.WHITE);
+                    nameLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+                    leftPanel.add(icon, BorderLayout.WEST);
+                    leftPanel.add(nameLabel, BorderLayout.CENTER);
+
+                    // Center: Optimal prices
+                    JPanel centerPanel = new JPanel();
+                    centerPanel.setOpaque(false);
+                    centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+
+                    int optBuy = com.flipto5b.engine.PricingEngine.getOptimalBuyPrice(signal.getWikiLow());
+                    int optSell = com.flipto5b.engine.PricingEngine.getOptimalSellPrice(signal.getWikiHigh());
+
+                    JLabel buyLabel = new JLabel("Buy: " + QuantityFormatter.formatNumber(optBuy));
+                    buyLabel.setForeground(new Color(59, 130, 246)); // Blue
+                    buyLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+
+                    JLabel sellLabel = new JLabel("Sell: " + QuantityFormatter.formatNumber(optSell));
+                    sellLabel.setForeground(new Color(16, 185, 129)); // Emerald
+                    sellLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+
+                    centerPanel.add(buyLabel);
+                    centerPanel.add(sellLabel);
+
+                    // Right: Score and action
+                    JPanel rightPanel = new JPanel();
+                    rightPanel.setOpaque(false);
+                    rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
+
+                    JLabel scoreLabel = new JLabel(String.format("%.0f", signal.getOpportunityScore()));
+                    scoreLabel.setForeground(new Color(251, 191, 36)); // Amber
+                    scoreLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeBoldFont());
+                    scoreLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+
+                    JLabel actionLabel = new JLabel(signal.getAction().toString());
+                    actionLabel.setForeground(signal.getAction() == com.flipto5b.model.MarketSignal.SignalAction.BUY
+                            ? Color.GREEN
+                            : Color.YELLOW);
+                    actionLabel.setFont(net.runelite.client.ui.FontManager.getRunescapeSmallFont());
+                    actionLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+
+                    rightPanel.add(scoreLabel);
+                    rightPanel.add(actionLabel);
+
+                    pickPanel.add(leftPanel, BorderLayout.WEST);
+                    pickPanel.add(centerPanel, BorderLayout.CENTER);
+                    pickPanel.add(rightPanel, BorderLayout.EAST);
+
+                    // Make clickable
+                    pickPanel.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+                    final int itemId = signal.getItemId();
+                    pickPanel.addMouseListener(new java.awt.event.MouseAdapter() {
+                        @Override
+                        public void mouseClicked(java.awt.event.MouseEvent e) {
+                            plugin.setSidebarItem(itemId);
+                        }
+                    });
+
+                    container.add(pickPanel);
+                    container.add(Box.createRigidArea(new Dimension(0, 2)));
+                }
+            }
+
+            container.revalidate();
+            container.repaint();
+        });
+    }
+
     public void updateSignals(java.util.List<com.flipto5b.model.MarketSignal> signals) {
         SwingUtilities.invokeLater(() -> {
             signalsContainer.removeAll();
@@ -725,6 +950,21 @@ public class FlipTo5BPanel extends PluginPanel {
 
             signalsContainer.revalidate();
             signalsContainer.repaint();
+        });
+    }
+
+    /**
+     * Shows the details view for a specific item.
+     */
+    public void showItemDetails(int itemId) {
+        plugin.getClientThread().invokeLater(() -> {
+            String itemName = itemManager.getItemComposition(itemId).getName();
+            FlipTo5BPlugin.WikiPrice priceData = plugin.getWikiPrice(itemId);
+            net.runelite.client.util.AsyncBufferedImage icon = itemManager.getImage(itemId);
+
+            SwingUtilities.invokeLater(() -> {
+                renderItemDetails(itemName, priceData, icon);
+            });
         });
     }
 

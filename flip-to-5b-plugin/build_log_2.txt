@@ -1,7 +1,0 @@
-Starting a Gradle Daemon, 1 busy and 4 incompatible and 4 stopped Daemons could not be reused, use --status for details
-> Task :compileJava
-> Task :processResources NO-SOURCE
-> Task :classes
-
-BUILD SUCCESSFUL in 11s
-1 actionable task: 1 executed

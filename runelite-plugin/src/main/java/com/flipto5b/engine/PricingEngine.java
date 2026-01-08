@@ -177,6 +177,74 @@ public class PricingEngine {
     }
 
     // =========================================================================
+    // QUICK PRICE SUGGESTIONS (Co-pilot Style)
+    // =========================================================================
+
+    /**
+     * Returns the optimal buy price for an item.
+     * 
+     * <p>
+     * This is a simplified method for quick price suggestions.
+     * It adds 1gp to the current insta-sell price (wiki low).
+     *
+     * @param wikiLow The current wiki low (insta-sell) price
+     * @return Optimal buy price
+     */
+    public static int getOptimalBuyPrice(int wikiLow) {
+        // Buy at insta-sell + 1gp to undercut other buyers
+        return wikiLow + 1;
+    }
+
+    /**
+     * Returns the optimal sell price for an item.
+     * 
+     * <p>
+     * This subtracts 1gp from the wiki high (insta-buy) to undercut sellers.
+     *
+     * @param wikiHigh The current wiki high (insta-buy) price
+     * @return Optimal sell price
+     */
+    public static int getOptimalSellPrice(int wikiHigh) {
+        // Sell at insta-buy - 1gp to undercut other sellers
+        return Math.max(1, wikiHigh - 1);
+    }
+
+    /**
+     * Returns the optimal quantity to trade based on budget, price, and limit.
+     *
+     * @param gpBudget  Available gold pieces
+     * @param buyPrice  Price per item
+     * @param geLimit   Grand Exchange buy limit for this item
+     * @param riskLevel Risk level: 0 = Low (5%), 1 = Medium (10%), 2 = High (20%)
+     * @return Optimal quantity to buy
+     */
+    public static int getOptimalQuantity(long gpBudget, int buyPrice, int geLimit, int riskLevel) {
+        if (buyPrice <= 0)
+            return 1;
+
+        double riskMultiplier = RISK_MULTIPLIERS[Math.min(riskLevel, 2)];
+        long maxCashToRisk = (long) (gpBudget * riskMultiplier);
+
+        int affordableQty = (int) (maxCashToRisk / buyPrice);
+        int quantity = Math.min(affordableQty, geLimit);
+
+        return Math.max(1, quantity);
+    }
+
+    /**
+     * Quick estimate of profit for a given flip setup.
+     *
+     * @param buyPrice  Buy price
+     * @param sellPrice Sell price
+     * @param quantity  Quantity to trade
+     * @return Estimated net profit after tax
+     */
+    public static int estimateProfit(int buyPrice, int sellPrice, int quantity) {
+        int margin = netMargin(buyPrice, sellPrice);
+        return margin * quantity;
+    }
+
+    // =========================================================================
     // TAX CALCULATION UTILITIES
     // =========================================================================
 

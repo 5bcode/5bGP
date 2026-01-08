@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 4%;
+    --foreground: 213 31% 91%;
+
+    --card: 222 47% 4%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 222 47% 4%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 161 94% 30%;
+    --primary-foreground: 161 94% 90%;
+
+    --secondary: 222 47% 11%;
+    --secondary-foreground: 213 31% 91%;
+
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --ring: 161 94% 30%;
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border selection:bg-emerald-500/30 selection:text-emerald-200;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 transition-colors duration-500 antialiased;
+    background-image:
+      radial-gradient(at 0% 0%, hsla(161, 94%, 30%, 0.05) 0, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(263, 70%, 50%, 0.05) 0, transparent 50%);
+  }
+
+  /* Paper Trading Mode Theme Overrides */
+  body.paper-mode {
+    @apply border-4 border-amber-500/20;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-white/5 shadow-2xl rounded-2xl transition-all duration-300;
+  }
+
+  .premium-card {
+    @apply relative overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-white/5 shadow-2xl rounded-2xl transition-all duration-300 hover:border-emerald-500/30 hover:shadow-emerald-500/5;
+  }
+
+  .premium-card::before {
+    content: "";
+    @apply absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none;
+  }
+
+  .glass-panel {
+    @apply bg-slate-950/40 border border-white/5 rounded-xl backdrop-blur-md;
+  }
+
+  .clickable-card {
+    @apply hover:bg-slate-800/40 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer;
+  }
+
+  .metric-label {
+    @apply text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500;
+  }
+
+  .data-text {
+    @apply font-mono text-slate-200 tracking-tight;
+  }
+
+  .neon-glow {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+  }
+
+  .nav-link {
+    @apply px-4 py-2 rounded-lg transition-all duration-200 text-slate-400 hover:text-white hover:bg-white/5;
+  }
+
+  .nav-link-active {
+    @apply text-emerald-400 bg-emerald-400/10;
+    box-shadow: 0 0 15px rgba(52, 211, 153, 0.1);
+  }
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-800 rounded-full hover:bg-slate-700 transition-colors;
+}
+
+/* Page Transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 400ms, transform 400ms;
+}
+
+/* Animations */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}

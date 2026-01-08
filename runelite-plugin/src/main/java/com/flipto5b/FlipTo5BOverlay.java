@@ -73,9 +73,43 @@ public class FlipTo5BOverlay extends OverlayPanel {
 			}
 		}
 
+		// Render cancellation advice if available (Co-pilot style)
+		String cancelAdvice = plugin.getCancellationAdvice();
+		if (cancelAdvice != null && !cancelAdvice.isEmpty()) {
+			renderCancellationAdvice(graphics, b, cancelAdvice);
+		}
+
 		detectAndShowItem(graphics);
 
 		return super.render(graphics);
+	}
+
+	/**
+	 * Renders a cancellation advice banner at the top of the GE window.
+	 */
+	private void renderCancellationAdvice(Graphics2D graphics, Rectangle geBounds, String advice) {
+		int bannerHeight = 24;
+		int x = geBounds.x;
+		int y = geBounds.y - bannerHeight - 5;
+		int width = geBounds.width;
+
+		// Background
+		graphics.setColor(new Color(244, 63, 94, 200)); // Rose with alpha
+		graphics.fillRoundRect(x, y, width, bannerHeight, 6, 6);
+
+		// Border
+		graphics.setColor(new Color(244, 63, 94));
+		graphics.setStroke(new BasicStroke(2));
+		graphics.drawRoundRect(x, y, width, bannerHeight, 6, 6);
+
+		// Text
+		graphics.setColor(Color.WHITE);
+		graphics.setFont(graphics.getFont().deriveFont(java.awt.Font.BOLD, 11f));
+		java.awt.FontMetrics fm = graphics.getFontMetrics();
+		String text = "⚠ " + advice;
+		int textX = x + (width - fm.stringWidth(text)) / 2;
+		int textY = y + (bannerHeight + fm.getAscent() - fm.getDescent()) / 2;
+		graphics.drawString(text, textX, textY);
 	}
 
 	private void detectAndShowItem(Graphics2D graphics) {

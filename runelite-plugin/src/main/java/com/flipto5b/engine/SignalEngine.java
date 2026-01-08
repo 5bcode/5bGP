@@ -216,6 +216,139 @@ public class SignalEngine {
     }
 
     // =========================================================================
+    // QUICK PICKS - Intelligent Item Suggestions
+    // =========================================================================
+
+    /**
+     * Returns the top 5 "Quick Pick" item suggestions for immediate flipping.
+     * 
+     * <p>
+     * Quick Picks are optimized for short-term (15-30 minute) flips with
+     * high confidence. They prioritize:
+     * <ul>
+     * <li>High volume (fast fills)</li>
+     * <li>Good ROI (2-10%)</li>
+     * <li>Low risk (stable prices)</li>
+     * </ul>
+     *
+     * @return List of top 5 MarketSignals for quick flipping
+     */
+    public List<MarketSignal> getQuickPicks() {
+        log.info("SignalEngine: Generating Quick Picks...");
+
+        SignalConfig quickPickConfig = SignalConfig.builder()
+                .timeHorizonMinutes(15)
+                .riskTolerance(SignalConfig.RiskTolerance.MEDIUM) // Changed from LOW for more results
+                .minScore(30.0) // Lowered from 50.0 to get more results
+                .maxResults(10) // Increased from 5
+                .build();
+
+        List<MarketSignal> signals = scan(quickPickConfig);
+
+        // Re-sort by a "quick flip score" that heavily weights volume and fill speed
+        signals.sort((a, b) -> {
+            double scoreA = a.getOpportunityScore() * 0.4
+                    + Math.min(100, a.getVolume24h() / 100.0) * 0.4
+                    + (100 - a.getAvgRecoveryTime() * 2) * 0.2;
+            double scoreB = b.getOpportunityScore() * 0.4
+                    + Math.min(100, b.getVolume24h() / 100.0) * 0.4
+                    + (100 - b.getAvgRecoveryTime() * 2) * 0.2;
+            return Double.compare(scoreB, scoreA);
+        });
+
+        List<MarketSignal> picks = signals.stream().limit(5).collect(Collectors.toList());
+        log.info("SignalEngine: Quick Picks generated: {} items", picks.size());
+        return picks;
+    }
+
+    /**
+     * Returns the best item to flip right now for a given GP budget.
+     *
+     * @param gpBudget Available gold pieces
+     * @return Optional containing the best signal, or empty if none found
+     */
+    public Optional<MarketSignal> getBestOpportunity(long gpBudget) {
+        List<MarketSignal> picks = getQuickPicks();
+
+        return picks.stream()
+                .filter(s -> s.getWikiLow() <= gpBudget)
+                .findFirst();
+    }
+
+    // =========================================================================
+    // PRICE PREDICTIONS (Momentum-Based)
+    // =========================================================================
+
+    /**
+     * Predicts the price of an item in the future using momentum analysis.
+     * 
+     * <p>
+     * This is a simplified momentum-based model:
+     * <ul>
+     * <li>Calculates current momentum from buy/sell volume ratio</li>
+     * <li>Projects price change based on momentum and time</li>
+     * <li>Applies dampening factor for longer timeframes</li>
+     * </ul>
+     *
+     * @param itemId       The item ID
+     * @param currentPrice Current wiki low price
+     * @param momentum     Momentum value from MarketSignal (-50 to +50)
+     * @param minutesAhead How many minutes to predict (5, 15, 30, 60)
+     * @return Predicted price at the future time
+     */
+    public int getPredictedPrice(int itemId, int currentPrice, double momentum, int minutesAhead) {
+        if (currentPrice <= 0)
+            return 0;
+
+        // Dampening factor: longer predictions are less reliable
+        double dampening;
+        if (minutesAhead == 5) {
+            dampening = 1.0;
+        } else if (minutesAhead == 15) {
+            dampening = 0.8;
+        } else if (minutesAhead == 30) {
+            dampening = 0.6;
+        } else if (minutesAhead == 60) {
+            dampening = 0.4;
+        } else {
+            dampening = 0.5;
+        }
+
+        // Convert momentum to expected percent change per hour
+        // Momentum range is ~-50 to +50, map to -5% to +5% per hour
+        double hourlyChangePercent = (momentum / 50.0) * 5.0;
+
+        // Calculate change for the requested timeframe
+        double changePercent = (hourlyChangePercent * minutesAhead / 60.0) * dampening;
+
+        // Apply change
+        int predictedPrice = (int) Math.round(currentPrice * (1 + changePercent / 100.0));
+
+        log.debug("SignalEngine: Price prediction for item {} - Current: {}, +{}m: {} (momentum: {:.1f})",
+                itemId, currentPrice, minutesAhead, predictedPrice, momentum);
+
+        return Math.max(1, predictedPrice);
+    }
+
+    /**
+     * Returns price predictions for standard timeframes.
+     *
+     * @param signal The market signal with current price and momentum
+     * @return Array of [+5m, +15m, +30m, +60m] predicted prices
+     */
+    public int[] getPredictions(MarketSignal signal) {
+        int currentPrice = signal.getWikiLow();
+        double momentum = signal.getMomentum();
+
+        return new int[] {
+                getPredictedPrice(signal.getItemId(), currentPrice, momentum, 5),
+                getPredictedPrice(signal.getItemId(), currentPrice, momentum, 15),
+                getPredictedPrice(signal.getItemId(), currentPrice, momentum, 30),
+                getPredictedPrice(signal.getItemId(), currentPrice, momentum, 60)
+        };
+    }
+
+    // =========================================================================
     // DYNAMIC WEIGHTING
     // =========================================================================
 
