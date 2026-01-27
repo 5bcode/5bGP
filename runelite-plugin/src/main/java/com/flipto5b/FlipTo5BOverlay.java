@@ -45,6 +45,18 @@ public class FlipTo5BOverlay extends OverlayPanel implements MouseListener {
 
 	private final PanelComponent targetPricePanel = new PanelComponent();
 
+	private String formatAge(int timestamp) {
+		if (timestamp <= 0)
+			return "N/A";
+		long diff = (System.currentTimeMillis() / 1000) - timestamp;
+		if (diff < 0)
+			diff = 0;
+		long hours = diff / 3600;
+		long minutes = (diff % 3600) / 60;
+		long seconds = diff % 60;
+		return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+	}
+
 	@Inject
 	public FlipTo5BOverlay(Client client, FlipTo5BPlugin plugin, TooltipManager tooltipManager) {
 		super(plugin);
@@ -344,6 +356,30 @@ public class FlipTo5BOverlay extends OverlayPanel implements MouseListener {
 		targetPricePanel.getChildren().add(TitleComponent.builder()
 				.text("FlipTo5B Targets (" + ageText + ")")
 				.color(Color.YELLOW)
+				.build());
+
+		targetPricePanel.getChildren().add(LineComponent.builder()
+				.left("Wiki Insta Buy:")
+				.right(QuantityFormatter.formatNumber(priceData.high) + " gp")
+				.rightColor(Color.LIGHT_GRAY)
+				.build());
+
+		targetPricePanel.getChildren().add(LineComponent.builder()
+				.left("Wiki Buy Age:")
+				.right(formatAge(priceData.highTime))
+				.rightColor(new Color(16, 185, 129)) // Green
+				.build());
+
+		targetPricePanel.getChildren().add(LineComponent.builder()
+				.left("Wiki Insta Sell:")
+				.right(QuantityFormatter.formatNumber(priceData.low) + " gp")
+				.rightColor(Color.LIGHT_GRAY)
+				.build());
+
+		targetPricePanel.getChildren().add(LineComponent.builder()
+				.left("Wiki Sell Age:")
+				.right(formatAge(priceData.lowTime))
+				.rightColor(new Color(16, 185, 129)) // Green
 				.build());
 
 		targetPricePanel.getChildren().add(LineComponent.builder()

@@ -57,8 +57,10 @@ public class SignalPanel extends JPanel {
         midRow.setOpaque(false);
         midRow.setBorder(new EmptyBorder(3, 0, 3, 0));
 
+        String ageText = formatAge(signal.getTimestamp());
         String prices = "Buy: " + QuantityFormatter.formatNumber(signal.getTargetBuyPrice()) +
-                " | Sell: " + QuantityFormatter.formatNumber(signal.getTargetSellPrice());
+                " | Sell: " + QuantityFormatter.formatNumber(signal.getTargetSellPrice()) +
+                " [" + ageText + "]";
         pricesLabel.setText(prices);
         pricesLabel.setForeground(Color.LIGHT_GRAY);
         pricesLabel.setFont(FontManager.getRunescapeSmallFont());
@@ -106,5 +108,17 @@ public class SignalPanel extends JPanel {
             default:
                 return Color.GRAY;
         }
+    }
+
+    private String formatAge(long timestamp) {
+        if (timestamp <= 0)
+            return "N/A";
+        long diff = (System.currentTimeMillis() - timestamp) / 1000;
+        if (diff < 0)
+            diff = 0;
+        long h = diff / 3600;
+        long m = (diff % 3600) / 60;
+        long s = diff % 60;
+        return String.format("%02d:%02d:%02d", h, m, s);
     }
 }

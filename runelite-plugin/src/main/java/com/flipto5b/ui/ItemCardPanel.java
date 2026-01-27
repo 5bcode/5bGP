@@ -25,6 +25,7 @@ public class ItemCardPanel extends JPanel {
     private boolean expanded = false;
     private final JPanel detailsPanel = new JPanel();
     private final JLabel expandIcon = new JLabel("▶"); // or ▼
+    private final SparklinePanel sparkline = new SparklinePanel();
 
     public ItemCardPanel(FlipTo5BPlugin plugin, int itemId, String itemName, AsyncBufferedImage icon) {
         this.plugin = plugin;
@@ -119,7 +120,14 @@ public class ItemCardPanel extends JPanel {
 
         FlipTo5BPlugin.WikiPrice price = plugin.getWikiPrice(itemId);
         if (price != null) {
-            System.out.println("DEBUG: ItemCardPanel itemId=" + itemId + " high=" + price.high + " low=" + price.low);
+            addPriceRow(detailsPanel, gbc, "Wiki Insta Buy:", price.high);
+            addInfoRow(detailsPanel, gbc, "Wiki Buy Age:", formatAge(price.highTime), new Color(16, 185, 129));
+
+            addPriceRow(detailsPanel, gbc, "Wiki Insta Sell:", price.low);
+            addInfoRow(detailsPanel, gbc, "Wiki Sell Age:", formatAge(price.lowTime), new Color(16, 185, 129));
+
+            gbc.insets = new java.awt.Insets(8, 0, 2, 0);
+
             addPriceRow(detailsPanel, gbc, "Target Buy:", price.low + 1); // Simple undercut logic
             addPriceRow(detailsPanel, gbc, "Target Sell:", price.high - 1);
 
@@ -159,6 +167,16 @@ public class ItemCardPanel extends JPanel {
                 addInfoRow(detailsPanel, gbc, "GE Limit (4h):", bought + " bought" + resetStr, Color.ORANGE);
             }
 
+            // Trend & Sparkline
+            gbc.insets = new java.awt.Insets(10, 0, 5, 0);
+            JLabel trendValLabel = addInfoRowWithRef(detailsPanel, gbc, "Trend (6h):", "fetching...", Color.GRAY);
+
+            gbc.insets = new java.awt.Insets(0, 0, 0, 0);
+            detailsPanel.add(sparkline, gbc);
+            gbc.gridy++;
+
+            fetchTrends(trendValLabel);
+
         } else {
             JLabel loading = new JLabel("Loading prices...");
             loading.setForeground(Color.GRAY);
@@ -168,6 +186,83 @@ public class ItemCardPanel extends JPanel {
 
         detailsPanel.revalidate();
         detailsPanel.repaint();
+    }
+
+    private void fetchTrends(JLabel trendLabel) {
+        plugin.fetch6hTimeseries(itemId, new okhttp3.Callback() {
+            @Override
+            public void onFailure(okhttp3.Call call, java.io.IOException e) {
+            }
+
+            @Override
+            public void onResponse(okhttp3.Call call, okhttp3.Response response) throws java.io.IOException {
+                if (!response.isSuccessful()) {
+                    response.close();
+                    return;
+                }
+                okhttp3.ResponseBody responseBody = response.body();
+                if (responseBody == null) {
+                    response.close();
+                    return;
+                }
+                String body = responseBody.string();
+                com.google.gson.JsonObject json = new com.google.gson.Gson().fromJson(body,
+                        com.google.gson.JsonObject.class);
+                com.google.gson.JsonArray data = json.getAsJsonArray("data");
+                if (data == null || data.size() < 2)
+                    return;
+
+                java.util.List<Integer> prices = new java.util.ArrayList<>();
+                for (com.google.gson.JsonElement el : data) {
+                    com.google.gson.JsonObject obj = el.getAsJsonObject();
+                    int p = 0;
+                    if (!obj.get("avgHighPrice").isJsonNull()) {
+                        p = obj.get("avgHighPrice").getAsInt();
+                    } else if (!obj.get("avgLowPrice").isJsonNull()) {
+                        p = obj.get("avgLowPrice").getAsInt();
+                    }
+                    if (p > 0)
+                        prices.add(p);
+                }
+
+                if (prices.size() < 2)
+                    return;
+
+                int first = prices.get(0);
+                int last = prices.get(prices.size() - 1);
+                double change = ((double) (last - first) / first) * 100;
+                String trendText = String.format("%s%.2f%%", (change >= 0 ? "+" : ""), change);
+                Color trendColor = change >= 0 ? new Color(34, 197, 94) : new Color(239, 68, 68);
+
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    sparkline.updateData(prices);
+                    trendLabel.setText(trendText);
+                    trendLabel.setForeground(trendColor);
+                });
+            }
+        });
+    }
+
+    private JLabel addInfoRowWithRef(JPanel panel, GridBagConstraints gbc, String label, String value,
+            Color valueColor) {
+        JPanel row = new JPanel(new BorderLayout());
+        row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+        JLabel l = new JLabel(label);
+        l.setForeground(Color.LIGHT_GRAY);
+        l.setFont(FontManager.getRunescapeSmallFont());
+
+        JLabel v = new JLabel(value);
+        v.setForeground(valueColor);
+        v.setFont(FontManager.getRunescapeSmallFont());
+        v.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        row.add(l, BorderLayout.WEST);
+        row.add(v, BorderLayout.EAST);
+
+        panel.add(row, gbc);
+        gbc.gridy++;
+        return v;
     }
 
     private void addPriceRow(JPanel panel, GridBagConstraints gbc, String label, int price) {
@@ -208,6 +303,18 @@ public class ItemCardPanel extends JPanel {
 
         panel.add(row, gbc);
         gbc.gridy++;
+    }
+
+    private String formatAge(int timestamp) {
+        if (timestamp <= 0)
+            return "N/A";
+        long diff = (System.currentTimeMillis() / 1000) - timestamp;
+        if (diff < 0)
+            diff = 0;
+        long hours = diff / 3600;
+        long minutes = (diff % 3600) / 60;
+        long seconds = diff % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 
     private void toggleExpand() {
