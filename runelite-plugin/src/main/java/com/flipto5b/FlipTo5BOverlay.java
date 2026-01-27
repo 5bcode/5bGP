@@ -10,6 +10,9 @@ import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.input.MouseListener;
+import java.awt.event.MouseEvent;
+import java.awt.Point;
 
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -19,8 +22,11 @@ import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.QuantityFormatter;
+import net.runelite.client.ui.overlay.components.PanelComponent;
+import net.runelite.client.ui.overlay.components.TitleComponent;
+import net.runelite.client.ui.overlay.components.LineComponent;
 
-public class FlipTo5BOverlay extends OverlayPanel {
+public class FlipTo5BOverlay extends OverlayPanel implements MouseListener {
 	private final Client client;
 	private final FlipTo5BPlugin plugin;
 	private final TooltipManager tooltipManager;
@@ -30,6 +36,14 @@ public class FlipTo5BOverlay extends OverlayPanel {
 	private static final Color COLOR_WITHIN = new Color(59, 130, 246);
 	private static final Color COLOR_WORSE = new Color(244, 63, 94);
 	private int lastSidebarItemId = -1;
+
+	// Bounds for click detection
+	private Rectangle highBounds;
+	private Rectangle lowBounds;
+	private Integer currentHighPrice;
+	private Integer currentLowPrice;
+
+	private final PanelComponent targetPricePanel = new PanelComponent();
 
 	@Inject
 	public FlipTo5BOverlay(Client client, FlipTo5BPlugin plugin, TooltipManager tooltipManager) {
@@ -45,6 +59,12 @@ public class FlipTo5BOverlay extends OverlayPanel {
 
 	@Override
 	public Dimension render(Graphics2D graphics) {
+		// Clear click bounds at start of frame to prevent stale clicks
+		highBounds = null;
+		lowBounds = null;
+		currentHighPrice = null;
+		currentLowPrice = null;
+
 		panelComponent.getChildren().clear();
 
 		Widget geWindow = client.getWidget(465, 0);
@@ -82,6 +102,34 @@ public class FlipTo5BOverlay extends OverlayPanel {
 		detectAndShowItem(graphics);
 
 		return super.render(graphics);
+	}
+
+	@Override
+	public MouseEvent mousePressed(MouseEvent e) {
+		// Do NOT check widgets here on EDT. Rely on bounds checks.
+		Point p = e.getPoint();
+		if (highBounds != null && highBounds.contains(p) && currentHighPrice != null) {
+			setPrice(currentHighPrice);
+			e.consume();
+			return e;
+		}
+		if (lowBounds != null && lowBounds.contains(p) && currentLowPrice != null) {
+			setPrice(currentLowPrice);
+			e.consume();
+			return e;
+		}
+		return e;
+	}
+
+	private void setPrice(int price) {
+		// Move ALL widget interactions to Client Thread
+		plugin.getClientThread().invokeLater(() -> {
+			Widget priceInput = client.getWidget(465, 33);
+			if (priceInput != null && !priceInput.isHidden()) {
+				// Try setting text on the container or finding a child that accepts it
+				priceInput.setText(String.valueOf(price));
+			}
+		});
 	}
 
 	/**
@@ -126,28 +174,23 @@ public class FlipTo5BOverlay extends OverlayPanel {
 
 		// Check if we're on the MAIN OVERVIEW (not viewing a specific item
 		// setup/status)
-		// The main overview shows the 8 slot selection, while setup/status shows a
-		// single item
-		// Check for widgets that only appear during setup (like quantity input, confirm
-		// button)
 		boolean isOnSetupScreen = false;
 
 		// Check for quantity input widget (appears in setup screen)
-		Widget quantityWidget = client.getWidget(465, 32); // Quantity input
+		Widget quantityWidget = client.getWidget(465, 28); // Quantity input
 		if (quantityWidget != null && !quantityWidget.isHidden()) {
 			isOnSetupScreen = true;
 		}
 
 		// Check for price input widget (appears in setup screen)
-		Widget priceWidget = client.getWidget(465, 52); // Price per item
+		Widget priceWidget = client.getWidget(465, 33); // Price per item
 		if (priceWidget != null && !priceWidget.isHidden()) {
 			isOnSetupScreen = true;
 		}
 
 		// Check for confirm button (appears in setup screen)
-		Widget confirmWidget = client.getWidget(465, 27);
+		Widget confirmWidget = client.getWidget(465, 30);
 		if (confirmWidget != null && !confirmWidget.isHidden()) {
-			// Check if it has text like "Confirm" to be sure
 			isOnSetupScreen = true;
 		}
 
@@ -283,20 +326,90 @@ public class FlipTo5BOverlay extends OverlayPanel {
 			return;
 		}
 
-		Widget priceInput = client.getWidget(465, 52);
+		Widget priceInput = client.getWidget(465, 33);
 		if (priceInput == null || priceInput.isHidden()) {
 			return;
 		}
 
-		Rectangle bounds = priceInput.getBounds();
-		int x = bounds.x + bounds.width + 10;
-		int y = bounds.y + 15;
+		targetPricePanel.getChildren().clear();
+		targetPricePanel.setPreferredSize(new Dimension(200, 0));
 
-		graphics.setFont(client.getCanvas().getFont());
-		graphics.setColor(COLOR_BETTER);
-		graphics.drawString("Target High: " + QuantityFormatter.formatNumber(priceData.high), x, y);
-		graphics.setColor(COLOR_WITHIN);
-		graphics.drawString("Target Low:  " + QuantityFormatter.formatNumber(priceData.low), x, y + 15);
+		Rectangle bounds = priceInput.getBounds();
+		// Position BELOW the price input
+		targetPricePanel.setPreferredLocation(new Point(bounds.x, bounds.y + bounds.height + 10));
+
+		targetPricePanel.getChildren().add(TitleComponent.builder()
+				.text("FlipTo5B Targets")
+				.color(Color.YELLOW)
+				.build());
+
+		targetPricePanel.getChildren().add(LineComponent.builder()
+				.left("Target Buy:")
+				.right(QuantityFormatter.formatNumber(priceData.high) + " gp")
+				.rightColor(COLOR_BETTER)
+				.build());
+
+		targetPricePanel.getChildren().add(LineComponent.builder()
+				.left("Target Sell:")
+				.right(QuantityFormatter.formatNumber(priceData.low) + " gp")
+				.rightColor(COLOR_WITHIN)
+				.build());
+
+		targetPricePanel.render(graphics);
+
+		// Update click bounds (approximation based on panel location)
+		// We can't easily get exact bounds of children components without more logic,
+		// so we'll just set them to the whole area for now or refine if strict clicking
+		// needed.
+		// For now, disabling the explicit click-to-fill features from the overlay logic
+		// to rely on standard Panel interactions if desired, OR we recover them:
+
+		// Let's re-enable basic click zones for "Buy" and "Sell" rows
+		// assuming standard PanelComponent layout:
+		int panelX = bounds.x + bounds.width + 10;
+		int panelY = bounds.y;
+		// Title (approx 16px) + Padding
+		int rowHeight = 16;
+		int yOffset = panelY + 20; // Skip title
+
+		// High click bound
+		highBounds = new Rectangle(panelX, yOffset, 200, rowHeight);
+		currentHighPrice = priceData.high;
+
+		// Low click bound
+		yOffset += rowHeight;
+		lowBounds = new Rectangle(panelX, yOffset, 200, rowHeight);
+		currentLowPrice = priceData.low;
+	}
+
+	@Override
+	public MouseEvent mouseClicked(MouseEvent e) {
+		return e;
+	}
+
+	@Override
+	public MouseEvent mouseReleased(MouseEvent e) {
+		return e;
+	}
+
+	@Override
+	public MouseEvent mouseEntered(MouseEvent e) {
+		return e;
+	}
+
+	@Override
+	public MouseEvent mouseExited(MouseEvent e) {
+		return e;
+	}
+
+	@Override
+	public MouseEvent mouseDragged(MouseEvent e) {
+		return e;
+	}
+
+	@Override
+	public MouseEvent mouseMoved(MouseEvent e) {
+		return e;
 	}
 
 	private Widget getOfferWidget(int slot) {

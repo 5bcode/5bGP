@@ -25,7 +25,7 @@ public class SignalPanel extends JPanel {
     public SignalPanel(MarketSignal signal, AsyncBufferedImage icon) {
         setLayout(new BorderLayout());
         setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        setBorder(new EmptyBorder(5, 5, 5, 5));
+        setBorder(new EmptyBorder(3, 3, 3, 3));
 
         // Top Row: Icon + Name + Score
         JPanel topRow = new JPanel(new BorderLayout(5, 0));
@@ -57,10 +57,10 @@ public class SignalPanel extends JPanel {
         midRow.setOpaque(false);
         midRow.setBorder(new EmptyBorder(3, 0, 3, 0));
 
-        String prices = QuantityFormatter.formatNumber(signal.getWikiLow()) + " -> " +
-                QuantityFormatter.formatNumber(signal.getWikiHigh());
+        String prices = "Buy: " + QuantityFormatter.formatNumber(signal.getTargetBuyPrice()) +
+                " | Sell: " + QuantityFormatter.formatNumber(signal.getTargetSellPrice());
         pricesLabel.setText(prices);
-        pricesLabel.setForeground(Color.GRAY);
+        pricesLabel.setForeground(Color.LIGHT_GRAY);
         pricesLabel.setFont(FontManager.getRunescapeSmallFont());
 
         String profit = QuantityFormatter.formatNumber((long) signal.getMarginAfterTax()) + " gp";

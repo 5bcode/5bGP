@@ -45,6 +45,22 @@ public class MarketSignal {
     private final int buyLimit;
 
     // =========================================================================
+    // PRICING RECOMMENDATIONS
+    // =========================================================================
+
+    /** Recommended target buy price (undercutting support) */
+    private final int targetBuyPrice;
+
+    /** Recommended target sell price (undercutting resistance) */
+    private final int targetSellPrice;
+
+    /** Potential profit for the recommended quantity/price */
+    private final int potentialProfit;
+
+    /** Recommended stop loss price level */
+    private final int stopLoss;
+
+    // =========================================================================
     // CALCULATED METRICS
     // =========================================================================
 

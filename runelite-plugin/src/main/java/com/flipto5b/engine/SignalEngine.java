@@ -426,7 +426,7 @@ public class SignalEngine {
     // SIGNAL CALCULATION
     // =========================================================================
 
-    private MarketSignal calculateSignal(
+    public MarketSignal calculateSignal(
             int itemId,
             WikiPrice price,
             VolumeData volume,
@@ -703,10 +703,10 @@ public class SignalEngine {
     // HELPER CLASSES
     // =========================================================================
 
-    private static class VolumeData {
-        int highVolume;
-        int lowVolume;
-        int totalVolume;
-        int avgVolume;
+    public static class VolumeData {
+        public int highVolume;
+        public int lowVolume;
+        public int totalVolume;
+        public int avgVolume;
     }
 }

@@ -1,18 +1,19 @@
 package com.flipto5b;
 
+import com.flipto5b.controller.TradeController;
 import com.flipto5b.ui.FlipTo5BPanel;
 import com.flipto5b.engine.SignalEngine;
-// import com.flipto5b.engine.PricingEngine; // Unused
+import com.flipto5b.engine.PricingEngine;
 
 import com.flipto5b.model.MarketSignal;
+import com.flipto5b.model.GELimitTracker;
 import com.flipto5b.sync.SyncManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
-import java.awt.Color;
-import java.io.File;
+
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GrandExchangeOfferChanged;
+import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
@@ -35,6 +37,7 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
+import net.runelite.client.input.MouseManager;
 import net.runelite.client.callback.ClientThread;
 import okhttp3.*;
 
@@ -67,17 +70,27 @@ public class FlipTo5BPlugin extends Plugin {
 	private ClientToolbar clientToolbar;
 
 	@Inject
+	private ConfigManager configManager;
+
+	@Inject
 	private TooltipManager tooltipManager;
+
+	@Inject
+	private MouseManager mouseManager;
 
 	@Inject
 	private ClientThread clientThread;
 
 	private FlipTo5BPanel panel;
 	private NavigationButton navButton;
+	private int sidebarItemId = -1;
+
+	// Controller
+	private TradeController tradeController;
 
 	// --- ENGINES ---
 	private SignalEngine signalEngine;
-	// private PricingEngine pricingEngine; // Unused
+	private PricingEngine pricingEngine;
 
 	private SyncManager syncManager;
 
@@ -100,6 +113,9 @@ public class FlipTo5BPlugin extends Plugin {
 	// Cache prices: ItemID -> PriceData
 	private Map<Integer, WikiPrice> priceCache = new HashMap<>();
 
+	// GE Limit Trackers: ItemID -> Tracker
+	private Map<Integer, GELimitTracker> limitTrackers = new HashMap<>();
+
 	// Cached Quick Picks and Cancellation Advice (updated by background thread)
 	private volatile List<MarketSignal> cachedQuickPicks = java.util.Collections.emptyList();
 	private volatile String cachedCancellationAdvice = null;
@@ -110,10 +126,8 @@ public class FlipTo5BPlugin extends Plugin {
 		log.info("!!! FLIPTO5B SYNC INITIALIZED !!!");
 
 		// Initialize Engines
-		// Initialize Engines
-		// Initialize Engines
 		signalEngine = new SignalEngine(okHttpClient, gson, itemManager);
-		// pricingEngine = new PricingEngine();
+		pricingEngine = new PricingEngine();
 
 		// Supabase Config
 		this.supabaseUrl = "https://kyyxqrocfrifjhcenwpe.supabase.co";
@@ -122,8 +136,12 @@ public class FlipTo5BPlugin extends Plugin {
 
 		syncManager = new SyncManager(okHttpClient, gson, supabaseUrl, supabaseKey, userId);
 
+		// Initialize Controller
+		tradeController = new TradeController(client, config, itemManager, syncManager, gson, this);
+
 		overlay = new FlipTo5BOverlay(client, this, tooltipManager);
 		overlayManager.add(overlay);
+		mouseManager.registerMouseListener(overlay);
 		log.info("FlipTo5B Overlay MANUALLY instances and added.");
 
 		// Sidebar Panel
@@ -137,6 +155,9 @@ public class FlipTo5BPlugin extends Plugin {
 				.panel(panel)
 				.build();
 		clientToolbar.addNavigation(navButton);
+
+		// Load Limit Trackers
+		loadLimitTrackers();
 
 		// Fetch prices immediately and then every minute
 		executor.scheduleAtFixedRate(this::fetchPrices, 0, 1, TimeUnit.MINUTES);
@@ -158,94 +179,94 @@ public class FlipTo5BPlugin extends Plugin {
 		}, 0, 2, TimeUnit.SECONDS); // Check every 2 seconds
 	}
 
-	/**
-	 * Updates the Quick Picks cache using the already-cached price data.
-	 * Uses getBestFlips() which doesn't make network calls.
-	 */
 	private void updateQuickPicksCache() {
-		clientThread.invokeLater(() -> {
-			log.info("updateQuickPicksCache: Starting...");
+		// Run on background thread (executor) - NO clientThread here for network calls!
+		if (client.getGameState() != GameState.LOGGED_IN)
+			return;
+		if (priceCache.isEmpty())
+			return;
 
-			if (client.getGameState() != GameState.LOGGED_IN) {
-				log.info("updateQuickPicksCache: Not logged in");
-				return;
+		try {
+			// Use SignalEngine to find raw candidates (Network Call)
+			SignalEngine.SignalConfig scanConfig = SignalEngine.SignalConfig.builder()
+					.timeHorizonMinutes(30)
+					.riskTolerance(SignalEngine.SignalConfig.RiskTolerance.MEDIUM)
+					.minScore(40.0)
+					.maxResults(10)
+					.build();
+			java.util.List<MarketSignal> rawSignals = signalEngine.scan(scanConfig);
+
+			java.util.List<MarketSignal> picks = new java.util.ArrayList<>();
+			long dummyInventory = 10_000_000; // Assume 10M cash for calculation if unknown
+
+			for (MarketSignal raw : rawSignals) {
+				// Enrich with PricingEngine
+				PricingEngine.PriceRecommendation rec = pricingEngine.calculate(
+						raw,
+						dummyInventory,
+						1, // Medium risk
+						raw.getWikiLow(), // Support (simplified)
+						raw.getWikiHigh() // Resistance (simplified)
+				);
+
+				MarketSignal enriched = MarketSignal.builder()
+						.itemId(raw.getItemId())
+						.itemName(raw.getItemName())
+						.wikiLow(raw.getWikiLow())
+						.wikiHigh(raw.getWikiHigh())
+						// Copy technicals
+						.volume24h(raw.getVolume24h())
+						.buyLimit(raw.getBuyLimit())
+						.spreadPercent(raw.getSpreadPercent())
+						.rsi(raw.getRsi())
+						.momentum(raw.getMomentum())
+						.baselineDeviation(raw.getBaselineDeviation())
+						.avgRecoveryTime(raw.getAvgRecoveryTime())
+						// Metrics
+						.opportunityScore(raw.getOpportunityScore())
+						.confidence(raw.getConfidence())
+						.isAnomaly(raw.isAnomaly())
+						.isSafeForTimeframe(raw.isSafeForTimeframe())
+						// Pricing enrichments
+						.roiPercent(rec.getEffectiveRoi())
+						.marginAfterTax(rec.getNetProfit())
+						.action(raw.getAction())
+						.timestamp(System.currentTimeMillis())
+						.targetBuyPrice(rec.getBuyAt())
+						.targetSellPrice(rec.getSellAt())
+						.potentialProfit(rec.getNetProfit())
+						.stopLoss(rec.getStopLoss())
+						.build();
+				picks.add(enriched);
 			}
 
-			if (priceCache.isEmpty()) {
-				log.info("updateQuickPicksCache: Price cache is empty, waiting for data...");
-				return;
-			}
-
-			try {
-				// Use getBestFlips which uses cached price data - no network calls!
-				log.info("updateQuickPicksCache: Using cached price data ({} items)", priceCache.size());
-				java.util.List<FlipOpportunity> flips = getBestFlips();
-				log.info("updateQuickPicksCache: Found {} flip opportunities", flips.size());
-
-				// Convert FlipOpportunity to MarketSignal for UI compatibility
-				java.util.List<MarketSignal> picks = new java.util.ArrayList<>();
-				for (FlipOpportunity flip : flips) {
-					MarketSignal signal = MarketSignal.builder()
-							.itemId(flip.itemId)
-							.itemName(flip.name)
-							.wikiLow(flip.buyPrice)
-							.wikiHigh(flip.sellPrice)
-							.opportunityScore(flip.roi * 10) // Scale ROI to score
-							.roiPercent(flip.roi)
-							.marginAfterTax(flip.profit)
-							.action(MarketSignal.SignalAction.BUY)
-							.timestamp(System.currentTimeMillis())
-							.build();
-					picks.add(signal);
+			cachedQuickPicks = picks;
+			SwingUtilities.invokeLater(() -> {
+				if (panel != null) {
+					panel.updateQuickPicks(picks);
 				}
-
-				cachedQuickPicks = picks;
-				log.info("updateQuickPicksCache: Updated with {} picks", picks.size());
-
-				// Update panel on Swing thread
-				SwingUtilities.invokeLater(() -> {
-					if (panel != null) {
-						panel.updateQuickPicks(picks);
-					}
-				});
-
-			} catch (Exception e) {
-				log.error("Error updating Quick Picks cache", e);
-			}
-		});
+			});
+		} catch (Exception e) {
+			log.error("Error updating Quick Picks cache", e);
+		}
 	}
 
 	private void runSignalScan() {
 		if (client.getGameState() != GameState.LOGGED_IN)
 			return;
-
 		try {
-			// Config-driven settings
 			SignalEngine.SignalConfig scanConfig = SignalEngine.SignalConfig.builder()
-					.timeHorizonMinutes(30) // Default 30 min
+					.timeHorizonMinutes(30)
 					.riskTolerance(SignalEngine.SignalConfig.RiskTolerance.MEDIUM)
 					.minScore(40.0)
 					.maxResults(10)
 					.build();
-
-			log.debug("Running Signal Scan...");
-			List<MarketSignal> signals = signalEngine.scan(scanConfig);
-			log.debug("Signal Scan complete: {} signals found", signals.size());
-
-			// Update panel
-			if (!signals.isEmpty()) {
-				// We still let signal engine run for "Market Opportunities",
-				// but Quick Picks are main focus now.
-			}
-
+			signalEngine.scan(scanConfig);
 		} catch (Exception e) {
 			log.error("Signal Scan Error", e);
 		}
 	}
 
-	/**
-	 * Fetches a personalized suggestion from the backend Supabase Edge Function.
-	 */
 	@SuppressWarnings("deprecation")
 	private void fetchSuggestion() {
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -296,14 +317,12 @@ public class FlipTo5BPlugin extends Plugin {
 					.post(RequestBody.create(JSON, gson.toJson(payload)))
 					.build();
 
+			// Executing sync on background thread (scheduled executor)
 			try (Response response = okHttpClient.newCall(request).execute()) {
 				ResponseBody body = response.body();
 				if (response.isSuccessful() && body != null) {
 					String respStr = body.string();
-					// Log debug if needed: log.debug("Suggestion response: {}", respStr);
-
 					Suggestion suggestion = gson.fromJson(respStr, Suggestion.class);
-					// cachedSuggestion = suggestion; // Unused
 					log.info("Received backend suggestion: {} - {}", suggestion.type, suggestion.message);
 
 					// Update UI
@@ -325,8 +344,13 @@ public class FlipTo5BPlugin extends Plugin {
 
 	@Override
 	protected void shutDown() throws Exception {
-		overlayManager.remove(overlay);
-		clientToolbar.removeNavigation(navButton);
+		if (overlay != null) {
+			overlayManager.remove(overlay);
+			mouseManager.unregisterMouseListener(overlay);
+		}
+		if (navButton != null) {
+			clientToolbar.removeNavigation(navButton);
+		}
 		priceCache.clear();
 	}
 
@@ -334,62 +358,33 @@ public class FlipTo5BPlugin extends Plugin {
 		return priceCache.get(itemId);
 	}
 
-	/**
-	 * Returns cancellation advice string for the overlay, or null if no advice.
-	 * Returns cached value to avoid blocking network calls on client thread.
-	 */
 	public String getCancellationAdvice() {
 		return cachedCancellationAdvice;
 	}
 
-	/**
-	 * Returns the cached Quick Picks for the UI panel.
-	 * Returns cached value to avoid blocking network calls on render thread.
-	 */
 	public List<MarketSignal> getQuickPicks() {
 		return cachedQuickPicks;
 	}
 
-	/**
-	 * Scan price cache for best flip opportunities
-	 * Returns top 5 items sorted by ROI
-	 */
 	public java.util.List<FlipOpportunity> getBestFlips() {
 		java.util.List<FlipOpportunity> opportunities = new java.util.ArrayList<>();
-
 		for (java.util.Map.Entry<Integer, WikiPrice> entry : priceCache.entrySet()) {
 			int itemId = entry.getKey();
 			WikiPrice price = entry.getValue();
-
 			if (price.high <= 0 || price.low <= 0)
 				continue;
-
 			int margin = price.high - price.low;
-			int tax = (int) Math.floor(price.high * 0.01); // 1% tax (OSRS Standard)
+			int tax = (int) Math.floor(price.high * 0.01);
 			if (tax > 5000000)
 				tax = 5000000;
 			int profit = margin - tax;
 			double roi = price.low > 0 ? ((double) profit / price.low) * 100 : 0;
-
-			// Debug top profitable items
-			if (profit > 1000000) {
-				// log.debug("High profit item: {} - Profit: {}", itemId, profit);
-			}
-
-			// Only include items with positive profit and reasonable ROI
-			// Relaxed: profit > 0 (tax corrected), roi >= 1.0
 			if (profit > 0 && roi >= 1.0 && roi < 200) {
 				String name = itemManager.getItemComposition(itemId).getName();
 				opportunities.add(new FlipOpportunity(itemId, name, price.low, price.high, profit, roi));
 			}
 		}
-
-		log.debug("getBestFlips: Found {} candidates before sorting", opportunities.size());
-
-		// Sort by ROI descending
 		opportunities.sort((a, b) -> Double.compare(b.roi, a.roi));
-
-		// Return top 10
 		return opportunities.subList(0, Math.min(10, opportunities.size()));
 	}
 
@@ -411,37 +406,18 @@ public class FlipTo5BPlugin extends Plugin {
 		}
 	}
 
-	/**
-	 * Suggestion from backend - matches Supabase Edge Function response.
-	 */
 	public static class Suggestion {
-		public String type; // "buy", "sell", "wait"
+		public String type;
 		public String message;
 		public int item_id;
 		public String name;
 		public int price;
 		public int quantity;
 		public double score;
-
-		public boolean isBuy() {
-			return "buy".equals(type);
-		}
-
-		public boolean isSell() {
-			return "sell".equals(type);
-		}
-
-		public boolean isWait() {
-			return "wait".equals(type);
-		}
 	}
 
 	private void fetchPrices() {
-		Request request = new Request.Builder()
-				.url(WIKI_API_URL)
-				.header("User-Agent", USER_AGENT)
-				.build();
-
+		Request request = new Request.Builder().url(WIKI_API_URL).header("User-Agent", USER_AGENT).build();
 		okHttpClient.newCall(request).enqueue(new Callback() {
 			@Override
 			public void onFailure(Call call, IOException e) {
@@ -454,7 +430,6 @@ public class FlipTo5BPlugin extends Plugin {
 					response.close();
 					return;
 				}
-
 				try {
 					ResponseBody body = response.body();
 					if (body == null)
@@ -462,20 +437,19 @@ public class FlipTo5BPlugin extends Plugin {
 					String responseBody = body.string();
 					JsonObject json = gson.fromJson(responseBody, JsonObject.class);
 					JsonObject data = json.getAsJsonObject("data");
-
 					Type type = new TypeToken<Map<Integer, WikiPrice>>() {
 					}.getType();
 					Map<Integer, WikiPrice> parsed = gson.fromJson(data, type);
-
 					if (parsed != null) {
 						priceCache = parsed;
-						log.info("Price cache updated with {} items", priceCache.size());
-						// Update best flips on the panel
+						log.info("DEBUG: Prices fetched successfully. Total items: " + priceCache.size());
+						// Debug specific item (Gold Bar: 2357, but image shows 2357? no wait,
+						// screenshot says Gold bar)
+						// If user clicked note, might be different.
 						clientThread.invokeLater(() -> {
 							java.util.List<FlipOpportunity> bestFlips = getBestFlips();
 							panel.updateBestFlips(bestFlips);
 						});
-						// Also update Quick Picks now that we have price data
 						updateQuickPicksCache();
 					}
 				} catch (Exception e) {
@@ -496,20 +470,16 @@ public class FlipTo5BPlugin extends Plugin {
 
 	@Subscribe
 	public void onWidgetLoaded(net.runelite.api.events.WidgetLoaded event) {
-		if (event.getGroupId() == 465) { // Grand Exchange group ID
-			log.info("Grand Exchange Interface Loaded - Forcing Panel Update");
+		if (event.getGroupId() == 465) {
 			clientThread.invoke(this::updatePanel);
 		}
 	}
 
 	@Subscribe
 	public void onMenuOptionClicked(net.runelite.api.events.MenuOptionClicked event) {
-		// Detect clicks on GE offer slots
 		int widgetId = event.getParam1();
 		int groupId = widgetId >> 16;
-
-		if (groupId == 465) { // Grand Exchange widget group
-			// Check if clicking on an offer slot (widgets 7-14 are the 8 slots)
+		if (groupId == 465) {
 			int childId = widgetId & 0xFFFF;
 			if (childId >= 7 && childId <= 14) {
 				int slotIndex = childId - 7;
@@ -517,252 +487,48 @@ public class FlipTo5BPlugin extends Plugin {
 				if (offers != null && slotIndex < offers.length) {
 					GrandExchangeOffer offer = offers[slotIndex];
 					if (offer != null && offer.getItemId() > 0) {
-						log.info("GE Slot {} clicked - Item ID: {}", slotIndex, offer.getItemId());
 						setSidebarItem(offer.getItemId());
 					}
 				}
+			}
+		}
+		if (event.getMenuOption().equals("Offer")) {
+			int itemId = event.getItemId();
+			if (itemId > -1 && itemId != 65535) {
+				ItemComposition comp = itemManager.getItemComposition(itemId);
+				if (comp.getNote() != -1) {
+					itemId = comp.getLinkedNoteId();
+				}
+				setSidebarItem(itemId);
+			}
+		}
+	}
+
+	@Subscribe
+	public void onVarClientIntChanged(VarClientIntChanged event) {
+		if (event.getIndex() == 1151) {
+			int itemId = client.getVarcIntValue(1151);
+			if (itemId > 0 && itemId != sidebarItemId) {
+				// Check for null name
+				String name = itemManager.getItemComposition(itemId).getName();
+				if (name != null)
+					setSidebarItem(itemId);
 			}
 		}
 	}
 
 	@Subscribe
 	public void onGrandExchangeOfferChanged(GrandExchangeOfferChanged event) {
-		GrandExchangeOffer offer = event.getOffer();
-		int slot = event.getSlot();
-
-		if (offer.getState() == GrandExchangeOfferState.BOUGHT || offer.getState() == GrandExchangeOfferState.SOLD) {
-			String name = itemManager.getItemComposition(offer.getItemId()).getName();
-			int qty = offer.getQuantitySold();
-			int price = offer.getSpent() / (qty > 0 ? qty : 1);
-			panel.addHistoryEntry(name, qty, price, offer.getState() == GrandExchangeOfferState.BOUGHT);
-		}
-
+		tradeController.onGrandExchangeOfferChanged(event.getOffer(), event.getSlot());
 		updatePanel();
-
-		if (config.apiKey().isEmpty())
-			return;
-
-		// 1. Handle Active Offers (Updates Dashboard slots)
-		GrandExchangeOfferState state = offer.getState();
-
-		Payload payload = new Payload();
-		payload.apiKey = config.apiKey();
-
-		// CASE A: Slot is Empty or Cancelled -> Clear it from Dashboard
-		if (state == GrandExchangeOfferState.EMPTY || state == GrandExchangeOfferState.CANCELLED_BUY
-				|| state == GrandExchangeOfferState.CANCELLED_SELL) {
-			payload.type = "update_slot";
-			payload.data = new OfferData();
-			payload.data.slot = slot;
-			payload.data.state = "EMPTY";
-			sendData(payload);
-		}
-		// CASE B: Slot has an item (Buying, Selling, Bought, or Sold) -> Show on
-		// Dashboard
-		else if (state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.SELLING
-				|| state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
-
-			payload.type = "update_slot";
-			payload.data = new OfferData();
-			payload.data.slot = slot;
-			payload.data.state = "ACTIVE";
-			payload.data.itemId = offer.getItemId();
-			payload.data.itemName = itemManager.getItemComposition(offer.getItemId()).getName();
-
-			// Determine Offer Type
-			if (state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.BOUGHT) {
-				payload.data.offerType = "buy";
-			} else {
-				payload.data.offerType = "sell";
-			}
-
-			payload.data.price = offer.getPrice();
-
-			// Determine Quantity to Display
-			if (state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
-				payload.data.quantity = offer.getQuantitySold();
-			} else {
-				payload.data.quantity = offer.getTotalQuantity() - offer.getQuantitySold();
-			}
-
-			sendData(payload);
-		}
-
-		// 2. Handle Completed Trades (Log to History)
-		if (state == GrandExchangeOfferState.BOUGHT || state == GrandExchangeOfferState.SOLD) {
-			Payload logPayload = new Payload();
-			logPayload.apiKey = config.apiKey();
-			logPayload.type = "log_trade";
-			logPayload.data = new OfferData();
-			logPayload.data.itemId = offer.getItemId();
-			logPayload.data.itemName = itemManager.getItemComposition(offer.getItemId()).getName();
-			logPayload.data.quantity = offer.getQuantitySold();
-			logPayload.data.profit = 0; // Placeholder
-			logPayload.data.timestamp = System.currentTimeMillis(); // Add timestamp
-
-			if (state == GrandExchangeOfferState.BOUGHT) {
-				int qty = offer.getQuantitySold() > 0 ? offer.getQuantitySold() : 1;
-				logPayload.data.buyPrice = offer.getSpent() / qty;
-				logPayload.data.sellPrice = 0;
-			} else {
-				int qty = offer.getQuantitySold() > 0 ? offer.getQuantitySold() : 1;
-				logPayload.data.buyPrice = 0;
-				logPayload.data.sellPrice = offer.getSpent() / qty;
-			}
-
-			sendData(logPayload);
-			saveTradeToFile(logPayload.data); // Save locally
-		}
-	}
-
-	private void saveTradeToFile(OfferData trade) {
-		File dir = new File(net.runelite.client.RuneLite.RUNELITE_DIR, "flipto5b");
-		if (!dir.exists()) {
-			dir.mkdirs();
-		}
-		File file = new File(dir, "trades.json");
-
-		try {
-			java.util.List<OfferData> trades;
-			if (file.exists()) {
-				// Read existing
-				java.io.FileReader reader = new java.io.FileReader(file);
-				Type listType = new TypeToken<java.util.ArrayList<OfferData>>() {
-				}.getType();
-				trades = gson.fromJson(reader, listType);
-				reader.close();
-				if (trades == null)
-					trades = new java.util.ArrayList<>();
-			} else {
-				trades = new java.util.ArrayList<>();
-			}
-
-			// Append new
-			trades.add(trade);
-
-			// Write back
-			java.io.FileWriter writer = new java.io.FileWriter(file);
-			gson.toJson(trades, writer);
-			writer.flush();
-			writer.close();
-			log.debug("Saved trade to " + file.getAbsolutePath());
-		} catch (IOException e) {
-			log.error("Failed to save trade locally", e);
-		}
 	}
 
 	private void updatePanel() {
-		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
-		if (offers == null) {
-			log.debug("FlipTo5B Panel Update: OFFERS ARRAY IS NULL");
+		if (client.getGameState() != GameState.LOGGED_IN)
 			return;
+		if (panel != null && tradeController != null) {
+			panel.updateOffers(tradeController.getActiveOffers());
 		}
-
-		log.debug("FlipTo5B Panel Update: Found " + offers.length + " offers.");
-
-		java.util.List<FlipTo5BPanel.PanelOffer> panelOffers = new java.util.ArrayList<>();
-
-		for (GrandExchangeOffer o : offers) {
-			if (o == null)
-				continue; // Skip null offers
-			log.debug(" - Slot State: " + o.getState());
-			if (o.getState() == GrandExchangeOfferState.BUYING || o.getState() == GrandExchangeOfferState.SELLING) {
-				String name = itemManager.getItemComposition(o.getItemId()).getName();
-				int qty = o.getTotalQuantity() - o.getQuantitySold();
-				int price = o.getPrice();
-				String status = o.getState() == GrandExchangeOfferState.BUYING ? "Buying" : "Selling";
-				Color color = o.getState() == GrandExchangeOfferState.BUYING ? Color.ORANGE : Color.YELLOW;
-
-				// Load image
-				net.runelite.client.util.AsyncBufferedImage icon = itemManager.getImage(o.getItemId());
-
-				// Enhance with check against wiki price if available
-				WikiPrice wp = getWikiPrice(o.getItemId());
-				if (wp != null) {
-					if (o.getState() == GrandExchangeOfferState.BUYING) {
-						if (price >= wp.high) {
-							status = "Insta Buy";
-							color = Color.GREEN;
-						} else if (price >= wp.low) {
-							status = "Compet.";
-							color = Color.BLUE;
-						}
-					} else {
-						if (price <= wp.low) {
-							status = "Insta Sell";
-							color = Color.GREEN;
-						} else if (price <= wp.high) {
-							status = "Compet.";
-							color = Color.BLUE;
-						}
-					}
-				}
-
-				panelOffers.add(new FlipTo5BPanel.PanelOffer(name, o.getItemId(), qty, price, status, color, icon));
-			}
-		}
-
-		panel.updateOffers(panelOffers);
-
-		// Trigger Cloud Sync
-		if (syncManager != null) {
-			java.util.List<OfferData> syncOffers = new java.util.ArrayList<>();
-
-			// We need to sync ALL slots, even empty ones to clear them on DB if needed
-			// But for now, let's just sync ACTIVE offers to update the panel
-			for (int i = 0; i < offers.length; i++) {
-				GrandExchangeOffer o = offers[i];
-				OfferData offer = new OfferData();
-				offer.slot = i;
-
-				if (o == null || o.getState() == GrandExchangeOfferState.EMPTY) {
-					offer.state = "EMPTY";
-					offer.itemId = 0;
-					offer.itemName = "Empty";
-					offer.price = 0;
-					offer.quantity = 0;
-					offer.quantityFilled = 0;
-					offer.offerType = "empty";
-				} else {
-					offer.state = o.getState().toString();
-					offer.itemId = o.getItemId();
-					offer.itemName = itemManager.getItemComposition(o.getItemId()).getName();
-					offer.price = o.getPrice();
-					offer.quantity = o.getTotalQuantity();
-					offer.quantityFilled = o.getQuantitySold();
-					offer.offerType = (o.getState() == GrandExchangeOfferState.BUYING
-							|| o.getState() == GrandExchangeOfferState.BOUGHT
-							|| o.getState() == GrandExchangeOfferState.CANCELLED_BUY) ? "buy" : "sell";
-
-					log.debug("Syncing Slot {}: {} x{} @ {} (State: {})", i, offer.itemName, offer.quantity,
-							offer.price, offer.state);
-				}
-
-				syncOffers.add(offer);
-			}
-
-			syncManager.synchronize(syncOffers);
-		}
-	}
-
-	private void sendData(Payload payload) {
-		String json = gson.toJson(payload);
-		Request request = new Request.Builder()
-				.url(config.endpoint())
-				.post(RequestBody.create(JSON, json))
-				.build();
-
-		okHttpClient.newCall(request).enqueue(new Callback() {
-			@Override
-			public void onFailure(Call call, IOException e) {
-				log.warn("Failed to sync with FlipTo5B", e);
-			}
-
-			@Override
-			public void onResponse(Call call, Response response) throws IOException {
-				response.close();
-			}
-		});
 	}
 
 	@Provides
@@ -770,20 +536,12 @@ public class FlipTo5BPlugin extends Plugin {
 		return configManager.getConfig(FlipTo5BConfig.class);
 	}
 
-	// Helper Classes for JSON serialization
-	@SuppressWarnings("unused")
-	private static class Payload {
-		String apiKey;
-		String type; // update_slot, log_trade
-		OfferData data;
-	}
-
 	public static class OfferData {
 		public int slot;
-		public String state; // EMPTY, ACTIVE
+		public String state;
 		public int itemId;
 		public String itemName;
-		public String offerType; // buy, sell
+		public String offerType;
 		public int price;
 		public int quantity;
 		public int buyPrice;
@@ -798,53 +556,117 @@ public class FlipTo5BPlugin extends Plugin {
 		public int highTime;
 		public int low;
 		public int lowTime;
-		public long highVolume; // Volume at high price
-		public long lowVolume; // Volume at low price
+		public long highVolume;
+		public long lowVolume;
 
-		// Calculated momentum: positive = rising, negative = falling
 		public int getMomentum() {
-			// Based on which transaction was more recent
 			return highTime > lowTime ? 1 : (lowTime > highTime ? -1 : 0);
 		}
 
 		public long getTotalVolume() {
 			return highVolume + lowVolume;
 		}
-
-		public String getVolumeLabel() {
-			long vol = getTotalVolume();
-			if (vol >= 1000000)
-				return String.format("%.1fM", vol / 1000000.0);
-			if (vol >= 1000)
-				return String.format("%.1fK", vol / 1000.0);
-			return String.valueOf(vol);
-		}
-
-		public String getHighTimeLabel() {
-			return getRelativeTime(highTime);
-		}
-
-		public String getLowTimeLabel() {
-			return getRelativeTime(lowTime);
-		}
-
-		private String getRelativeTime(int time) {
-			long now = System.currentTimeMillis() / 1000;
-			long diff = now - time;
-
-			if (diff < 60)
-				return diff + "s ago";
-			if (diff < 3600)
-				return (diff / 60) + "m ago";
-			if (diff < 86400)
-				return (diff / 3600) + "h ago";
-			return (diff / 86400) + "d ago";
-		}
+		// Simplified labels omitted but fields present
 	}
 
 	public void setSidebarItem(int itemId) {
+		if (itemId <= 0)
+			return;
+		this.sidebarItemId = itemId;
 		if (panel != null) {
 			panel.showItemDetails(itemId);
 		}
+	}
+
+	public GELimitTracker getLimitTracker(int itemId) {
+		return limitTrackers.get(itemId);
+	}
+
+	public int getSidebarItemId() {
+		return sidebarItemId;
+	}
+
+	public MarketSignal getMarketSignal(int itemId) {
+		WikiPrice price = getWikiPrice(itemId);
+		if (price == null || signalEngine == null)
+			return null;
+		com.flipto5b.engine.SignalEngine.VolumeData volData = new com.flipto5b.engine.SignalEngine.VolumeData();
+		volData.highVolume = (int) price.highVolume;
+		volData.lowVolume = (int) price.lowVolume;
+		volData.totalVolume = (int) price.getTotalVolume();
+		com.flipto5b.engine.SignalEngine.SignalConfig scanConfig = com.flipto5b.engine.SignalEngine.SignalConfig
+				.builder()
+				.timeHorizonMinutes(30)
+				.riskTolerance(com.flipto5b.engine.SignalEngine.SignalConfig.RiskTolerance.MEDIUM)
+				.build();
+		com.flipto5b.engine.SignalEngine.WeightProfile weights = signalEngine.calculateWeights(30);
+		return signalEngine.calculateSignal(itemId, price, volData, weights, scanConfig);
+	}
+
+	private void loadLimitTrackers() {
+		try {
+			String json = config.limitData();
+			if (json != null && !json.isEmpty() && !json.equals("{}")) {
+				Type type = new TypeToken<Map<Integer, GELimitTracker>>() {
+				}.getType();
+				Map<Integer, GELimitTracker> loaded = gson.fromJson(json, type);
+				if (loaded != null)
+					limitTrackers = loaded;
+			}
+		} catch (Exception e) {
+			log.error("Failed to load GE limit trackers", e);
+		}
+	}
+
+	private void saveLimitTrackers() {
+		try {
+			String json = gson.toJson(limitTrackers);
+			configManager.setConfiguration("flipto5b", "limitData", json);
+		} catch (Exception e) {
+			log.error("Failed to save GE limit trackers", e);
+		}
+	}
+
+	public void updateGELimit(int itemId, int qtyBought) {
+		GELimitTracker tracker = limitTrackers.computeIfAbsent(itemId, k -> new GELimitTracker());
+		tracker.recordPurchase(qtyBought);
+		saveLimitTrackers();
+	}
+
+	public boolean isFavorite(int itemId) {
+		String favs = config.favorites();
+		if (favs == null || favs.isEmpty())
+			return false;
+		String idStr = String.valueOf(itemId);
+		for (String s : favs.split(",")) {
+			if (s.equals(idStr))
+				return true;
+		}
+		return false;
+	}
+
+	public void toggleFavorite(int itemId) {
+		String favs = config.favorites();
+		String idStr = String.valueOf(itemId);
+		StringBuilder sb = new StringBuilder();
+		boolean removed = false;
+		if (favs != null && !favs.isEmpty()) {
+			String[] split = favs.split(",");
+			for (String s : split) {
+				if (s.equals(idStr)) {
+					removed = true;
+					continue;
+				}
+				if (sb.length() > 0)
+					sb.append(",");
+				sb.append(s);
+			}
+		}
+		if (!removed) {
+			if (sb.length() > 0)
+				sb.append(",");
+			sb.append(idStr);
+		}
+		configManager.setConfiguration("flipto5b", "favorites", sb.toString());
 	}
 }
