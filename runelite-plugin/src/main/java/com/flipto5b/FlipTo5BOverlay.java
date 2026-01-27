@@ -338,8 +338,11 @@ public class FlipTo5BOverlay extends OverlayPanel implements MouseListener {
 		// Position BELOW the price input
 		targetPricePanel.setPreferredLocation(new Point(bounds.x, bounds.y + bounds.height + 10));
 
+		long ageSecs = (System.currentTimeMillis() - priceData.timestamp) / 1000;
+		String ageText = ageSecs < 60 ? ageSecs + "s ago" : (ageSecs / 60) + "m ago";
+
 		targetPricePanel.getChildren().add(TitleComponent.builder()
-				.text("FlipTo5B Targets")
+				.text("FlipTo5B Targets (" + ageText + ")")
 				.color(Color.YELLOW)
 				.build());
 
